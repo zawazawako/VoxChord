@@ -12,9 +12,12 @@ struct PitchState
 {
     float inputRmsDb = -100.0f;
     float rawPitchHz = 0.0f;
+    float correctedPitchHz = 0.0f;
     float stablePitchHz = 0.0f;
+    float harmonyPitchHz = 0.0f;
     float confidence = 0.0f;
     bool voiced = false;
+    int harmonicCorrectionMode = 0;
 };
 
 class SimpleChoirEngine final
@@ -55,30 +58,44 @@ private:
     private:
         void analyseFrame() noexcept;
         float detectPitchYin() noexcept;
-        float chooseStableCandidate (float rawPitchHz) const noexcept;
+        float correctHarmonicPitch (float rawPitchHz) noexcept;
+        float applyMedianFilter (float correctedPitchHz) noexcept;
+        bool shouldAcceptCandidate (float candidatePitchHz) noexcept;
+        void updateStablePitch (float candidatePitchHz) noexcept;
+        void updateHarmonyPitch() noexcept;
         static float computeRmsDb (const std::array<float, 2048>& frame) noexcept;
         static float getParabolicOffset (float previous, float current, float next) noexcept;
+        static float centsBetween (float a, float b) noexcept;
+        static float smoothFrequencyLog (float previous, float target, float alpha) noexcept;
 
         static constexpr int frameLength = 2048;
         static constexpr int hopSize = 512;
         static constexpr float minFrequencyHz = 70.0f;
-        static constexpr float maxFrequencyHz = 1000.0f;
+        static constexpr float maxFrequencyHz = 600.0f;
         static constexpr float rmsGateDb = -45.0f;
         static constexpr float confidenceThreshold = 0.75f;
+        static constexpr float veryHighConfidenceThreshold = 0.9f;
         static constexpr float smoothingAlpha = 0.2f;
+        static constexpr float harmonySmoothingAlpha = 0.1f;
         static constexpr float holdTimeMs = 100.0f;
         static constexpr float yinThreshold = 1.0f - confidenceThreshold;
+        static constexpr float maxJumpCents = 350.0f;
+        static constexpr int medianWindowSize = 5;
 
         double sampleRateHz = 44100.0;
         int writeIndex = 0;
         int samplesUntilAnalysis = hopSize;
         int samplesSinceAccepted = 0;
+        int consecutiveJumpFrames = 0;
         int holdSamples = 4410;
         PitchState state;
         std::array<float, frameLength> ringBuffer {};
         std::array<float, frameLength> analysisFrame {};
         std::array<float, frameLength> difference {};
         std::array<float, frameLength> cmndf {};
+        std::array<float, medianWindowSize> medianLogBuffer {};
+        int medianWriteIndex = 0;
+        int medianCount = 0;
     };
 
     static int countActiveVoices (const MidiVoiceState::NoteSnapshot& activeNotes, int voiceLimit) noexcept;
@@ -99,9 +116,9 @@ private:
                                     float glideCoefficient,
                                     float delayOffsetSamples) noexcept;
 
-    static constexpr float fallbackReferenceFrequencyHz = 261.625565f;
     static constexpr float minPitchRatio = 0.25f;
     static constexpr float maxPitchRatio = 8.0f;
+    static constexpr float ratioSmoothingAlpha = 0.1f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;

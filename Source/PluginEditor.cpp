@@ -47,16 +47,34 @@ namespace
         return "Pitch: " + juce::String (pitchHz, 1) + " Hz";
     }
 
+    juce::String harmonicCorrectionToString (int mode)
+    {
+        switch (mode)
+        {
+            case 2:  return "raw/2";
+            case 3:  return "raw/3";
+            case -2: return "raw*2";
+            default: break;
+        }
+
+        return "none";
+    }
+
     juce::String formatDetailedPitchDebug (const voxchord::PitchState& state)
     {
         const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
+        const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
         const auto stableText = state.stablePitchHz > 0.0f ? juce::String (state.stablePitchHz, 1) + " Hz" : "--";
+        const auto harmonyText = state.harmonyPitchHz > 0.0f ? juce::String (state.harmonyPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-yin-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        return "Build: pitch-stability-002 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
+             + " | Corr: " + correctedText
              + " | Stable: " + stableText
+             + " | Harm: " + harmonyText
              + " | Conf: " + juce::String (state.confidence, 2)
-             + " | Voiced: " + juce::String (state.voiced ? "yes" : "no");
+             + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
+             + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode);
     }
 
     void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
@@ -310,7 +328,7 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
     const auto pitchState = processorRef.getPitchState();
-    const auto pitchText = formatPitchDebug (pitchState.stablePitchHz);
+    const auto pitchText = formatPitchDebug (pitchState.harmonyPitchHz);
 
     pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
     subtitleLabel.setText (formatDetailedPitchDebug (pitchState),

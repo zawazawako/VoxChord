@@ -410,3 +410,45 @@ VoxChord の各バージョンで確認した動作を記録する。
 - Confidence が低いときに `stablePitchHz` へ反映されにくいこと。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
+
+## 0.1.10 phase 3I pitch stability correction
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+実装方針:
+
+- `directions/0518_2.md` に従い、既存 YIN detector の後段安定化を行った。
+- UI デザイン、4 Voice Choir、MIDI 制御、基本パラメータ構造は変更していない。
+- raw pitch をハーモニー生成へ直接使わない方針を徹底した。
+
+実装済み:
+
+- `PitchState` に `correctedPitchHz`, `harmonyPitchHz`, `harmonicCorrectionMode` を追加した。
+- `rawPitchHz`, `rawPitchHz / 2`, `rawPitchHz / 3`, `rawPitchHz * 2` の候補から、前回 stable pitch に cent 差で最も近い値を選ぶ harmonic correction を追加した。
+- pitch range を `70-600 Hz` に変更した。
+- `correctedPitchHz` から `stablePitchHz` を作る前に、log2 周波数上の median filter を追加した。
+- `maxJumpCents = 350.0f` による外れ値判定を追加した。
+- confidence が非常に高く、かつ大ジャンプが連続した場合のみ新しい pitch へ移れるようにした。
+- `stablePitchHz` の smoothing を log 周波数上で行うようにした。
+- `harmonyPitchHz` を追加し、`stablePitchHz` からさらに `harmonySmoothingAlpha = 0.1f` で平滑化するようにした。
+- ハーモニー生成側の pitch ratio は `targetFrequencyHz / harmonyPitchHz` を使うようにした。
+- `harmonyPitchHz <= 0.0f` の場合は固定 C3 fallback ではなく、pitch ratio を 1.0 にして無効 pitch から比率計算しないようにした。
+- voice ごとの pitch ratio 変化に最低限 `ratioSmoothingAlpha = 0.1f` を適用するようにした。
+- GUI debug 表示を `Build: pitch-stability-002` に更新し、Raw / Corrected / Stable / Harmony / Confidence / Voiced / Harmonic Correction を表示するようにした。
+
+ユーザー確認待ち:
+
+- 持続母音で `rawPitchHz` が一瞬 3 倍に飛んでも `correctedPitchHz` または `stablePitchHz` が追従しにくいこと。
+- `stablePitchHz` が大きく octave / 3 倍ジャンプしないこと。
+- `harmonyPitchHz` が `stablePitchHz` よりさらに滑らかに変化すること。
+- pitch ratio が瞬間的に大きく変わりにくいこと。
+- 子音、息、無音でハーモニーが暴れにくいこと。
+- GUI で Raw / Corrected / Stable / Harmony Pitch の違いを確認できること。
+- `Build: pitch-stability-002` が表示され、新しいビルドであることを確認できること。
