@@ -14,6 +14,21 @@ class VoxChordAudioProcessor final : public juce::AudioProcessor
 public:
     using APVTS = juce::AudioProcessorValueTreeState;
 
+    enum class MidiActivity
+    {
+        none = 0,
+        noteOn,
+        noteOff,
+        allNotesOff,
+        panic
+    };
+
+    struct MidiActivitySnapshot
+    {
+        MidiActivity activity = MidiActivity::none;
+        uint32_t counter = 0;
+    };
+
     VoxChordAudioProcessor();
     ~VoxChordAudioProcessor() override = default;
 
@@ -51,6 +66,8 @@ public:
     void clearClipFlags() noexcept;
 
     voxchord::MidiVoiceState::NoteSnapshot getActiveMidiNotes() const noexcept;
+    MidiActivitySnapshot getMidiActivitySnapshot() const noexcept;
+    int getCurrentVoiceLimit() const noexcept;
     const voxchord::LevelMeterState& getLevelMeterState() const noexcept { return meters; }
 
 private:
@@ -60,14 +77,18 @@ private:
     float getOutputGain() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
+    void publishMidiActivity (MidiActivity activity) noexcept;
     void publishMidiSnapshot() noexcept;
     void processAudioPassThrough (juce::AudioBuffer<float>& buffer) noexcept;
 
     APVTS apvts;
     voxchord::MidiVoiceState midiVoices;
     voxchord::LevelMeterState meters;
+    juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
 
     std::array<std::atomic<int>, voxchord::MidiVoiceState::maxVoices> activeMidiNotes;
+    std::atomic<int> lastMidiActivity { static_cast<int> (MidiActivity::none) };
+    std::atomic<uint32_t> midiActivityCounter { 0 };
     std::atomic<bool> panicRequested { false };
 
     std::atomic<float>* voiceCountParameter = nullptr;
@@ -75,4 +96,3 @@ private:
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)
 };
-

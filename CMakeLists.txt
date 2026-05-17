@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.0)
+project(VoxChord VERSION 0.1.1)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -42,4 +42,3 @@ target_link_libraries(VoxChord
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
-

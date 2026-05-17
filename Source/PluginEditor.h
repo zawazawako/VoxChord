@@ -20,7 +20,7 @@ private:
     void timerCallback() override;
     void configureSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
     void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
-    void updateMidiNotes();
+    void updateMidiState();
     void updateMeters();
 
     VoxChordAudioProcessor& processorRef;
@@ -44,6 +44,8 @@ private:
     juce::Label titleLabel;
     juce::Label subtitleLabel;
     juce::Label midiNotesLabel;
+    juce::Label voiceSlotsLabel;
+    juce::Label midiStatusLabel;
     juce::Label inputMeterLabel;
     juce::Label outputMeterLabel;
     juce::TextButton panicButton { "PANIC" };
@@ -56,6 +58,7 @@ private:
     std::unique_ptr<SliderAttachment> dryWetAttachment;
     std::unique_ptr<SliderAttachment> outputAttachment;
 
+    uint32_t lastSeenMidiActivityCounter = 0;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessorEditor)
 };
-

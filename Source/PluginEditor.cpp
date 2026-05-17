@@ -24,6 +24,28 @@ namespace
 
         return juce::String (juce::Decibels::gainToDecibels (gain), 1) + " dB";
     }
+
+    juce::String midiActivityToString (VoxChordAudioProcessor::MidiActivity activity)
+    {
+        switch (activity)
+        {
+            case VoxChordAudioProcessor::MidiActivity::noteOn:       return "Note On";
+            case VoxChordAudioProcessor::MidiActivity::noteOff:      return "Note Off";
+            case VoxChordAudioProcessor::MidiActivity::allNotesOff:  return "All Notes Off";
+            case VoxChordAudioProcessor::MidiActivity::panic:        return "Panic";
+            case VoxChordAudioProcessor::MidiActivity::none:         break;
+        }
+
+        return "--";
+    }
+
+    void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
+    {
+        label.setText (text, juce::dontSendNotification);
+        label.setJustificationType (justification);
+        label.setColour (juce::Label::textColourId, juce::Colours::white);
+        label.setColour (juce::Label::backgroundColourId, panelColour());
+    }
 }
 
 VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcessor& p)
@@ -62,22 +84,19 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
 
-    midiNotesLabel.setText ("MIDI: --", juce::dontSendNotification);
-    midiNotesLabel.setJustificationType (juce::Justification::centredLeft);
-    midiNotesLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    midiNotesLabel.setColour (juce::Label::backgroundColourId, panelColour());
+    configureStatusLabel (midiNotesLabel, "MIDI: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
 
-    inputMeterLabel.setText ("In: -inf dB", juce::dontSendNotification);
-    inputMeterLabel.setJustificationType (juce::Justification::centred);
-    inputMeterLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    inputMeterLabel.setColour (juce::Label::backgroundColourId, panelColour());
+    configureStatusLabel (voiceSlotsLabel, "Slots: V1 -- | V2 -- | V3 -- | V4 --", juce::Justification::centredLeft);
+    addAndMakeVisible (voiceSlotsLabel);
+
+    configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
+    addAndMakeVisible (midiStatusLabel);
+
+    configureStatusLabel (inputMeterLabel, "In: -inf dB", juce::Justification::centred);
     addAndMakeVisible (inputMeterLabel);
 
-    outputMeterLabel.setText ("Out: -inf dB", juce::dontSendNotification);
-    outputMeterLabel.setJustificationType (juce::Justification::centred);
-    outputMeterLabel.setColour (juce::Label::textColourId, juce::Colours::white);
-    outputMeterLabel.setColour (juce::Label::backgroundColourId, panelColour());
+    configureStatusLabel (outputMeterLabel, "Out: -inf dB", juce::Justification::centred);
     addAndMakeVisible (outputMeterLabel);
 
     panicButton.setColour (juce::TextButton::buttonColourId, juce::Colour::fromRGB (126, 39, 45));
@@ -90,7 +109,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (panicButton);
 
-    setSize (760, 420);
+    setSize (800, 470);
     startTimerHz (30);
 }
 
@@ -140,16 +159,24 @@ void VoxChordAudioProcessorEditor::resized()
 
     bounds.removeFromTop (24);
 
-    auto status = bounds.removeFromTop (74);
-    panicButton.setBounds (status.removeFromRight (122).reduced (6));
-    outputMeterLabel.setBounds (status.removeFromRight (132).reduced (6));
-    inputMeterLabel.setBounds (status.removeFromRight (132).reduced (6));
-    midiNotesLabel.setBounds (status.reduced (6));
+    auto status = bounds.removeFromTop (128);
+    panicButton.setBounds (status.removeFromRight (126).reduced (6));
+
+    auto topRow = status.removeFromTop (42);
+    outputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
+    inputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
+    midiNotesLabel.setBounds (topRow.reduced (6));
+
+    auto slotRow = status.removeFromTop (42);
+    voiceSlotsLabel.setBounds (slotRow.reduced (6));
+
+    auto eventRow = status.removeFromTop (42);
+    midiStatusLabel.setBounds (eventRow.reduced (6));
 }
 
 void VoxChordAudioProcessorEditor::timerCallback()
 {
-    updateMidiNotes();
+    updateMidiState();
     updateMeters();
 }
 
@@ -180,21 +207,48 @@ void VoxChordAudioProcessorEditor::layoutSlider (juce::Slider& slider,
     slider.setBounds (bounds);
 }
 
-void VoxChordAudioProcessorEditor::updateMidiNotes()
+void VoxChordAudioProcessorEditor::updateMidiState()
 {
     const auto notes = processorRef.getActiveMidiNotes();
+    const auto voiceLimit = processorRef.getCurrentVoiceLimit();
     auto text = juce::String ("MIDI: ");
+    auto slots = juce::String ("Slots: ");
     auto anyNotes = false;
 
-    for (const auto note : notes)
+    for (auto index = 0; index < voxchord::MidiVoiceState::maxVoices; ++index)
     {
+        const auto note = notes[static_cast<size_t> (index)];
+
         if (note < 0)
+        {
+            if (index < voiceLimit)
+            {
+                if (index > 0)
+                    slots += " | ";
+
+                slots += "V" + juce::String (index + 1) + " --";
+            }
+            else
+            {
+                if (index > 0)
+                    slots += " | ";
+
+                slots += "V" + juce::String (index + 1) + " off";
+            }
+
             continue;
+        }
 
         if (anyNotes)
             text += " ";
 
-        text += juce::MidiMessage::getMidiNoteName (note, true, true, 3);
+        const auto noteName = juce::MidiMessage::getMidiNoteName (note, true, true, 3);
+        text += noteName;
+
+        if (index > 0)
+            slots += " | ";
+
+        slots += "V" + juce::String (index + 1) + " " + noteName;
         anyNotes = true;
     }
 
@@ -202,6 +256,15 @@ void VoxChordAudioProcessorEditor::updateMidiNotes()
         text += "--";
 
     midiNotesLabel.setText (text, juce::dontSendNotification);
+    voiceSlotsLabel.setText (slots, juce::dontSendNotification);
+
+    const auto activity = processorRef.getMidiActivitySnapshot();
+
+    if (activity.counter != lastSeenMidiActivityCounter)
+    {
+        lastSeenMidiActivityCounter = activity.counter;
+        midiStatusLabel.setText ("Last: " + midiActivityToString (activity.activity), juce::dontSendNotification);
+    }
 }
 
 void VoxChordAudioProcessorEditor::updateMeters()
@@ -216,4 +279,3 @@ void VoxChordAudioProcessorEditor::updateMeters()
     outputMeterLabel.setColour (juce::Label::textColourId,
                                 meters.getOutputClipped() ? juce::Colours::orangered : juce::Colours::white);
 }
-
