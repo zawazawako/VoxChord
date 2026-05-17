@@ -254,3 +254,38 @@ VoxChord の各バージョンで確認した動作を記録する。
 - GUI / ドキュメント上は「C3 表示 = MIDI note 60」を明記し、現行の有効上限を GUI 表示 C5 までとする。
 - あるいは `maxPitchRatio` を 8.0f まで拡張し、GUI 表示 C6 まで追従できるか検証する。ただし高い pitch ratio ほど簡易 pitch shifter の音質劣化リスクが高い。
 - より根本的には、固定基準ではなく入力 pitch detection を入れて、入力 vocal pitch から MIDI target への比率を計算する。
+
+## 0.1.6 phase 3E pitch reference and detector entry
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+実装済み:
+
+- GUI subtitle に `C3 = MIDI 60` を表示し、現行の octave 表示基準を明示した。
+- `maxPitchRatio` を `4.0x` から `8.0x` に拡張した。
+- `SimpleChoirEngine` に簡易 pitch detector の入口を追加した。
+- pitch detector は Schmitt trigger 風の zero-crossing 検出で、入力 mono signal の概算 frequency を block ごとに更新する。
+- 入力 pitch を検出できた場合は `MIDI target frequency / detected input frequency` を pitch ratio として使う。
+- 入力 pitch を検出できない場合は従来通り MIDI note 60 / 261.625565 Hz を fallback reference として使う。
+- 追加のファイル I/O、processBlock 内の動的メモリ確保、ホスト報告 latency の変更は行っていない。
+
+ユーザー確認待ち:
+
+- GUI subtitle に `C3 = MIDI 60` が表示されること。
+- C5 より上の MIDI note で wet pitch が以前より上へ追従すること。
+- 入力 vocal の音高を変えたとき、同じ MIDI note でも wet の変換量が変わること。
+- 無音時または pitch 検出不能時に、従来の C3 表示基準 fallback として動作すること。
+- `tune` / `glide` / `character` / `spread` / `dryWet` / `voiceCount` / Panic が破綻していないこと。
+
+想定される制限:
+
+- pitch detector は現段階では確認用の簡易方式であり、息成分、倍音、ビブラート、子音、ノイズで誤検出する可能性がある。
+- 高音域は `maxPitchRatio = 8.0x` まで許可したが、簡易 pitch shifter の音質劣化や grain 感が増える可能性がある。
+- 検出 pitch は GUI にはまだ表示していない。

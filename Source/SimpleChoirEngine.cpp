@@ -13,6 +13,7 @@ void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
                                   juce::roundToInt (currentSampleRate * 0.25));
 
     delayBuffer.setSize (1, delayBufferSize, false, false, true);
+    pitchDetector.prepare (currentSampleRate);
 
     reset();
 }
@@ -21,6 +22,7 @@ void SimpleChoirEngine::reset() noexcept
 {
     delayBuffer.clear();
     writeIndex = 0;
+    pitchDetector.reset();
 
     for (auto& voice : voiceStates)
         resetVoice (voice);
@@ -49,6 +51,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto safeCharacter = juce::jlimit (0.0f, 1.0f, character);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
+    const auto inputFrequencyHz = pitchDetector.processBlock (dryInput);
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
     std::array<float, MidiVoiceState::maxVoices> leftGains {};
@@ -71,7 +74,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         const auto midiNote = activeNotes[static_cast<size_t> (slot)];
         const auto targetRatio = juce::jlimit (minPitchRatio,
                                                maxPitchRatio,
-                                               applyTuneToRatio (getPitchRatioForNote (midiNote), safeTune)
+                                               applyTuneToRatio (getPitchRatioForNote (midiNote, inputFrequencyHz), safeTune)
                                                    * getCharacterPitchRatio (slot, safeCharacter));
 
         const auto wasAlreadyActive = voice.wasActive;
@@ -160,10 +163,79 @@ float SimpleChoirEngine::getPanForVoice (int activeIndex, int activeCount, float
     return (normalized * 2.0f - 1.0f) * safeSpread;
 }
 
-float SimpleChoirEngine::getPitchRatioForNote (int midiNote) noexcept
+void SimpleChoirEngine::SimplePitchDetector::prepare (double sampleRate) noexcept
+{
+    sampleRateHz = juce::jmax (1.0, sampleRate);
+    reset();
+}
+
+void SimpleChoirEngine::SimplePitchDetector::reset() noexcept
+{
+    samplesSinceCrossing = 0;
+    smoothedFrequencyHz = 0.0f;
+    previousSample = 0.0f;
+    wasBelowLowThreshold = false;
+}
+
+float SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::AudioBuffer<float>& input) noexcept
+{
+    static constexpr auto lowThreshold = -0.015f;
+    static constexpr auto highThreshold = 0.015f;
+    static constexpr auto minFrequencyHz = 70.0f;
+    static constexpr auto maxFrequencyHz = 1000.0f;
+
+    const auto samples = input.getNumSamples();
+
+    if (samples <= 0)
+        return smoothedFrequencyHz;
+
+    const auto minPeriodSamples = juce::jmax (1, juce::roundToInt (sampleRateHz / maxFrequencyHz));
+    const auto maxPeriodSamples = juce::roundToInt (sampleRateHz / minFrequencyHz);
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto monoSample = SimpleChoirEngine::readMonoInput (input, sample);
+        ++samplesSinceCrossing;
+
+        if (monoSample < lowThreshold)
+            wasBelowLowThreshold = true;
+
+        if (wasBelowLowThreshold && previousSample <= highThreshold && monoSample > highThreshold)
+        {
+            if (samplesSinceCrossing >= minPeriodSamples && samplesSinceCrossing <= maxPeriodSamples)
+            {
+                const auto detectedFrequency = static_cast<float> (sampleRateHz / static_cast<double> (samplesSinceCrossing));
+                smoothedFrequencyHz = smoothedFrequencyHz <= 0.0f
+                                          ? detectedFrequency
+                                          : smoothedFrequencyHz + (detectedFrequency - smoothedFrequencyHz) * 0.2f;
+            }
+
+            samplesSinceCrossing = 0;
+            wasBelowLowThreshold = false;
+        }
+
+        if (samplesSinceCrossing > maxPeriodSamples * 2)
+        {
+            smoothedFrequencyHz *= 0.98f;
+
+            if (smoothedFrequencyHz < minFrequencyHz)
+                smoothedFrequencyHz = 0.0f;
+
+            samplesSinceCrossing = maxPeriodSamples;
+        }
+
+        previousSample = monoSample;
+    }
+
+    return smoothedFrequencyHz;
+}
+
+float SimpleChoirEngine::getPitchRatioForNote (int midiNote, float inputFrequencyHz) noexcept
 {
     const auto targetFrequency = static_cast<float> (juce::MidiMessage::getMidiNoteInHertz (midiNote));
-    return juce::jlimit (minPitchRatio, maxPitchRatio, targetFrequency / referenceFrequencyHz);
+    const auto referenceFrequency = inputFrequencyHz > 0.0f ? inputFrequencyHz : fallbackReferenceFrequencyHz;
+
+    return juce::jlimit (minPitchRatio, maxPitchRatio, targetFrequency / referenceFrequency);
 }
 
 float SimpleChoirEngine::applyTuneToRatio (float pitchRatio, float tune) noexcept

@@ -34,9 +34,24 @@ private:
         float targetPitchRatio = 1.0f;
     };
 
+    class SimplePitchDetector final
+    {
+    public:
+        void prepare (double sampleRate) noexcept;
+        void reset() noexcept;
+        float processBlock (const juce::AudioBuffer<float>& input) noexcept;
+
+    private:
+        double sampleRateHz = 44100.0;
+        int samplesSinceCrossing = 0;
+        float smoothedFrequencyHz = 0.0f;
+        float previousSample = 0.0f;
+        bool wasBelowLowThreshold = false;
+    };
+
     static int countActiveVoices (const MidiVoiceState::NoteSnapshot& activeNotes, int voiceLimit) noexcept;
     static float getPanForVoice (int activeIndex, int activeCount, float spread) noexcept;
-    static float getPitchRatioForNote (int midiNote) noexcept;
+    static float getPitchRatioForNote (int midiNote, float inputFrequencyHz) noexcept;
     static float applyTuneToRatio (float pitchRatio, float tune) noexcept;
     static float getGlideCoefficient (float glide, double sampleRate) noexcept;
     static float getCharacterPitchRatio (int slot, float character) noexcept;
@@ -52,11 +67,12 @@ private:
                                     float glideCoefficient,
                                     float delayOffsetSamples) noexcept;
 
-    static constexpr float referenceFrequencyHz = 261.625565f;
+    static constexpr float fallbackReferenceFrequencyHz = 261.625565f;
     static constexpr float minPitchRatio = 0.25f;
-    static constexpr float maxPitchRatio = 4.0f;
+    static constexpr float maxPitchRatio = 8.0f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
+    SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
 
     int delayBufferSize = 0;

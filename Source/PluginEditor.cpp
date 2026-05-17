@@ -59,7 +59,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     titleLabel.setFont (juce::FontOptions { 34.0f, juce::Font::bold });
     addAndMakeVisible (titleLabel);
 
-    subtitleLabel.setText ("MIDI-controlled digital choir", juce::dontSendNotification);
+    subtitleLabel.setText ("MIDI-controlled digital choir | C3 = MIDI 60", juce::dontSendNotification);
     subtitleLabel.setJustificationType (juce::Justification::centredLeft);
     subtitleLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (165, 176, 181));
     subtitleLabel.setFont (juce::FontOptions { 15.0f });
