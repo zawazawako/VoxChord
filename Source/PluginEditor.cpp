@@ -93,6 +93,9 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiStatusLabel);
 
+    configureStatusLabel (pitchDebugLabel, "Pitch: --", juce::Justification::centred);
+    addAndMakeVisible (pitchDebugLabel);
+
     configureStatusLabel (inputMeterLabel, "In: -inf dB", juce::Justification::centred);
     addAndMakeVisible (inputMeterLabel);
 
@@ -165,6 +168,7 @@ void VoxChordAudioProcessorEditor::resized()
     auto topRow = status.removeFromTop (42);
     outputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
     inputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
+    pitchDebugLabel.setBounds (topRow.removeFromRight (146).reduced (6));
     midiNotesLabel.setBounds (topRow.reduced (6));
 
     auto slotRow = status.removeFromTop (42);
@@ -178,6 +182,7 @@ void VoxChordAudioProcessorEditor::timerCallback()
 {
     updateMidiState();
     updateMeters();
+    updatePitchDebug();
 }
 
 void VoxChordAudioProcessorEditor::configureSlider (juce::Slider& slider,
@@ -278,4 +283,17 @@ void VoxChordAudioProcessorEditor::updateMeters()
                                meters.getInputClipped() ? juce::Colours::orangered : juce::Colours::white);
     outputMeterLabel.setColour (juce::Label::textColourId,
                                 meters.getOutputClipped() ? juce::Colours::orangered : juce::Colours::white);
+}
+
+void VoxChordAudioProcessorEditor::updatePitchDebug()
+{
+    const auto pitchHz = processorRef.getDetectedInputPitchHz();
+
+    if (pitchHz <= 0.0f)
+    {
+        pitchDebugLabel.setText ("Pitch: --", juce::dontSendNotification);
+        return;
+    }
+
+    pitchDebugLabel.setText ("Pitch: " + juce::String (pitchHz, 1) + " Hz", juce::dontSendNotification);
 }

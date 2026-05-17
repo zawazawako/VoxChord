@@ -23,6 +23,7 @@ void SimpleChoirEngine::reset() noexcept
     delayBuffer.clear();
     writeIndex = 0;
     pitchDetector.reset();
+    lastDetectedInputFrequencyHz = 0.0f;
 
     for (auto& voice : voiceStates)
         resetVoice (voice);
@@ -52,6 +53,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
     const auto inputFrequencyHz = pitchDetector.processBlock (dryInput);
+    lastDetectedInputFrequencyHz = inputFrequencyHz;
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
     std::array<float, MidiVoiceState::maxVoices> leftGains {};
@@ -179,8 +181,8 @@ void SimpleChoirEngine::SimplePitchDetector::reset() noexcept
 
 float SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::AudioBuffer<float>& input) noexcept
 {
-    static constexpr auto lowThreshold = -0.015f;
-    static constexpr auto highThreshold = 0.015f;
+    static constexpr auto lowThreshold = -0.003f;
+    static constexpr auto highThreshold = 0.003f;
     static constexpr auto minFrequencyHz = 70.0f;
     static constexpr auto maxFrequencyHz = 1000.0f;
 

@@ -69,6 +69,7 @@ public:
     voxchord::MidiVoiceState::NoteSnapshot getActiveMidiNotes() const noexcept;
     MidiActivitySnapshot getMidiActivitySnapshot() const noexcept;
     int getCurrentVoiceLimit() const noexcept;
+    float getDetectedInputPitchHz() const noexcept;
     const voxchord::LevelMeterState& getLevelMeterState() const noexcept { return meters; }
 
 private:
@@ -101,6 +102,7 @@ private:
     std::atomic<int> lastMidiActivity { static_cast<int> (MidiActivity::none) };
     std::atomic<uint32_t> midiActivityCounter { 0 };
     std::atomic<bool> panicRequested { false };
+    std::atomic<float> detectedInputPitchHz { 0.0f };
 
     std::atomic<float>* dryWetParameter = nullptr;
     std::atomic<float>* voiceCountParameter = nullptr;

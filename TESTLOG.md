@@ -289,3 +289,39 @@ VoxChord の各バージョンで確認した動作を記録する。
 - pitch detector は現段階では確認用の簡易方式であり、息成分、倍音、ビブラート、子音、ノイズで誤検出する可能性がある。
 - 高音域は `maxPitchRatio = 8.0x` まで許可したが、簡易 pitch shifter の音質劣化や grain 感が増える可能性がある。
 - 検出 pitch は GUI にはまだ表示していない。
+
+## 0.1.7 phase 3F pitch debug visibility
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+ユーザー確認結果:
+
+- C5 より上の MIDI note では、引き続き C5 相当の wet pitch が出力される。
+- 入力 vocal pitch に対して wet pitch が追従している様子は確認できなかった。
+
+再確認した実装状態:
+
+- コード上の `maxPitchRatio` は `8.0f` に拡張済みであり、計算上は GUI 表示 C5 より上も許可している。
+- pitch ratio 計算は、検出 pitch が 0 より大きい場合 `targetFrequency / detectedInputFrequency` を使う。
+- 検出 pitch が 0 の場合は、従来通り MIDI note 60 / 261.625565 Hz を fallback reference として使う。
+- したがって、実測どおり変化しない場合は、pitch detector が 0 のまま、または簡易 pitch shifter が高 ratio を聴感上正しく出せていない可能性が高い。
+
+実装済み:
+
+- GUI に `Pitch: --` / `Pitch: xxx.x Hz` の debug 表示を追加した。
+- `SimpleChoirEngine` の検出 pitch を `PluginProcessor` 経由で atomic publish し、GUI timer から読み出すようにした。
+- pitch detector の zero-crossing threshold を下げ、低めの入力レベルでも検出しやすくした。
+
+ユーザー確認待ち:
+
+- 入力音を入れたとき `Pitch: --` から Hz 表示へ変わるか。
+- 声の音高を上下させたとき、表示 Hz が追従するか。
+- Hz 表示が出ている状態で、同じ MIDI note に対する wet pitch の変換量が入力 pitch に応じて変わるか。
+- C5 より上の MIDI note で、Hz 表示の有無によって頭打ち挙動が変わるか。

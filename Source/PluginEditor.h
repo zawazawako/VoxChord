@@ -22,6 +22,7 @@ private:
     void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
     void updateMidiState();
     void updateMeters();
+    void updatePitchDebug();
 
     VoxChordAudioProcessor& processorRef;
 
@@ -46,6 +47,7 @@ private:
     juce::Label midiNotesLabel;
     juce::Label voiceSlotsLabel;
     juce::Label midiStatusLabel;
+    juce::Label pitchDebugLabel;
     juce::Label inputMeterLabel;
     juce::Label outputMeterLabel;
     juce::TextButton panicButton { "PANIC" };

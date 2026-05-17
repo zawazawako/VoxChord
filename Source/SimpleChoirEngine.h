@@ -22,6 +22,7 @@ public:
                  float tune,
                  float glide,
                  float character) noexcept;
+    float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
 
 private:
     struct VoicePitchState
@@ -74,6 +75,7 @@ private:
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
+    float lastDetectedInputFrequencyHz = 0.0f;
 
     int delayBufferSize = 0;
     int writeIndex = 0;

@@ -155,6 +155,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getTune(),
                          getGlide(),
                          getCharacter());
+    detectedInputPitchHz.store (choirEngine.getLastDetectedInputFrequencyHz(), std::memory_order_relaxed);
     mixDryWetToOutput (buffer);
 
     const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
@@ -218,6 +219,11 @@ VoxChordAudioProcessor::MidiActivitySnapshot VoxChordAudioProcessor::getMidiActi
 int VoxChordAudioProcessor::getCurrentVoiceLimit() const noexcept
 {
     return getVoiceLimit();
+}
+
+float VoxChordAudioProcessor::getDetectedInputPitchHz() const noexcept
+{
+    return detectedInputPitchHz.load (std::memory_order_relaxed);
 }
 
 float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept
