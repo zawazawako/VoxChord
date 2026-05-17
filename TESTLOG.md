@@ -192,3 +192,34 @@ VoxChord の各バージョンで確認した動作を記録する。
 - まだ入力 vocal の実 pitch には追従しない。
 - pitch shifter は確認用の簡易方式であり、クリック、金属感、grain 感が残る可能性がある。
 - glide は同一 voice slot の note 変更で最も分かりやすいため、確認時は `voiceCount = 1` の legato 操作を推奨する。
+
+## 0.1.5 phase 3D stronger character spread
+
+日付: 2026-05-17
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+実装済み:
+
+- `character` の voice ごとの detune 幅を増やした。
+- `character` に voice ごとの追加 delay offset を接続した。
+- 追加 delay offset は既存の delay buffer 読み出し位置をずらす方式とし、新規バッファは追加していない。
+- ホストへ報告する latency は 0 samples のままとした。
+- `tune` / `glide` / `spread` / `dryWet` / `voiceCount` の既存接続は維持した。
+
+ユーザー確認待ち:
+
+- 複数 MIDI note / 複数 voice で `character = 0%` と `character = 100%` の差が以前より分かりやすいこと。
+- `character = 100%` で wet に軽い厚み、ズレ、揺れ、濁りが加わること。
+- `character` を上げても音量が極端に上がらないこと。
+- Note Off / Panic で character 付き wet voice も停止すること。
+
+想定される制限:
+
+- `character` は自然な声質変換ではなく、現段階では detune / delay による個体差の付与である。
+- `character` を上げると意図的に濁りや位相差が増えるため、設定によっては rough に聞こえる可能性がある。

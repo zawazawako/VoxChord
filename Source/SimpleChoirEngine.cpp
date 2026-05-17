@@ -53,6 +53,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
     std::array<float, MidiVoiceState::maxVoices> leftGains {};
     std::array<float, MidiVoiceState::maxVoices> rightGains {};
+    std::array<float, MidiVoiceState::maxVoices> delayOffsets {};
     auto activeIndex = 0;
 
     for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
@@ -102,6 +103,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         activeSlots[static_cast<size_t> (activeIndex)] = slot;
         leftGains[static_cast<size_t> (activeIndex)] = voiceGain * (pan <= 0.0f ? 1.0f : 1.0f - pan);
         rightGains[static_cast<size_t> (activeIndex)] = voiceGain * (pan >= 0.0f ? 1.0f : 1.0f + pan);
+        delayOffsets[static_cast<size_t> (activeIndex)] = getCharacterDelayOffsetSamples (slot,
+                                                                                          safeCharacter,
+                                                                                          currentSampleRate);
         ++activeIndex;
     }
 
@@ -116,7 +120,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         for (auto index = 0; index < activeCount; ++index)
         {
             auto& voice = voiceStates[static_cast<size_t> (activeSlots[static_cast<size_t> (index)])];
-            const auto shifted = renderPitchShiftedSample (voice, glideCoefficient);
+            const auto shifted = renderPitchShiftedSample (voice,
+                                                           glideCoefficient,
+                                                           delayOffsets[static_cast<size_t> (index)]);
 
             left[sample] += shifted * (outputChannels > 1
                                             ? leftGains[static_cast<size_t> (index)]
@@ -179,7 +185,7 @@ float SimpleChoirEngine::getGlideCoefficient (float glide, double sampleRate) no
 
 float SimpleChoirEngine::getCharacterPitchRatio (int slot, float character) noexcept
 {
-    static constexpr std::array<float, MidiVoiceState::maxVoices> centsBySlot { -6.0f, 4.0f, -3.0f, 7.0f };
+    static constexpr std::array<float, MidiVoiceState::maxVoices> centsBySlot { -14.0f, 10.0f, -9.0f, 18.0f };
 
     const auto cents = centsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
                      * juce::jlimit (0.0f, 1.0f, character);
@@ -189,11 +195,21 @@ float SimpleChoirEngine::getCharacterPitchRatio (int slot, float character) noex
 
 float SimpleChoirEngine::getCharacterGain (int slot, float character) noexcept
 {
-    static constexpr std::array<float, MidiVoiceState::maxVoices> gainOffsetsBySlot { -0.05f, 0.03f, -0.02f, 0.04f };
+    static constexpr std::array<float, MidiVoiceState::maxVoices> gainOffsetsBySlot { -0.07f, 0.05f, -0.04f, 0.06f };
 
     return juce::jmax (0.0f,
                        1.0f + gainOffsetsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
                                   * juce::jlimit (0.0f, 1.0f, character));
+}
+
+float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept
+{
+    static constexpr std::array<float, MidiVoiceState::maxVoices> delayMsBySlot { 0.0f, 4.0f, 8.0f, 12.0f };
+
+    const auto delayMs = delayMsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
+                       * juce::jlimit (0.0f, 1.0f, character);
+
+    return delayMs * 0.001f * static_cast<float> (juce::jmax (1.0, sampleRate));
 }
 
 float SimpleChoirEngine::readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept
@@ -253,7 +269,9 @@ float SimpleChoirEngine::readDelayLine (float delaySamples) const noexcept
     return delay[index0] + (delay[index1] - delay[index0]) * fraction;
 }
 
-float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice, float glideCoefficient) noexcept
+float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice,
+                                                   float glideCoefficient,
+                                                   float delayOffsetSamples) noexcept
 {
     if (glideCoefficient >= 1.0f)
         voice.currentPitchRatio = voice.targetPitchRatio;
@@ -263,8 +281,9 @@ float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice, float
     const auto ratio = juce::jlimit (minPitchRatio, maxPitchRatio, voice.currentPitchRatio);
     const auto phaseDelta = (1.0f - ratio) / static_cast<float> (pitchWindowSamples);
 
-    const auto delayA = static_cast<float> (minimumDelaySamples) + voice.phaseA * static_cast<float> (pitchWindowSamples);
-    const auto delayB = static_cast<float> (minimumDelaySamples) + voice.phaseB * static_cast<float> (pitchWindowSamples);
+    const auto baseDelay = static_cast<float> (minimumDelaySamples) + juce::jmax (0.0f, delayOffsetSamples);
+    const auto delayA = baseDelay + voice.phaseA * static_cast<float> (pitchWindowSamples);
+    const auto delayB = baseDelay + voice.phaseB * static_cast<float> (pitchWindowSamples);
     const auto gainA = windowGain (voice.phaseA);
     const auto gainB = windowGain (voice.phaseB);
     const auto gainSum = gainA + gainB + 0.000001f;

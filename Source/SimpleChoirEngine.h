@@ -41,13 +41,16 @@ private:
     static float getGlideCoefficient (float glide, double sampleRate) noexcept;
     static float getCharacterPitchRatio (int slot, float character) noexcept;
     static float getCharacterGain (int slot, float character) noexcept;
+    static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
     static float readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept;
     static float wrapPhase (float phase) noexcept;
     static float windowGain (float phase) noexcept;
 
     void resetVoice (VoicePitchState& voice) noexcept;
     float readDelayLine (float delaySamples) const noexcept;
-    float renderPitchShiftedSample (VoicePitchState& voice, float glideCoefficient) noexcept;
+    float renderPitchShiftedSample (VoicePitchState& voice,
+                                    float glideCoefficient,
+                                    float delayOffsetSamples) noexcept;
 
     static constexpr float referenceFrequencyHz = 261.625565f;
     static constexpr float minPitchRatio = 0.25f;
