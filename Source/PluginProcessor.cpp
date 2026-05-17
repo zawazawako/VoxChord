@@ -89,7 +89,7 @@ void VoxChordAudioProcessor::changeProgramName (int index, const juce::String& n
 void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     midiVoices.reset();
-    choirEngine.prepare (samplesPerBlock);
+    choirEngine.prepare (sampleRate, samplesPerBlock);
     meters.reset();
     dryBuffer.setSize (2, samplesPerBlock, false, false, true);
     wetBuffer.setSize (2, samplesPerBlock, false, false, true);

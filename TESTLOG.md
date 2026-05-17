@@ -117,3 +117,44 @@ VoxChord の各バージョンで確認した動作を記録する。
 
 - MIDI note の音程に合わせた pitch shift は未実装。
 - `tune` / `glide` / `character` は、まだ出力音には反映されない。
+
+## 0.1.3 phase 3B simple pitch shifter
+
+日付: 2026-05-17
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定。
+- Debug VST3: ユーザー確認予定。
+- Release Standalone: ユーザー確認予定。
+- Release VST3: ユーザー確認予定。
+
+実装済み:
+
+- `SimpleChoirEngine` に短い delay buffer と dual-window 読み出しによる簡易 pitch shift を追加した。
+- 入力 pitch detection はまだ使わず、固定基準 pitch を C4 とした。
+- MIDI note 周波数 / C4 を pitch ratio として wet voice の読み出しに反映した。
+- pitch ratio は 0.25x - 4.0x に制限した。
+- voice ごとに pitch ratio を 30 ms smoothing するようにした。
+- `dryWet = 100%` で pitch shifted wet のみを確認できる構成にした。
+- `spread` は引き続き wet voice の左右配置に反映される。
+- Note Off / Panic による wet voice 停止は維持した。
+- ホストへ報告する latency は 0 samples のまま。
+
+ユーザー確認待ち:
+
+- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になること。
+- MIDI note がある状態で `dryWet = 100%` にすると pitch shifted wet が鳴ること。
+- C4 付近の MIDI note で、wet が入力音に近い高さに聞こえること。
+- C3 付近の MIDI note で、wet が低く聞こえること。
+- C5 付近の MIDI note で、wet が高く聞こえること。
+- 複数 MIDI note で複数 pitch の wet が重なること。
+- `spread` を上げると複数 wet voice の左右配置が広がること。
+- Note Off / Panic で wet voice が止まること。
+
+想定される制限:
+
+- まだ入力 pitch detection がないため、入力ボーカルの実際の音高には追従しない。
+- 音質は確認用であり、クリック、金属感、グレイン感、濁りが出る可能性がある。
+- pitch shift の内部 window により wet はわずかに遅れて聞こえる可能性があるが、ホスト報告 latency は 0 samples のまま。
+- `tune` / `glide` / `character` は、まだ出力音には反映されない。
