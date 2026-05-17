@@ -77,3 +77,40 @@ VoxChord の各バージョンで確認した動作を記録する。
 
 - wet engine は未実装。
 - `tune` / `glide` / `character` / `spread` / `dryWet` は、まだ出力音には反映されない。
+
+## 0.1.2 phase 3A MIDI-gated wet bus
+
+日付: 2026-05-17
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定。
+- Debug VST3: ユーザー確認予定。
+- Release Standalone: ユーザー確認予定。
+- Release VST3: ユーザー確認予定。
+
+実装済み:
+
+- `SimpleChoirEngine` を追加した。
+- wet bus 用の `dryBuffer` / `wetBuffer` を `prepareToPlay()` で事前確保するようにした。
+- MIDI active slot があるときだけ wet voice を生成するようにした。
+- 最初の wet voice はピッチシフトなしの入力音声コピーとして実装した。
+- `dryWet` を実際の dry/wet mix に接続した。
+- `spread` を wet voice の左右配置に接続した。
+- `voiceCount` / Note Off / Panic による active slot 解除が wet voice 停止にも反映される構成にした。
+- 追加 latency は 0 samples のまま。
+
+ユーザー確認待ち:
+
+- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になること。
+- MIDI note がある状態で `dryWet = 100%` にすると入力音声コピーの wet が鳴ること。
+- `dryWet = 0%` で従来通り dry のみになること。
+- `dryWet` を動かすと dry/wet の混ざり方が変わること。
+- `spread` を上げると複数 wet voice の左右配置が広がること。
+- `voiceCount` を下げると wet voice 数も減ること。
+- Note Off / Panic で wet voice が止まること。
+
+想定通りの未実装:
+
+- MIDI note の音程に合わせた pitch shift は未実装。
+- `tune` / `glide` / `character` は、まだ出力音には反映されない。

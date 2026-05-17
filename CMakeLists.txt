@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.1)
+project(VoxChord VERSION 0.1.2)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -26,6 +26,8 @@ target_sources(VoxChord
         Source/PluginEditor.h
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/SimpleChoirEngine.cpp
+        Source/SimpleChoirEngine.h
         Source/VoxChordParameters.cpp
         Source/VoxChordParameters.h)
 

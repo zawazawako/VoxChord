@@ -7,6 +7,7 @@
 
 #include "LevelMeterState.h"
 #include "MidiVoiceState.h"
+#include "SimpleChoirEngine.h"
 #include "VoxChordParameters.h"
 
 class VoxChordAudioProcessor final : public juce::AudioProcessor
@@ -74,16 +75,23 @@ private:
     static float calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept;
 
     int getVoiceLimit() const noexcept;
+    float getDryWet() const noexcept;
     float getOutputGain() const noexcept;
+    float getSpread() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
     void publishMidiActivity (MidiActivity activity) noexcept;
     void publishMidiSnapshot() noexcept;
-    void processAudioPassThrough (juce::AudioBuffer<float>& buffer) noexcept;
+    void copyInputToDryBuffer (const juce::AudioBuffer<float>& buffer) noexcept;
+    void mixDryWetToOutput (juce::AudioBuffer<float>& buffer) noexcept;
 
     APVTS apvts;
     voxchord::MidiVoiceState midiVoices;
+    voxchord::SimpleChoirEngine choirEngine;
     voxchord::LevelMeterState meters;
+    juce::AudioBuffer<float> dryBuffer;
+    juce::AudioBuffer<float> wetBuffer;
+    juce::SmoothedValue<float> dryWetSmoothed { 0.0f };
     juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
 
     std::array<std::atomic<int>, voxchord::MidiVoiceState::maxVoices> activeMidiNotes;
@@ -91,7 +99,9 @@ private:
     std::atomic<uint32_t> midiActivityCounter { 0 };
     std::atomic<bool> panicRequested { false };
 
+    std::atomic<float>* dryWetParameter = nullptr;
     std::atomic<float>* voiceCountParameter = nullptr;
+    std::atomic<float>* spreadParameter = nullptr;
     std::atomic<float>* outputLevelParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)

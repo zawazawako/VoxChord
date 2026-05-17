@@ -21,13 +21,17 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
       ),
       apvts (*this, nullptr, "VoxChordState", voxchord::createParameterLayout())
 {
+    dryWetParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::dryWet);
     voiceCountParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::voiceCount);
+    spreadParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::spread);
     outputLevelParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::outputLevel);
 
     for (auto& note : activeMidiNotes)
         note.store (-1, std::memory_order_relaxed);
 
+    jassert (dryWetParameter != nullptr);
     jassert (voiceCountParameter != nullptr);
+    jassert (spreadParameter != nullptr);
     jassert (outputLevelParameter != nullptr);
 }
 
@@ -84,10 +88,13 @@ void VoxChordAudioProcessor::changeProgramName (int index, const juce::String& n
 
 void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    juce::ignoreUnused (samplesPerBlock);
-
     midiVoices.reset();
+    choirEngine.prepare (samplesPerBlock);
     meters.reset();
+    dryBuffer.setSize (2, samplesPerBlock, false, false, true);
+    wetBuffer.setSize (2, samplesPerBlock, false, false, true);
+    dryWetSmoothed.reset (sampleRate, 0.02);
+    dryWetSmoothed.setCurrentAndTargetValue (getDryWet());
     outputGainSmoothed.reset (sampleRate, 0.02);
     outputGainSmoothed.setCurrentAndTargetValue (getOutputGain());
     publishMidiSnapshot();
@@ -96,6 +103,9 @@ void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
 
 void VoxChordAudioProcessor::releaseResources()
 {
+    dryBuffer.setSize (0, 0);
+    wetBuffer.setSize (0, 0);
+    choirEngine.reset();
 }
 
 bool VoxChordAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -130,7 +140,9 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     handleMidi (midiMessages);
-    processAudioPassThrough (buffer);
+    copyInputToDryBuffer (buffer);
+    choirEngine.render (dryBuffer, wetBuffer, getActiveMidiNotes(), getVoiceLimit(), getSpread());
+    mixDryWetToOutput (buffer);
 
     const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
     meters.publish (inputPeak, outputPeak);
@@ -216,12 +228,28 @@ int VoxChordAudioProcessor::getVoiceLimit() const noexcept
                          juce::roundToInt (voiceCountParameter->load (std::memory_order_relaxed)));
 }
 
+float VoxChordAudioProcessor::getDryWet() const noexcept
+{
+    if (dryWetParameter == nullptr)
+        return 0.0f;
+
+    return juce::jlimit (0.0f, 1.0f, dryWetParameter->load (std::memory_order_relaxed));
+}
+
 float VoxChordAudioProcessor::getOutputGain() const noexcept
 {
     if (outputLevelParameter == nullptr)
         return 1.0f;
 
     return juce::Decibels::decibelsToGain (outputLevelParameter->load (std::memory_order_relaxed));
+}
+
+float VoxChordAudioProcessor::getSpread() const noexcept
+{
+    if (spreadParameter == nullptr)
+        return 0.0f;
+
+    return juce::jlimit (0.0f, 1.0f, spreadParameter->load (std::memory_order_relaxed));
 }
 
 void VoxChordAudioProcessor::handleMidi (const juce::MidiBuffer& midiMessages) noexcept
@@ -260,36 +288,63 @@ void VoxChordAudioProcessor::publishMidiSnapshot() noexcept
         activeMidiNotes[static_cast<size_t> (index)].store (notes[static_cast<size_t> (index)], std::memory_order_relaxed);
 }
 
-void VoxChordAudioProcessor::processAudioPassThrough (juce::AudioBuffer<float>& buffer) noexcept
+void VoxChordAudioProcessor::copyInputToDryBuffer (const juce::AudioBuffer<float>& buffer) noexcept
 {
     const auto samples = buffer.getNumSamples();
     const auto inputChannels = getTotalNumInputChannels();
-    const auto outputChannels = getTotalNumOutputChannels();
 
-    if (outputChannels == 0)
+    dryBuffer.clear();
+
+    if (samples > dryBuffer.getNumSamples())
         return;
 
     if (inputChannels == 0)
-    {
-        for (auto channel = 0; channel < outputChannels; ++channel)
-            buffer.clear (channel, 0, samples);
+        return;
 
+    if (inputChannels == 1)
+    {
+        dryBuffer.copyFrom (0, 0, buffer, 0, 0, samples);
+        dryBuffer.copyFrom (1, 0, buffer, 0, 0, samples);
         return;
     }
 
-    if (inputChannels > 1 && outputChannels == 1)
-    {
-        buffer.applyGain (0, 0, samples, 0.5f);
-        buffer.addFrom (0, 0, buffer, 1, 0, samples, 0.5f);
-    }
-    else if (inputChannels == 1 && outputChannels > 1)
-    {
-        for (auto channel = 1; channel < outputChannels; ++channel)
-            buffer.copyFrom (channel, 0, buffer, 0, 0, samples);
-    }
+    dryBuffer.copyFrom (0, 0, buffer, 0, 0, samples);
+    dryBuffer.copyFrom (1, 0, buffer, 1, 0, samples);
+}
 
-    for (auto channel = outputChannels; channel < buffer.getNumChannels(); ++channel)
-        buffer.clear (channel, 0, samples);
+void VoxChordAudioProcessor::mixDryWetToOutput (juce::AudioBuffer<float>& buffer) noexcept
+{
+    const auto samples = buffer.getNumSamples();
+    const auto outputChannels = getTotalNumOutputChannels();
+
+    buffer.clear();
+
+    if (samples > dryBuffer.getNumSamples() || samples > wetBuffer.getNumSamples())
+        return;
+
+    dryWetSmoothed.setTargetValue (getDryWet());
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto wetAmount = dryWetSmoothed.getNextValue();
+        const auto dryAmount = 1.0f - wetAmount;
+
+        if (outputChannels > 0)
+        {
+            buffer.setSample (0,
+                              sample,
+                              dryBuffer.getSample (0, sample) * dryAmount
+                                  + wetBuffer.getSample (0, sample) * wetAmount);
+        }
+
+        if (outputChannels > 1)
+        {
+            buffer.setSample (1,
+                              sample,
+                              dryBuffer.getSample (1, sample) * dryAmount
+                                  + wetBuffer.getSample (1, sample) * wetAmount);
+        }
+    }
 
     outputGainSmoothed.setTargetValue (getOutputGain());
     outputGainSmoothed.applyGain (buffer, samples);
