@@ -62,13 +62,15 @@ VoxChord の各バージョンで確認した動作を記録する。
 - Release VST3 生成成功。
 - Release Standalone 生成成功。
 
+ユーザー確認済み:
+
+- Standalone / VST3 版で voice slot 表示が Note On / Note Off に追従することを確認した。
+- Standalone / VST3 版で `voiceCount` を下げたとき、余剰 slot が `off` 表示になり、余剰 note が消えることを確認した。
+- Standalone / VST3 版で Panic button 押下後に active note / slot が解除されることを確認した。
+
 ユーザー確認待ち:
 
-- Standalone 版で voice slot 表示が Note On / Note Off に追従すること。
-- Standalone 版で `voiceCount` を下げたとき、余剰 slot が `off` 表示になり、余剰 note が消えること。
-- Standalone 版で Panic button 押下後に active note / slot が解除されること。
 - Standalone 版で MIDI All Notes Off を受けたとき、`Last: All Notes Off` と表示され、active note / slot が解除されること。
-- VST3 版でも同様の MIDI 表示・Panic・voiceCount 動作を確認すること。
 - `outputLevel` 変更時に以前より音量変化が滑らかに感じられること。
 
 想定通りの未実装:
