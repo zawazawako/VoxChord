@@ -239,3 +239,18 @@ VoxChord の各バージョンで確認した動作を記録する。
 - MIDI note から計算した pitch ratio と実際の聴感上の pitch が C5 以上で一致しているかを切り分ける。
 - 現行 dual-window delay 読み出し方式が高い pitch ratio で破綻または折り返していないか確認する。
 - 必要に応じて一時的に pitch ratio の安全上限を C5 相当に制限するか、高音域でも追従する方式へ差し替える。
+
+調査結果:
+
+- GUI の note 表示は `juce::MidiMessage::getMidiNoteName(note, true, true, 3)` を使っているため、MIDI note 60 が `C3` と表示される。
+- DSP の neutral 基準 `referenceFrequencyHz = 261.625565f` は MIDI note 60 の周波数であり、GUI 表示上は `C3` に対応する。
+- したがって「wet 音が入力と同じ音高になるのが C3」という観測は、DSP 基準と GUI 表示の対応として正しい。
+- GUI 表示上の `C5` は MIDI note 84 で、MIDI note 60 の 4 倍周波数に相当する。
+- 現行実装は `maxPitchRatio = 4.0f` で上限 clamp しているため、GUI 表示上の C5 より上が C5 相当に頭打ちになる。
+- 原因は pitch shifter の偶発的な破綻ではなく、octave 表示規約と `maxPitchRatio` 上限の組み合わせである可能性が高い。
+
+修正候補:
+
+- GUI / ドキュメント上は「C3 表示 = MIDI note 60」を明記し、現行の有効上限を GUI 表示 C5 までとする。
+- あるいは `maxPitchRatio` を 8.0f まで拡張し、GUI 表示 C6 まで追従できるか検証する。ただし高い pitch ratio ほど簡易 pitch shifter の音質劣化リスクが高い。
+- より根本的には、固定基準ではなく入力 pitch detection を入れて、入力 vocal pitch から MIDI target への比率を計算する。
