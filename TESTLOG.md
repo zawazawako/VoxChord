@@ -100,15 +100,18 @@ VoxChord の各バージョンで確認した動作を記録する。
 - `voiceCount` / Note Off / Panic による active slot 解除が wet voice 停止にも反映される構成にした。
 - 追加 latency は 0 samples のまま。
 
-ユーザー確認待ち:
+ユーザー確認済み:
 
-- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になること。
-- MIDI note がある状態で `dryWet = 100%` にすると入力音声コピーの wet が鳴ること。
-- `dryWet = 0%` で従来通り dry のみになること。
-- `dryWet` を動かすと dry/wet の混ざり方が変わること。
-- `spread` を上げると複数 wet voice の左右配置が広がること。
-- `voiceCount` を下げると wet voice 数も減ること。
-- Note Off / Panic で wet voice が止まること。
+- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になることを確認した。
+- MIDI note がある状態で `dryWet = 100%` にすると入力音声コピーの wet が鳴ることを確認した。
+- `dryWet = 0%` で従来通り dry のみになることを確認した。
+- Note Off / Panic で wet voice が止まることを確認した。
+
+ユーザー確認結果メモ:
+
+- `dryWet` の中間値による混ざり方は、現状 dry と wet が同じ入力音声コピーのため聴感上は判別できなかった。
+- `spread` による左右配置の変化は、現状 dry と wet が同じ入力音声コピーのため聴感上は判別できなかった。
+- `voiceCount` による wet voice 数の変化は、現状 dry と wet が同じ入力音声コピーのため聴感上は判別できなかった。
 
 想定通りの未実装:
 
