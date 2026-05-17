@@ -23,6 +23,9 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
 {
     dryWetParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::dryWet);
     voiceCountParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::voiceCount);
+    tuneParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::tune);
+    glideParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::glide);
+    characterParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::character);
     spreadParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::spread);
     outputLevelParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::outputLevel);
 
@@ -31,6 +34,9 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
 
     jassert (dryWetParameter != nullptr);
     jassert (voiceCountParameter != nullptr);
+    jassert (tuneParameter != nullptr);
+    jassert (glideParameter != nullptr);
+    jassert (characterParameter != nullptr);
     jassert (spreadParameter != nullptr);
     jassert (outputLevelParameter != nullptr);
 }
@@ -141,7 +147,14 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     handleMidi (midiMessages);
     copyInputToDryBuffer (buffer);
-    choirEngine.render (dryBuffer, wetBuffer, getActiveMidiNotes(), getVoiceLimit(), getSpread());
+    choirEngine.render (dryBuffer,
+                         wetBuffer,
+                         getActiveMidiNotes(),
+                         getVoiceLimit(),
+                         getSpread(),
+                         getTune(),
+                         getGlide(),
+                         getCharacter());
     mixDryWetToOutput (buffer);
 
     const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
@@ -250,6 +263,30 @@ float VoxChordAudioProcessor::getSpread() const noexcept
         return 0.0f;
 
     return juce::jlimit (0.0f, 1.0f, spreadParameter->load (std::memory_order_relaxed));
+}
+
+float VoxChordAudioProcessor::getTune() const noexcept
+{
+    if (tuneParameter == nullptr)
+        return 1.0f;
+
+    return juce::jlimit (0.0f, 1.0f, tuneParameter->load (std::memory_order_relaxed));
+}
+
+float VoxChordAudioProcessor::getGlide() const noexcept
+{
+    if (glideParameter == nullptr)
+        return 0.0f;
+
+    return juce::jlimit (0.0f, 1.0f, glideParameter->load (std::memory_order_relaxed));
+}
+
+float VoxChordAudioProcessor::getCharacter() const noexcept
+{
+    if (characterParameter == nullptr)
+        return 0.0f;
+
+    return juce::jlimit (0.0f, 1.0f, characterParameter->load (std::memory_order_relaxed));
 }
 
 void VoxChordAudioProcessor::handleMidi (const juce::MidiBuffer& midiMessages) noexcept

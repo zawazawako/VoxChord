@@ -18,7 +18,10 @@ public:
                  juce::AudioBuffer<float>& wetOutput,
                  const MidiVoiceState::NoteSnapshot& activeNotes,
                  int voiceLimit,
-                 float spread) noexcept;
+                 float spread,
+                 float tune,
+                 float glide,
+                 float character) noexcept;
 
 private:
     struct VoicePitchState
@@ -27,19 +30,24 @@ private:
         bool wasActive = false;
         float phaseA = 0.0f;
         float phaseB = 0.5f;
-        juce::SmoothedValue<float> pitchRatio { 1.0f };
+        float currentPitchRatio = 1.0f;
+        float targetPitchRatio = 1.0f;
     };
 
     static int countActiveVoices (const MidiVoiceState::NoteSnapshot& activeNotes, int voiceLimit) noexcept;
     static float getPanForVoice (int activeIndex, int activeCount, float spread) noexcept;
     static float getPitchRatioForNote (int midiNote) noexcept;
+    static float applyTuneToRatio (float pitchRatio, float tune) noexcept;
+    static float getGlideCoefficient (float glide, double sampleRate) noexcept;
+    static float getCharacterPitchRatio (int slot, float character) noexcept;
+    static float getCharacterGain (int slot, float character) noexcept;
     static float readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept;
     static float wrapPhase (float phase) noexcept;
     static float windowGain (float phase) noexcept;
 
     void resetVoice (VoicePitchState& voice) noexcept;
     float readDelayLine (float delaySamples) const noexcept;
-    float renderPitchShiftedSample (VoicePitchState& voice) noexcept;
+    float renderPitchShiftedSample (VoicePitchState& voice, float glideCoefficient) noexcept;
 
     static constexpr float referenceFrequencyHz = 261.625565f;
     static constexpr float minPitchRatio = 0.25f;

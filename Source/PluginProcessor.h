@@ -78,6 +78,9 @@ private:
     float getDryWet() const noexcept;
     float getOutputGain() const noexcept;
     float getSpread() const noexcept;
+    float getTune() const noexcept;
+    float getGlide() const noexcept;
+    float getCharacter() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
     void publishMidiActivity (MidiActivity activity) noexcept;
@@ -101,6 +104,9 @@ private:
 
     std::atomic<float>* dryWetParameter = nullptr;
     std::atomic<float>* voiceCountParameter = nullptr;
+    std::atomic<float>* tuneParameter = nullptr;
+    std::atomic<float>* glideParameter = nullptr;
+    std::atomic<float>* characterParameter = nullptr;
     std::atomic<float>* spreadParameter = nullptr;
     std::atomic<float>* outputLevelParameter = nullptr;
 

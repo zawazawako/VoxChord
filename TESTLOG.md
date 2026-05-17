@@ -158,3 +158,37 @@ VoxChord の各バージョンで確認した動作を記録する。
 - 音質は確認用であり、クリック、金属感、グレイン感、濁りが出る可能性がある。
 - pitch shift の内部 window により wet はわずかに遅れて聞こえる可能性があるが、ホスト報告 latency は 0 samples のまま。
 - `tune` / `glide` / `character` は、まだ出力音には反映されない。
+
+## 0.1.4 phase 3C pitch control parameters
+
+日付: 2026-05-17
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+実装済み:
+
+- `tune` を簡易 pitch shift の MIDI note 追従量に接続した。
+- `glide` を voice ごとの pitch ratio smoothing に接続した。
+- `character` を voice ごとの微小 detune / gain 差に接続した。
+- 既存の `voiceCount` / `spread` / `dryWet` / `outputLevel` / Note Off / Panic の構造は維持した。
+- 入力 pitch detection はまだ使わず、引き続き C4 固定基準の簡易 pitch shift とした。
+- ホストへ報告する latency は 0 samples のままとした。
+
+ユーザー確認待ち:
+
+- `character = 0%` にしたうえで、`tune = 0%` では wet の pitch shift 量が小さくなること。
+- `tune = 100%` で MIDI note に応じた pitch shift 量が強くなること。
+- `voiceCount = 1` で前の note を押したまま次の note を押したとき、`glide` を上げるほど pitch 移動が遅くなること。
+- `character = 0%` と `character = 100%` で、複数 voice の揺れ・厚み・音量差が変わること。
+- 既存確認済みの dry/wet、spread、voiceCount、Note Off、Panic が破綻していないこと。
+
+想定される制限:
+
+- まだ入力 vocal の実 pitch には追従しない。
+- pitch shifter は確認用の簡易方式であり、クリック、金属感、grain 感が残る可能性がある。
+- glide は同一 voice slot の note 変更で最も分かりやすいため、確認時は `voiceCount = 1` の legato 操作を推奨する。
