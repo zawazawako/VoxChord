@@ -124,10 +124,10 @@ VoxChord の各バージョンで確認した動作を記録する。
 
 対象ビルド:
 
-- Debug Standalone: ユーザー確認予定。
-- Debug VST3: ユーザー確認予定。
-- Release Standalone: ユーザー確認予定。
-- Release VST3: ユーザー確認予定。
+- Debug Standalone: ユーザー確認済み。
+- Debug VST3: ユーザー確認済み。
+- Release Standalone: ユーザー確認済み。
+- Release VST3: ユーザー確認済み。
 
 実装済み:
 
@@ -141,16 +141,16 @@ VoxChord の各バージョンで確認した動作を記録する。
 - Note Off / Panic による wet voice 停止は維持した。
 - ホストへ報告する latency は 0 samples のまま。
 
-ユーザー確認待ち:
+ユーザー確認済み:
 
-- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になること。
-- MIDI note がある状態で `dryWet = 100%` にすると pitch shifted wet が鳴ること。
-- C4 付近の MIDI note で、wet が入力音に近い高さに聞こえること。
-- C3 付近の MIDI note で、wet が低く聞こえること。
-- C5 付近の MIDI note で、wet が高く聞こえること。
-- 複数 MIDI note で複数 pitch の wet が重なること。
-- `spread` を上げると複数 wet voice の左右配置が広がること。
-- Note Off / Panic で wet voice が止まること。
+- MIDI note がない状態で `dryWet = 100%` にすると wet が無音になることを確認した。
+- MIDI note がある状態で `dryWet = 100%` にすると pitch shifted wet が鳴ることを確認した。
+- C4 付近の MIDI note で、wet が入力音に近い高さに聞こえることを確認した。
+- C3 付近の MIDI note で、wet が低く聞こえることを確認した。
+- C5 付近の MIDI note で、wet が高く聞こえることを確認した。
+- 複数 MIDI note で複数 pitch の wet が重なることを確認した。
+- `spread` を上げると複数 wet voice の左右配置が広がることを確認した。
+- Note Off / Panic で wet voice が止まることを確認した。
 
 想定される制限:
 
