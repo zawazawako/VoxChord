@@ -39,6 +39,14 @@ namespace
         return "--";
     }
 
+    juce::String formatPitchDebug (float pitchHz)
+    {
+        if (pitchHz <= 0.0f)
+            return "Pitch: --";
+
+        return "Pitch: " + juce::String (pitchHz, 1) + " Hz";
+    }
+
     void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
     {
         label.setText (text, juce::dontSendNotification);
@@ -84,7 +92,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
 
-    configureStatusLabel (midiNotesLabel, "MIDI: --", juce::Justification::centredLeft);
+    configureStatusLabel (midiNotesLabel, "MIDI: -- | Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
 
     configureStatusLabel (voiceSlotsLabel, "Slots: V1 -- | V2 -- | V3 -- | V4 --", juce::Justification::centredLeft);
@@ -168,13 +176,13 @@ void VoxChordAudioProcessorEditor::resized()
     auto topRow = status.removeFromTop (42);
     outputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
     inputMeterLabel.setBounds (topRow.removeFromRight (136).reduced (6));
-    pitchDebugLabel.setBounds (topRow.removeFromRight (146).reduced (6));
     midiNotesLabel.setBounds (topRow.reduced (6));
 
     auto slotRow = status.removeFromTop (42);
     voiceSlotsLabel.setBounds (slotRow.reduced (6));
 
     auto eventRow = status.removeFromTop (42);
+    pitchDebugLabel.setBounds (eventRow.removeFromRight (170).reduced (6));
     midiStatusLabel.setBounds (eventRow.reduced (6));
 }
 
@@ -260,6 +268,8 @@ void VoxChordAudioProcessorEditor::updateMidiState()
     if (! anyNotes)
         text += "--";
 
+    text += " | " + formatPitchDebug (processorRef.getDetectedInputPitchHz());
+
     midiNotesLabel.setText (text, juce::dontSendNotification);
     voiceSlotsLabel.setText (slots, juce::dontSendNotification);
 
@@ -288,12 +298,9 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
     const auto pitchHz = processorRef.getDetectedInputPitchHz();
+    const auto pitchText = formatPitchDebug (pitchHz);
 
-    if (pitchHz <= 0.0f)
-    {
-        pitchDebugLabel.setText ("Pitch: --", juce::dontSendNotification);
-        return;
-    }
-
-    pitchDebugLabel.setText ("Pitch: " + juce::String (pitchHz, 1) + " Hz", juce::dontSendNotification);
+    pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
+    subtitleLabel.setText ("MIDI-controlled digital choir | C3 = MIDI 60 | " + pitchText,
+                           juce::dontSendNotification);
 }

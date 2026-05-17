@@ -325,3 +325,36 @@ VoxChord の各バージョンで確認した動作を記録する。
 - 声の音高を上下させたとき、表示 Hz が追従するか。
 - Hz 表示が出ている状態で、同じ MIDI note に対する wet pitch の変換量が入力 pitch に応じて変わるか。
 - C5 より上の MIDI note で、Hz 表示の有無によって頭打ち挙動が変わるか。
+
+## 0.1.8 phase 3G visible pitch debug label
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+ユーザー確認結果:
+
+- 0.1.7 では GUI に `Pitch: --` / `Pitch: xxx.x Hz` が表示されないことを確認した。
+
+再確認した実装状態:
+
+- `pitchDebugLabel` 自体は作成され `addAndMakeVisible()` されていた。
+- ただし top status row 内の右側メーター群に混ぜていたため、表示位置が分かりにくい、またはレイアウト上で見落とされる可能性があった。
+
+実装済み:
+
+- `Pitch` debug 表示を top row から event row の右側へ移動した。
+- 既存の `MIDI:` 行にも `| Pitch: --` / `| Pitch: xxx.x Hz` を追加表示するようにした。
+- subtitle にも `Pitch` debug 表示を重複表示し、少なくとも 1 箇所では確認できるようにした。
+- バージョンを `0.1.8` に更新した。
+
+ユーザー確認待ち:
+
+- GUI 上で `Pitch: --` が見えること。
+- 入力音を入れたとき、`Pitch: xxx.x Hz` に変わること。
+- MIDI row / event row / subtitle のいずれかで Pitch 表示が確認できること。
