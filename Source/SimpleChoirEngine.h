@@ -8,6 +8,15 @@
 
 namespace voxchord
 {
+struct PitchState
+{
+    float inputRmsDb = -100.0f;
+    float rawPitchHz = 0.0f;
+    float stablePitchHz = 0.0f;
+    float confidence = 0.0f;
+    bool voiced = false;
+};
+
 class SimpleChoirEngine final
 {
 public:
@@ -23,6 +32,7 @@ public:
                  float glide,
                  float character) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
+    PitchState getPitchState() const noexcept { return pitchState; }
 
 private:
     struct VoicePitchState
@@ -40,14 +50,35 @@ private:
     public:
         void prepare (double sampleRate) noexcept;
         void reset() noexcept;
-        float processBlock (const juce::AudioBuffer<float>& input) noexcept;
+        PitchState processBlock (const juce::AudioBuffer<float>& input) noexcept;
 
     private:
+        void analyseFrame() noexcept;
+        float detectPitchYin() noexcept;
+        float chooseStableCandidate (float rawPitchHz) const noexcept;
+        static float computeRmsDb (const std::array<float, 2048>& frame) noexcept;
+        static float getParabolicOffset (float previous, float current, float next) noexcept;
+
+        static constexpr int frameLength = 2048;
+        static constexpr int hopSize = 512;
+        static constexpr float minFrequencyHz = 70.0f;
+        static constexpr float maxFrequencyHz = 1000.0f;
+        static constexpr float rmsGateDb = -45.0f;
+        static constexpr float confidenceThreshold = 0.75f;
+        static constexpr float smoothingAlpha = 0.2f;
+        static constexpr float holdTimeMs = 100.0f;
+        static constexpr float yinThreshold = 1.0f - confidenceThreshold;
+
         double sampleRateHz = 44100.0;
-        int samplesSinceCrossing = 0;
-        float smoothedFrequencyHz = 0.0f;
-        float previousSample = 0.0f;
-        bool wasBelowLowThreshold = false;
+        int writeIndex = 0;
+        int samplesUntilAnalysis = hopSize;
+        int samplesSinceAccepted = 0;
+        int holdSamples = 4410;
+        PitchState state;
+        std::array<float, frameLength> ringBuffer {};
+        std::array<float, frameLength> analysisFrame {};
+        std::array<float, frameLength> difference {};
+        std::array<float, frameLength> cmndf {};
     };
 
     static int countActiveVoices (const MidiVoiceState::NoteSnapshot& activeNotes, int voiceLimit) noexcept;
@@ -76,6 +107,7 @@ private:
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
     float lastDetectedInputFrequencyHz = 0.0f;
+    PitchState pitchState;
 
     int delayBufferSize = 0;
     int writeIndex = 0;

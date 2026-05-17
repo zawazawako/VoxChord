@@ -1,6 +1,7 @@
 #include "SimpleChoirEngine.h"
 
 #include <cmath>
+#include <limits>
 
 namespace voxchord
 {
@@ -24,6 +25,7 @@ void SimpleChoirEngine::reset() noexcept
     writeIndex = 0;
     pitchDetector.reset();
     lastDetectedInputFrequencyHz = 0.0f;
+    pitchState = {};
 
     for (auto& voice : voiceStates)
         resetVoice (voice);
@@ -52,7 +54,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto safeCharacter = juce::jlimit (0.0f, 1.0f, character);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
-    const auto inputFrequencyHz = pitchDetector.processBlock (dryInput);
+    pitchState = pitchDetector.processBlock (dryInput);
+    const auto inputFrequencyHz = pitchState.stablePitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
@@ -168,68 +171,226 @@ float SimpleChoirEngine::getPanForVoice (int activeIndex, int activeCount, float
 void SimpleChoirEngine::SimplePitchDetector::prepare (double sampleRate) noexcept
 {
     sampleRateHz = juce::jmax (1.0, sampleRate);
+    holdSamples = juce::jmax (1, juce::roundToInt (sampleRateHz * holdTimeMs * 0.001));
     reset();
 }
 
 void SimpleChoirEngine::SimplePitchDetector::reset() noexcept
 {
-    samplesSinceCrossing = 0;
-    smoothedFrequencyHz = 0.0f;
-    previousSample = 0.0f;
-    wasBelowLowThreshold = false;
+    writeIndex = 0;
+    samplesUntilAnalysis = hopSize;
+    samplesSinceAccepted = holdSamples + 1;
+    state = {};
+    ringBuffer.fill (0.0f);
+    analysisFrame.fill (0.0f);
+    difference.fill (0.0f);
+    cmndf.fill (0.0f);
 }
 
-float SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::AudioBuffer<float>& input) noexcept
+PitchState SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::AudioBuffer<float>& input) noexcept
 {
-    static constexpr auto lowThreshold = -0.003f;
-    static constexpr auto highThreshold = 0.003f;
-    static constexpr auto minFrequencyHz = 70.0f;
-    static constexpr auto maxFrequencyHz = 1000.0f;
-
     const auto samples = input.getNumSamples();
 
     if (samples <= 0)
-        return smoothedFrequencyHz;
-
-    const auto minPeriodSamples = juce::jmax (1, juce::roundToInt (sampleRateHz / maxFrequencyHz));
-    const auto maxPeriodSamples = juce::roundToInt (sampleRateHz / minFrequencyHz);
+        return state;
 
     for (auto sample = 0; sample < samples; ++sample)
     {
-        const auto monoSample = SimpleChoirEngine::readMonoInput (input, sample);
-        ++samplesSinceCrossing;
+        ringBuffer[static_cast<size_t> (writeIndex)] = SimpleChoirEngine::readMonoInput (input, sample);
+        writeIndex = (writeIndex + 1) % frameLength;
+        ++samplesSinceAccepted;
 
-        if (monoSample < lowThreshold)
-            wasBelowLowThreshold = true;
-
-        if (wasBelowLowThreshold && previousSample <= highThreshold && monoSample > highThreshold)
+        if (--samplesUntilAnalysis <= 0)
         {
-            if (samplesSinceCrossing >= minPeriodSamples && samplesSinceCrossing <= maxPeriodSamples)
-            {
-                const auto detectedFrequency = static_cast<float> (sampleRateHz / static_cast<double> (samplesSinceCrossing));
-                smoothedFrequencyHz = smoothedFrequencyHz <= 0.0f
-                                          ? detectedFrequency
-                                          : smoothedFrequencyHz + (detectedFrequency - smoothedFrequencyHz) * 0.2f;
-            }
-
-            samplesSinceCrossing = 0;
-            wasBelowLowThreshold = false;
+            analyseFrame();
+            samplesUntilAnalysis += hopSize;
         }
-
-        if (samplesSinceCrossing > maxPeriodSamples * 2)
-        {
-            smoothedFrequencyHz *= 0.98f;
-
-            if (smoothedFrequencyHz < minFrequencyHz)
-                smoothedFrequencyHz = 0.0f;
-
-            samplesSinceCrossing = maxPeriodSamples;
-        }
-
-        previousSample = monoSample;
     }
 
-    return smoothedFrequencyHz;
+    if (samplesSinceAccepted > holdSamples)
+        state.stablePitchHz = 0.0f;
+
+    if (state.stablePitchHz <= 0.0f)
+        state.voiced = false;
+
+    return state;
+}
+
+void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
+{
+    for (auto index = 0; index < frameLength; ++index)
+        analysisFrame[static_cast<size_t> (index)] = ringBuffer[static_cast<size_t> ((writeIndex + index) % frameLength)];
+
+    state.inputRmsDb = computeRmsDb (analysisFrame);
+
+    if (state.inputRmsDb < rmsGateDb)
+    {
+        state.rawPitchHz = 0.0f;
+        state.confidence = 0.0f;
+        state.voiced = false;
+        return;
+    }
+
+    const auto rawPitch = detectPitchYin();
+    state.rawPitchHz = rawPitch;
+
+    if (rawPitch <= 0.0f || state.confidence < confidenceThreshold)
+    {
+        state.voiced = false;
+        return;
+    }
+
+    const auto candidatePitch = chooseStableCandidate (rawPitch);
+
+    if (candidatePitch <= 0.0f)
+    {
+        state.voiced = false;
+        return;
+    }
+
+    if (state.stablePitchHz <= 0.0f)
+    {
+        state.stablePitchHz = candidatePitch;
+    }
+    else
+    {
+        state.stablePitchHz += (candidatePitch - state.stablePitchHz) * smoothingAlpha;
+    }
+
+    state.voiced = true;
+    samplesSinceAccepted = 0;
+}
+
+float SimpleChoirEngine::SimplePitchDetector::detectPitchYin() noexcept
+{
+    const auto minLag = juce::jlimit (2, frameLength - 2, juce::roundToInt (sampleRateHz / maxFrequencyHz));
+    const auto maxLag = juce::jlimit (minLag + 1, frameLength - 2, juce::roundToInt (sampleRateHz / minFrequencyHz));
+
+    difference[0] = 0.0f;
+    cmndf[0] = 1.0f;
+
+    for (auto tau = 1; tau <= maxLag + 1; ++tau)
+    {
+        auto sum = 0.0f;
+        const auto compareSamples = frameLength - tau;
+
+        for (auto index = 0; index < compareSamples; ++index)
+        {
+            const auto delta = analysisFrame[static_cast<size_t> (index)]
+                             - analysisFrame[static_cast<size_t> (index + tau)];
+            sum += delta * delta;
+        }
+
+        difference[static_cast<size_t> (tau)] = sum;
+    }
+
+    auto runningSum = 0.0f;
+
+    for (auto tau = 1; tau <= maxLag + 1; ++tau)
+    {
+        runningSum += difference[static_cast<size_t> (tau)];
+        cmndf[static_cast<size_t> (tau)] = runningSum > 0.0f
+                                               ? difference[static_cast<size_t> (tau)] * static_cast<float> (tau) / runningSum
+                                               : 1.0f;
+    }
+
+    auto bestTau = -1;
+    auto bestValue = 1.0f;
+
+    for (auto tau = minLag; tau <= maxLag; ++tau)
+    {
+        const auto value = cmndf[static_cast<size_t> (tau)];
+
+        if (value < bestValue)
+        {
+            bestValue = value;
+            bestTau = tau;
+        }
+
+        if (value < yinThreshold)
+        {
+            bestTau = tau;
+
+            while (bestTau + 1 <= maxLag && cmndf[static_cast<size_t> (bestTau + 1)] < cmndf[static_cast<size_t> (bestTau)])
+                ++bestTau;
+
+            bestValue = cmndf[static_cast<size_t> (bestTau)];
+            break;
+        }
+    }
+
+    if (bestTau < minLag)
+    {
+        state.confidence = 0.0f;
+        return 0.0f;
+    }
+
+    const auto previous = cmndf[static_cast<size_t> (juce::jmax (minLag, bestTau - 1))];
+    const auto current = cmndf[static_cast<size_t> (bestTau)];
+    const auto next = cmndf[static_cast<size_t> (juce::jmin (maxLag + 1, bestTau + 1))];
+    const auto interpolatedTau = static_cast<float> (bestTau) + getParabolicOffset (previous, current, next);
+
+    state.confidence = juce::jlimit (0.0f, 1.0f, 1.0f - bestValue);
+
+    if (interpolatedTau <= 0.0f)
+        return 0.0f;
+
+    return static_cast<float> (sampleRateHz) / interpolatedTau;
+}
+
+float SimpleChoirEngine::SimplePitchDetector::chooseStableCandidate (float rawPitchHz) const noexcept
+{
+    if (rawPitchHz < minFrequencyHz || rawPitchHz > maxFrequencyHz)
+        return 0.0f;
+
+    if (state.stablePitchHz <= 0.0f)
+        return rawPitchHz;
+
+    std::array<float, 3> candidates { rawPitchHz * 0.5f, rawPitchHz, rawPitchHz * 2.0f };
+    auto bestCandidate = rawPitchHz;
+    auto bestDistance = std::numeric_limits<float>::max();
+
+    for (const auto candidate : candidates)
+    {
+        if (candidate < minFrequencyHz || candidate > maxFrequencyHz)
+            continue;
+
+        const auto distance = std::abs (std::log2 (candidate / state.stablePitchHz));
+
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            bestCandidate = candidate;
+        }
+    }
+
+    const auto centsFromStable = std::abs (1200.0f * std::log2 (bestCandidate / state.stablePitchHz));
+
+    if (centsFromStable > 600.0f && state.confidence < 0.9f)
+        return 0.0f;
+
+    return bestCandidate;
+}
+
+float SimpleChoirEngine::SimplePitchDetector::computeRmsDb (const std::array<float, frameLength>& frame) noexcept
+{
+    auto sum = 0.0f;
+
+    for (const auto sample : frame)
+        sum += sample * sample;
+
+    const auto rms = std::sqrt (sum / static_cast<float> (frameLength));
+    return juce::Decibels::gainToDecibels (rms, -100.0f);
+}
+
+float SimpleChoirEngine::SimplePitchDetector::getParabolicOffset (float previous, float current, float next) noexcept
+{
+    const auto denominator = previous - 2.0f * current + next;
+
+    if (std::abs (denominator) < 0.000001f)
+        return 0.0f;
+
+    return juce::jlimit (-0.5f, 0.5f, 0.5f * (previous - next) / denominator);
 }
 
 float SimpleChoirEngine::getPitchRatioForNote (int midiNote, float inputFrequencyHz) noexcept

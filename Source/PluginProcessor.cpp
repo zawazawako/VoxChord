@@ -155,7 +155,13 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getTune(),
                          getGlide(),
                          getCharacter());
-    detectedInputPitchHz.store (choirEngine.getLastDetectedInputFrequencyHz(), std::memory_order_relaxed);
+    const auto pitchState = choirEngine.getPitchState();
+    detectedInputPitchHz.store (pitchState.stablePitchHz, std::memory_order_relaxed);
+    inputRmsDb.store (pitchState.inputRmsDb, std::memory_order_relaxed);
+    rawPitchHz.store (pitchState.rawPitchHz, std::memory_order_relaxed);
+    stablePitchHz.store (pitchState.stablePitchHz, std::memory_order_relaxed);
+    pitchConfidence.store (pitchState.confidence, std::memory_order_relaxed);
+    pitchVoiced.store (pitchState.voiced, std::memory_order_relaxed);
     mixDryWetToOutput (buffer);
 
     const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
@@ -224,6 +230,17 @@ int VoxChordAudioProcessor::getCurrentVoiceLimit() const noexcept
 float VoxChordAudioProcessor::getDetectedInputPitchHz() const noexcept
 {
     return detectedInputPitchHz.load (std::memory_order_relaxed);
+}
+
+voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
+{
+    return {
+        inputRmsDb.load (std::memory_order_relaxed),
+        rawPitchHz.load (std::memory_order_relaxed),
+        stablePitchHz.load (std::memory_order_relaxed),
+        pitchConfidence.load (std::memory_order_relaxed),
+        pitchVoiced.load (std::memory_order_relaxed)
+    };
 }
 
 float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept

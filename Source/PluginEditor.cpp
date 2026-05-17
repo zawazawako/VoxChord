@@ -47,6 +47,18 @@ namespace
         return "Pitch: " + juce::String (pitchHz, 1) + " Hz";
     }
 
+    juce::String formatDetailedPitchDebug (const voxchord::PitchState& state)
+    {
+        const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
+        const auto stableText = state.stablePitchHz > 0.0f ? juce::String (state.stablePitchHz, 1) + " Hz" : "--";
+
+        return "Build: pitch-yin-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+             + " | Raw: " + rawText
+             + " | Stable: " + stableText
+             + " | Conf: " + juce::String (state.confidence, 2)
+             + " | Voiced: " + juce::String (state.voiced ? "yes" : "no");
+    }
+
     void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
     {
         label.setText (text, juce::dontSendNotification);
@@ -297,10 +309,10 @@ void VoxChordAudioProcessorEditor::updateMeters()
 
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
-    const auto pitchHz = processorRef.getDetectedInputPitchHz();
-    const auto pitchText = formatPitchDebug (pitchHz);
+    const auto pitchState = processorRef.getPitchState();
+    const auto pitchText = formatPitchDebug (pitchState.stablePitchHz);
 
     pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
-    subtitleLabel.setText ("MIDI-controlled digital choir | C3 = MIDI 60 | " + pitchText,
+    subtitleLabel.setText (formatDetailedPitchDebug (pitchState),
                            juce::dontSendNotification);
 }

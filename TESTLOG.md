@@ -358,3 +358,55 @@ VoxChord の各バージョンで確認した動作を記録する。
 - GUI 上で `Pitch: --` が見えること。
 - 入力音を入れたとき、`Pitch: xxx.x Hz` に変わること。
 - MIDI row / event row / subtitle のいずれかで Pitch 表示が確認できること。
+
+## 0.1.9 phase 3H YIN pitch detector stabilization
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認予定
+- Debug VST3: ユーザー確認予定
+- Release Standalone: ユーザー確認予定
+- Release VST3: ユーザー確認予定
+
+実装方針:
+
+- `DIRECTION0518.md` に従い、zero crossing ベースの pitch detector を廃止した。
+- 既存の 4 voice choir / MIDI 制御 / 基本 UI 構造は維持した。
+- 音質改善や新機能追加ではなく、入力 pitch 検出パイプラインの安定化を目的とした。
+
+採用したアルゴリズム:
+
+- YIN / CMNDF
+- `frameLength = 2048 samples`
+- `hopSize = 512 samples`
+- `pitchRange = 70-1000 Hz`
+- `rmsGateDb = -45.0 dBFS`
+- `confidence = 1.0 - cmndfValue`
+- `confidenceThreshold = 0.75`
+- `smoothingAlpha = 0.2`
+- `holdTimeMs = 100 ms`
+
+実装済み:
+
+- 入力音声を detector 内部の ring buffer に蓄積し、512 samples ごとに 2048 samples frame を解析するようにした。
+- frame RMS を計算し、RMS gate 未満では raw pitch / confidence / voiced を無効化するようにした。
+- YIN の difference function と cumulative mean normalized difference function を実装した。
+- confidence が低い raw pitch を `stablePitchHz` に即反映しないようにした。
+- `rawPitchHz`, `stablePitchHz`, `confidence`, `voiced`, `inputRmsDb` を持つ `PitchState` を追加した。
+- ハーモニー生成側は raw pitch ではなく `stablePitchHz` を参照するようにした。
+- octave 誤検出対策として、前回 stable pitch に近い `raw`, `raw / 2`, `raw * 2` を候補にする補正を追加した。
+- 100 ms の hold を追加し、一瞬の検出失敗で stable pitch が即 0 にならないようにした。
+- GUI subtitle に `Build: pitch-yin-001`, RMS, Raw Pitch, Stable Pitch, Confidence, Voiced を表示するようにした。
+
+ユーザー確認待ち:
+
+- 無音時に Raw Pitch / Stable Pitch が暴れないこと。
+- Input RMS dB が GUI で確認できること。
+- 持続母音で Stable Pitch が大きく暴れないこと。
+- 子音やノイズでランダムな pitch が出にくいこと。
+- Raw Pitch が多少揺れても Stable Pitch がなめらかになること。
+- Confidence が低いときに `stablePitchHz` へ反映されにくいこと。
+- ハーモニー生成が `stablePitchHz` に基づいて動くこと。
+- subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
