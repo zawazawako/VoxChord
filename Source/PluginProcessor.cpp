@@ -39,6 +39,10 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     jassert (characterParameter != nullptr);
     jassert (spreadParameter != nullptr);
     jassert (outputLevelParameter != nullptr);
+
+    #if JUCE_DEBUG
+    voxchord::SimpleChoirEngine::runPitchDetectorSelfTest();
+    #endif
 }
 
 const juce::String VoxChordAudioProcessor::getName() const

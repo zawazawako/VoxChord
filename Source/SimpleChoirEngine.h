@@ -25,6 +25,7 @@ class SimpleChoirEngine final
 public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
+    static void runPitchDetectorSelfTest();
 
     void render (const juce::AudioBuffer<float>& dryInput,
                  juce::AudioBuffer<float>& wetOutput,
@@ -53,6 +54,7 @@ private:
     public:
         void prepare (double sampleRate) noexcept;
         void reset() noexcept;
+        void setHarmonicCorrectionEnabled (bool shouldBeEnabled) noexcept;
         PitchState processBlock (const juce::AudioBuffer<float>& input) noexcept;
 
     private:
@@ -70,8 +72,8 @@ private:
 
         static constexpr int frameLength = 2048;
         static constexpr int hopSize = 512;
-        static constexpr float minFrequencyHz = 70.0f;
-        static constexpr float maxFrequencyHz = 600.0f;
+        static constexpr float minFrequencyHz = 80.0f;
+        static constexpr float maxFrequencyHz = 900.0f;
         static constexpr float rmsGateDb = -45.0f;
         static constexpr float confidenceThreshold = 0.75f;
         static constexpr float veryHighConfidenceThreshold = 0.9f;
@@ -80,6 +82,11 @@ private:
         static constexpr float holdTimeMs = 100.0f;
         static constexpr float yinThreshold = 1.0f - confidenceThreshold;
         static constexpr float maxJumpCents = 350.0f;
+        static constexpr float fallbackMinimumTolerance = 0.02f;
+        static constexpr float correctionNearCents = 120.0f;
+        static constexpr float repeatedRawCents = 80.0f;
+        static constexpr int correctionConfirmationFrames = 2;
+        static constexpr int highConfidenceRawFramesForUnlock = 3;
         static constexpr int medianWindowSize = 5;
 
         double sampleRateHz = 44100.0;
@@ -87,7 +94,12 @@ private:
         int samplesUntilAnalysis = hopSize;
         int samplesSinceAccepted = 0;
         int consecutiveJumpFrames = 0;
+        int correctionCandidateMode = 0;
+        int correctionCandidateFrames = 0;
+        int highConfidenceRawFrames = 0;
         int holdSamples = 4410;
+        bool harmonicCorrectionEnabled = true;
+        float previousRawPitchHz = 0.0f;
         PitchState state;
         std::array<float, frameLength> ringBuffer {};
         std::array<float, frameLength> analysisFrame {};

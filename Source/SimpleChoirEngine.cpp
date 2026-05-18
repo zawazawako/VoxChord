@@ -5,6 +5,17 @@
 
 namespace voxchord
 {
+namespace
+{
+    juce::String formatSelfTestPitch (float pitchHz)
+    {
+        if (pitchHz <= 0.0f)
+            return "--";
+
+        return juce::String (pitchHz, 1) + " Hz";
+    }
+}
+
 void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
 {
     currentSampleRate = juce::jmax (1.0, sampleRate);
@@ -29,6 +40,60 @@ void SimpleChoirEngine::reset() noexcept
 
     for (auto& voice : voiceStates)
         resetVoice (voice);
+}
+
+void SimpleChoirEngine::runPitchDetectorSelfTest()
+{
+    SimplePitchDetector detector;
+    detector.prepare (48000.0);
+    detector.setHarmonicCorrectionEnabled (false);
+
+    constexpr double testSampleRate = 48000.0;
+    constexpr auto testSamples = 48000;
+    constexpr auto blockSize = 512;
+    constexpr std::array<float, 12> testFrequencies {{
+        100.0f, 150.0f, 220.0f, 261.63f, 329.63f, 440.0f,
+        523.25f, 600.0f, 659.25f, 700.0f, 800.0f, 880.0f
+    }};
+
+    juce::AudioBuffer<float> block (1, blockSize);
+
+    DBG ("VoxChord PitchDetector SelfTest: range 80-900 Hz, harmonic correction OFF");
+
+    for (const auto frequencyHz : testFrequencies)
+    {
+        detector.reset();
+        detector.setHarmonicCorrectionEnabled (false);
+
+        auto phase = 0.0;
+        PitchState result;
+
+        for (auto processed = 0; processed < testSamples; processed += blockSize)
+        {
+            const auto samplesThisBlock = juce::jmin (blockSize, testSamples - processed);
+            block.clear();
+
+            for (auto sample = 0; sample < samplesThisBlock; ++sample)
+            {
+                block.setSample (0,
+                                 sample,
+                                 0.35f * std::sin (static_cast<float> (phase)));
+
+                phase += juce::MathConstants<double>::twoPi * static_cast<double> (frequencyHz) / testSampleRate;
+
+                if (phase >= juce::MathConstants<double>::twoPi)
+                    phase -= juce::MathConstants<double>::twoPi;
+            }
+
+            result = detector.processBlock (block);
+        }
+
+        DBG (juce::String ("SelfTest ") + juce::String (frequencyHz, 2) + " Hz -> Raw: "
+             + formatSelfTestPitch (result.rawPitchHz)
+             + ", Corrected: " + formatSelfTestPitch (result.correctedPitchHz)
+             + ", Stable: " + formatSelfTestPitch (result.stablePitchHz)
+             + ", Confidence: " + juce::String (result.confidence, 2));
+    }
 }
 
 void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
@@ -184,6 +249,10 @@ void SimpleChoirEngine::SimplePitchDetector::reset() noexcept
     samplesUntilAnalysis = hopSize;
     samplesSinceAccepted = holdSamples + 1;
     consecutiveJumpFrames = 0;
+    correctionCandidateMode = 0;
+    correctionCandidateFrames = 0;
+    highConfidenceRawFrames = 0;
+    previousRawPitchHz = 0.0f;
     state = {};
     ringBuffer.fill (0.0f);
     analysisFrame.fill (0.0f);
@@ -192,6 +261,11 @@ void SimpleChoirEngine::SimplePitchDetector::reset() noexcept
     medianLogBuffer.fill (0.0f);
     medianWriteIndex = 0;
     medianCount = 0;
+}
+
+void SimpleChoirEngine::SimplePitchDetector::setHarmonicCorrectionEnabled (bool shouldBeEnabled) noexcept
+{
+    harmonicCorrectionEnabled = shouldBeEnabled;
 }
 
 PitchState SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::AudioBuffer<float>& input) noexcept
@@ -246,6 +320,20 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
     const auto rawPitch = detectPitchYin();
     state.rawPitchHz = rawPitch;
 
+    if (rawPitch > 0.0f
+        && previousRawPitchHz > 0.0f
+        && centsBetween (rawPitch, previousRawPitchHz) <= repeatedRawCents
+        && state.confidence >= veryHighConfidenceThreshold)
+    {
+        ++highConfidenceRawFrames;
+    }
+    else
+    {
+        highConfidenceRawFrames = state.confidence >= veryHighConfidenceThreshold ? 1 : 0;
+    }
+
+    previousRawPitchHz = rawPitch;
+
     if (rawPitch <= 0.0f || state.confidence < confidenceThreshold)
     {
         state.voiced = false;
@@ -274,8 +362,12 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
 
 float SimpleChoirEngine::SimplePitchDetector::detectPitchYin() noexcept
 {
-    const auto minLag = juce::jlimit (2, frameLength - 2, juce::roundToInt (sampleRateHz / maxFrequencyHz));
-    const auto maxLag = juce::jlimit (minLag + 1, frameLength - 2, juce::roundToInt (sampleRateHz / minFrequencyHz));
+    const auto minLag = juce::jlimit (2,
+                                      frameLength - 2,
+                                      static_cast<int> (std::floor (sampleRateHz / maxFrequencyHz)));
+    const auto maxLag = juce::jlimit (minLag + 1,
+                                      frameLength - 2,
+                                      static_cast<int> (std::ceil (sampleRateHz / minFrequencyHz)));
 
     difference[0] = 0.0f;
     cmndf[0] = 1.0f;
@@ -305,28 +397,40 @@ float SimpleChoirEngine::SimplePitchDetector::detectPitchYin() noexcept
                                                : 1.0f;
     }
 
-    auto bestTau = -1;
-    auto bestValue = 1.0f;
+    auto thresholdTau = -1;
 
     for (auto tau = minLag; tau <= maxLag; ++tau)
     {
         const auto value = cmndf[static_cast<size_t> (tau)];
 
-        if (value < bestValue)
-        {
-            bestValue = value;
-            bestTau = tau;
-        }
-
         if (value < yinThreshold)
         {
-            bestTau = tau;
+            thresholdTau = tau;
 
-            while (bestTau + 1 <= maxLag && cmndf[static_cast<size_t> (bestTau + 1)] < cmndf[static_cast<size_t> (bestTau)])
-                ++bestTau;
+            while (thresholdTau + 1 <= maxLag
+                   && cmndf[static_cast<size_t> (thresholdTau + 1)] < cmndf[static_cast<size_t> (thresholdTau)])
+            {
+                ++thresholdTau;
+            }
 
-            bestValue = cmndf[static_cast<size_t> (bestTau)];
             break;
+        }
+    }
+
+    auto bestTau = thresholdTau;
+    auto bestValue = bestTau >= minLag ? cmndf[static_cast<size_t> (bestTau)] : 1.0f;
+
+    if (bestTau < minLag)
+    {
+        for (auto tau = minLag; tau <= maxLag; ++tau)
+        {
+            const auto value = cmndf[static_cast<size_t> (tau)];
+
+            if (value + fallbackMinimumTolerance < bestValue)
+            {
+                bestValue = value;
+                bestTau = tau;
+            }
         }
     }
 
@@ -360,6 +464,16 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
     if (state.stablePitchHz <= 0.0f)
     {
         state.harmonicCorrectionMode = 0;
+        correctionCandidateMode = 0;
+        correctionCandidateFrames = 0;
+        return rawPitchHz;
+    }
+
+    if (! harmonicCorrectionEnabled || highConfidenceRawFrames >= highConfidenceRawFramesForUnlock)
+    {
+        state.harmonicCorrectionMode = 0;
+        correctionCandidateMode = 0;
+        correctionCandidateFrames = 0;
         return rawPitchHz;
     }
 
@@ -369,11 +483,12 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
         int mode = 0;
     };
 
-    std::array<Candidate, 4> candidates {{
+    std::array<Candidate, 5> candidates {{
         { rawPitchHz, 0 },
         { rawPitchHz * 0.5f, 2 },
         { rawPitchHz / 3.0f, 3 },
-        { rawPitchHz * 2.0f, -2 }
+        { rawPitchHz * 2.0f, -2 },
+        { rawPitchHz * 3.0f, -3 }
     }};
 
     auto bestCandidate = rawPitchHz;
@@ -394,6 +509,38 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
             bestMode = candidate.mode;
         }
     }
+
+    if (bestMode != 0)
+    {
+        const auto rawDistance = centsBetween (rawPitchHz, state.stablePitchHz);
+        const auto rawIsLikelyNewPitch = rawDistance > maxJumpCents
+                                      && state.confidence >= veryHighConfidenceThreshold;
+
+        if (bestDistance > correctionNearCents || rawIsLikelyNewPitch)
+            bestMode = 0;
+    }
+
+    if (bestMode != 0)
+    {
+        if (bestMode == correctionCandidateMode)
+            ++correctionCandidateFrames;
+        else
+        {
+            correctionCandidateMode = bestMode;
+            correctionCandidateFrames = 1;
+        }
+
+        if (correctionCandidateFrames < correctionConfirmationFrames)
+            bestMode = 0;
+    }
+    else
+    {
+        correctionCandidateMode = 0;
+        correctionCandidateFrames = 0;
+    }
+
+    if (bestMode == 0)
+        bestCandidate = rawPitchHz;
 
     state.harmonicCorrectionMode = bestMode;
     return bestCandidate;

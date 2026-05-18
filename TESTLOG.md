@@ -411,6 +411,49 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.11 phase 3J pitch range 900 self test
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- `directions/0518_3.md` に従い、PitchDetector 本体の検出範囲と 600 Hz 超えの octave-down 誤検出切り分けを優先した。
+- UI デザイン、MIDI 制御、Voice Choir の基本構造、新規エフェクト追加は行っていない。
+- 通常の audio thread 内では self test を実行せず、Debug ビルドの processor 生成時に一度だけ実行する形にした。
+
+実装済み:
+
+- pitch range を `80-900 Hz` に変更した。
+- lag 範囲計算を `floor(sampleRate / maxFrequencyHz)` / `ceil(sampleRate / minFrequencyHz)` に変更した。
+- YIN の lag 選択を、threshold 到達後の局所最小を優先し、fallback 時は近いスコアなら短い lag 側を優先する形に調整した。
+- harmonic correction を内部フラグ `harmonicCorrectionEnabled` で OFF にできるようにした。
+- harmonic correction は raw/2, raw/3, raw*2, raw*3 候補を持つが、前回 stable への過剰ロックを避けるため、高 confidence の raw が継続している場合は raw 側へ戻れるようにした。
+- correction 候補は 1 frame だけでは採用せず、同じ補正候補が連続した場合のみ採用するようにした。
+- Debug self test として、内部サイン波 `100 / 150 / 220 / 261.63 / 329.63 / 440 / 523.25 / 600 / 659.25 / 700 / 800 / 880 Hz` を PitchDetector に直接入力する処理を追加した。
+- GUI debug 表示を `Build: pitch-range-900-selftest-001` に更新した。
+- CMake project version を `0.1.11` に更新した。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- Debug 出力に self test 結果が表示されること。
+- harmonic correction OFF の self test で 700 Hz が 350 Hz、800 Hz が 400 Hz、880 Hz が 440 Hz に落ちないこと。
+- 実音声で 600 Hz 超えの Raw Pitch が半分に落ちにくくなること。
+- harmonic correction ON の通常動作で、高音 Raw Pitch が raw/2 へ過剰補正されないこと。
+
+次に確認すべきこと:
+
+- GUI の `Build: pitch-range-900-selftest-001` が表示されること。
+- GUI の Raw / Corrected / Stable / Harmony のどの段階で誤差が出るかを確認すること。
+- 連続母音で 700-880 Hz 付近を入力し、Raw Pitch が追従するか確認すること。
+
 ## 0.1.10 phase 3I pitch stability correction
 
 日付: 2026-05-18

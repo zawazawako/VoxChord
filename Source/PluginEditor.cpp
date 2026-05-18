@@ -54,6 +54,7 @@ namespace
             case 2:  return "raw/2";
             case 3:  return "raw/3";
             case -2: return "raw*2";
+            case -3: return "raw*3";
             default: break;
         }
 
@@ -67,7 +68,7 @@ namespace
         const auto stableText = state.stablePitchHz > 0.0f ? juce::String (state.stablePitchHz, 1) + " Hz" : "--";
         const auto harmonyText = state.harmonyPitchHz > 0.0f ? juce::String (state.harmonyPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-stability-002 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        return "Build: pitch-range-900-selftest-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText
              + " | Stable: " + stableText
