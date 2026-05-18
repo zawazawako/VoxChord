@@ -65,17 +65,18 @@ namespace
     {
         const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
         const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
-        const auto stableText = state.stablePitchHz > 0.0f ? juce::String (state.stablePitchHz, 1) + " Hz" : "--";
-        const auto harmonyText = state.harmonyPitchHz > 0.0f ? juce::String (state.harmonyPitchHz, 1) + " Hz" : "--";
+        const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
+        const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-range-900-selftest-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        return "Build: hard-tune-tracking-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText
-             + " | Stable: " + stableText
-             + " | Harm: " + harmonyText
+             + " | Disp: " + displayText
+             + " | RatioIn: " + correctionText
              + " | Conf: " + juce::String (state.confidence, 2)
              + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
-             + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode);
+             + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode)
+             + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2);
     }
 
     void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
@@ -329,7 +330,7 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
     const auto pitchState = processorRef.getPitchState();
-    const auto pitchText = formatPitchDebug (pitchState.harmonyPitchHz);
+    const auto pitchText = formatPitchDebug (pitchState.correctionInputPitchHz);
 
     pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
     subtitleLabel.setText (formatDetailedPitchDebug (pitchState),

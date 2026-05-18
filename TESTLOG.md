@@ -411,6 +411,50 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.12 phase 3K hard tune tracking
+
+日付: 2026-05-18
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- `directions/0518_4.md` に従い、新しい 2 段 pitch shift は追加せず、既存の 1 段 pitch shift の pitch ratio 計算に使う入力ピッチ追従を改善した。
+- GUI 表示用の安定ピッチと、実際の `targetMidiHz / inputPitchHz` に使う補正用ピッチを分離した。
+- UI デザイン、MIDI 制御、4 Voice Choir の基本構造は変更していない。
+
+実装済み:
+
+- `PitchState` に `displayStablePitchHz`, `correctionInputPitchHz`, `ratioSmoothingCoefficient` を追加した。
+- `stablePitchHz` は後方互換のため残し、実体としては GUI 表示用の `displayStablePitchHz` と同義にした。
+- `harmonyPitchHz` は後方互換のため残し、実体としては pitch ratio 計算用の `correctionInputPitchHz` と同義にした。
+- pitch ratio 計算を `targetMidiHz / correctionInputPitchHz` に変更した。
+- `correctionInputPitchHz` は confidence が高く voiced な `correctedPitchHz` に log-domain で `0.7` の fast attack 追従を行うようにした。
+- 無音または低 confidence が `100 ms` を超えた場合、`correctionInputPitchHz` を無効化して、ランダムな pitch ratio が出ないようにした。
+- GUI debug 表示を `Build: hard-tune-tracking-001` に更新し、`Disp` と `RatioIn` と `RatioSmooth` を表示するようにした。
+- ratio smoothing 係数を `0.10` から `0.35` に変更し、入力ピッチ変化への追従遅れを軽減した。
+- `Tune` ノブは UI 上は残したまま、内部 DSP では hard tune 固定として未使用にした。
+- CMake project version を `0.1.12` に更新した。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- GUI に `Build: hard-tune-tracking-001` が表示されること。
+- A4 付近で入力が `435-445 Hz` 程度に揺れても、出力ハーモニーの音程が MIDI 目標に安定すること。
+- `Disp` は見た目用に滑らかで、`RatioIn` は入力 pitch へより速く追従すること。
+- `Tune` ノブが現段階で音に影響しないこと。
+
+次に確認すべきこと:
+
+- `Raw`, `Corr`, `Disp`, `RatioIn` のうち、実音声でどこが不安定になるか確認すること。
+- 無音時または子音時に `RatioIn` が短時間 hold 後に無効化され、wet pitch が暴れないこと。
+- MIDI note 変更時の Glide と、入力 pitch tracking が混ざって不自然に遅れないこと。
+
 ## 0.1.11 phase 3J pitch range 900 self test
 
 日付: 2026-05-18

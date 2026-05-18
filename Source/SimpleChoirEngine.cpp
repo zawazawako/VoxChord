@@ -91,7 +91,7 @@ void SimpleChoirEngine::runPitchDetectorSelfTest()
         DBG (juce::String ("SelfTest ") + juce::String (frequencyHz, 2) + " Hz -> Raw: "
              + formatSelfTestPitch (result.rawPitchHz)
              + ", Corrected: " + formatSelfTestPitch (result.correctedPitchHz)
-             + ", Stable: " + formatSelfTestPitch (result.stablePitchHz)
+             + ", Stable: " + formatSelfTestPitch (result.displayStablePitchHz)
              + ", Confidence: " + juce::String (result.confidence, 2));
     }
 }
@@ -113,8 +113,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     if (samples <= 0 || outputChannels <= 0 || delayBufferSize <= 0)
         return;
 
+    juce::ignoreUnused (tune);
+
     const auto safeVoiceLimit = juce::jlimit (1, MidiVoiceState::maxVoices, voiceLimit);
-    const auto safeTune = juce::jlimit (0.0f, 1.0f, tune);
     const auto safeGlide = juce::jlimit (0.0f, 1.0f, glide);
     const auto safeCharacter = juce::jlimit (0.0f, 1.0f, character);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
@@ -123,7 +124,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                ? ratioSmoothingAlpha
                                                : juce::jmin (ratioSmoothingAlpha, glideCoefficient);
     pitchState = pitchDetector.processBlock (dryInput);
-    const auto inputFrequencyHz = pitchState.harmonyPitchHz;
+    pitchState.ratioSmoothingCoefficient = ratioSmoothingCoefficient;
+    const auto inputFrequencyHz = pitchState.correctionInputPitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
@@ -147,7 +149,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         const auto midiNote = activeNotes[static_cast<size_t> (slot)];
         const auto targetRatio = juce::jlimit (minPitchRatio,
                                                maxPitchRatio,
-                                               applyTuneToRatio (getPitchRatioForNote (midiNote, inputFrequencyHz), safeTune)
+                                               getPitchRatioForNote (midiNote, inputFrequencyHz)
                                                    * getCharacterPitchRatio (slot, safeCharacter));
 
         const auto wasAlreadyActive = voice.wasActive;
@@ -290,11 +292,13 @@ PitchState SimpleChoirEngine::SimplePitchDetector::processBlock (const juce::Aud
 
     if (samplesSinceAccepted > holdSamples)
     {
+        state.displayStablePitchHz = 0.0f;
+        state.correctionInputPitchHz = 0.0f;
         state.stablePitchHz = 0.0f;
-        state.harmonyPitchHz = 0.0f;
+        state.harmonyPitchHz = state.correctionInputPitchHz;
     }
 
-    if (state.stablePitchHz <= 0.0f)
+    if (state.displayStablePitchHz <= 0.0f)
         state.voiced = false;
 
     return state;
@@ -349,13 +353,14 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
         return;
     }
 
+    updateCorrectionInputPitch (correctedPitch);
+
     const auto medianPitch = applyMedianFilter (correctedPitch);
 
     if (! shouldAcceptCandidate (medianPitch))
         return;
 
     updateStablePitch (medianPitch);
-    updateHarmonyPitch();
     state.voiced = true;
     samplesSinceAccepted = 0;
 }
@@ -461,7 +466,7 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
         return 0.0f;
     }
 
-    if (state.stablePitchHz <= 0.0f)
+    if (state.displayStablePitchHz <= 0.0f)
     {
         state.harmonicCorrectionMode = 0;
         correctionCandidateMode = 0;
@@ -500,7 +505,7 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
         if (candidate.pitchHz < minFrequencyHz || candidate.pitchHz > maxFrequencyHz)
             continue;
 
-        const auto distance = centsBetween (candidate.pitchHz, state.stablePitchHz);
+        const auto distance = centsBetween (candidate.pitchHz, state.displayStablePitchHz);
 
         if (distance < bestDistance)
         {
@@ -512,7 +517,7 @@ float SimpleChoirEngine::SimplePitchDetector::correctHarmonicPitch (float rawPit
 
     if (bestMode != 0)
     {
-        const auto rawDistance = centsBetween (rawPitchHz, state.stablePitchHz);
+        const auto rawDistance = centsBetween (rawPitchHz, state.displayStablePitchHz);
         const auto rawIsLikelyNewPitch = rawDistance > maxJumpCents
                                       && state.confidence >= veryHighConfidenceThreshold;
 
@@ -582,13 +587,13 @@ bool SimpleChoirEngine::SimplePitchDetector::shouldAcceptCandidate (float candid
     if (candidatePitchHz < minFrequencyHz || candidatePitchHz > maxFrequencyHz)
         return false;
 
-    if (state.stablePitchHz <= 0.0f)
+    if (state.displayStablePitchHz <= 0.0f)
     {
         consecutiveJumpFrames = 0;
         return true;
     }
 
-    const auto jumpCents = centsBetween (candidatePitchHz, state.stablePitchHz);
+    const auto jumpCents = centsBetween (candidatePitchHz, state.displayStablePitchHz);
 
     if (jumpCents <= maxJumpCents)
     {
@@ -610,27 +615,33 @@ bool SimpleChoirEngine::SimplePitchDetector::shouldAcceptCandidate (float candid
 
 void SimpleChoirEngine::SimplePitchDetector::updateStablePitch (float candidatePitchHz) noexcept
 {
-    if (state.stablePitchHz <= 0.0f)
+    if (state.displayStablePitchHz <= 0.0f)
     {
-        state.stablePitchHz = candidatePitchHz;
+        state.displayStablePitchHz = candidatePitchHz;
+        state.stablePitchHz = state.displayStablePitchHz;
         return;
     }
 
-    state.stablePitchHz = smoothFrequencyLog (state.stablePitchHz, candidatePitchHz, smoothingAlpha);
+    state.displayStablePitchHz = smoothFrequencyLog (state.displayStablePitchHz, candidatePitchHz, smoothingAlpha);
+    state.stablePitchHz = state.displayStablePitchHz;
 }
 
-void SimpleChoirEngine::SimplePitchDetector::updateHarmonyPitch() noexcept
+void SimpleChoirEngine::SimplePitchDetector::updateCorrectionInputPitch (float targetPitchHz) noexcept
 {
-    if (state.stablePitchHz <= 0.0f)
+    if (targetPitchHz <= 0.0f)
         return;
 
-    if (state.harmonyPitchHz <= 0.0f)
+    if (state.correctionInputPitchHz <= 0.0f)
     {
-        state.harmonyPitchHz = state.stablePitchHz;
+        state.correctionInputPitchHz = targetPitchHz;
+        state.harmonyPitchHz = state.correctionInputPitchHz;
         return;
     }
 
-    state.harmonyPitchHz = smoothFrequencyLog (state.harmonyPitchHz, state.stablePitchHz, harmonySmoothingAlpha);
+    state.correctionInputPitchHz = smoothFrequencyLog (state.correctionInputPitchHz,
+                                                       targetPitchHz,
+                                                       correctionFastAttackAlpha);
+    state.harmonyPitchHz = state.correctionInputPitchHz;
 }
 
 float SimpleChoirEngine::SimplePitchDetector::computeRmsDb (const std::array<float, frameLength>& frame) noexcept

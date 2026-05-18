@@ -107,8 +107,11 @@ private:
     std::atomic<float> inputRmsDb { -100.0f };
     std::atomic<float> rawPitchHz { 0.0f };
     std::atomic<float> correctedPitchHz { 0.0f };
+    std::atomic<float> displayStablePitchHz { 0.0f };
+    std::atomic<float> correctionInputPitchHz { 0.0f };
     std::atomic<float> stablePitchHz { 0.0f };
     std::atomic<float> harmonyPitchHz { 0.0f };
+    std::atomic<float> ratioSmoothingCoefficient { 0.0f };
     std::atomic<float> pitchConfidence { 0.0f };
     std::atomic<bool> pitchVoiced { false };
     std::atomic<int> harmonicCorrectionMode { 0 };

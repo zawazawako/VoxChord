@@ -160,12 +160,15 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getGlide(),
                          getCharacter());
     const auto pitchState = choirEngine.getPitchState();
-    detectedInputPitchHz.store (pitchState.harmonyPitchHz, std::memory_order_relaxed);
+    detectedInputPitchHz.store (pitchState.correctionInputPitchHz, std::memory_order_relaxed);
     inputRmsDb.store (pitchState.inputRmsDb, std::memory_order_relaxed);
     rawPitchHz.store (pitchState.rawPitchHz, std::memory_order_relaxed);
     correctedPitchHz.store (pitchState.correctedPitchHz, std::memory_order_relaxed);
+    displayStablePitchHz.store (pitchState.displayStablePitchHz, std::memory_order_relaxed);
+    correctionInputPitchHz.store (pitchState.correctionInputPitchHz, std::memory_order_relaxed);
     stablePitchHz.store (pitchState.stablePitchHz, std::memory_order_relaxed);
     harmonyPitchHz.store (pitchState.harmonyPitchHz, std::memory_order_relaxed);
+    ratioSmoothingCoefficient.store (pitchState.ratioSmoothingCoefficient, std::memory_order_relaxed);
     pitchConfidence.store (pitchState.confidence, std::memory_order_relaxed);
     pitchVoiced.store (pitchState.voiced, std::memory_order_relaxed);
     harmonicCorrectionMode.store (pitchState.harmonicCorrectionMode, std::memory_order_relaxed);
@@ -241,16 +244,19 @@ float VoxChordAudioProcessor::getDetectedInputPitchHz() const noexcept
 
 voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
 {
-    return {
-        inputRmsDb.load (std::memory_order_relaxed),
-        rawPitchHz.load (std::memory_order_relaxed),
-        correctedPitchHz.load (std::memory_order_relaxed),
-        stablePitchHz.load (std::memory_order_relaxed),
-        harmonyPitchHz.load (std::memory_order_relaxed),
-        pitchConfidence.load (std::memory_order_relaxed),
-        pitchVoiced.load (std::memory_order_relaxed),
-        harmonicCorrectionMode.load (std::memory_order_relaxed)
-    };
+    voxchord::PitchState state;
+    state.inputRmsDb = inputRmsDb.load (std::memory_order_relaxed);
+    state.rawPitchHz = rawPitchHz.load (std::memory_order_relaxed);
+    state.correctedPitchHz = correctedPitchHz.load (std::memory_order_relaxed);
+    state.displayStablePitchHz = displayStablePitchHz.load (std::memory_order_relaxed);
+    state.correctionInputPitchHz = correctionInputPitchHz.load (std::memory_order_relaxed);
+    state.stablePitchHz = stablePitchHz.load (std::memory_order_relaxed);
+    state.harmonyPitchHz = harmonyPitchHz.load (std::memory_order_relaxed);
+    state.ratioSmoothingCoefficient = ratioSmoothingCoefficient.load (std::memory_order_relaxed);
+    state.confidence = pitchConfidence.load (std::memory_order_relaxed);
+    state.voiced = pitchVoiced.load (std::memory_order_relaxed);
+    state.harmonicCorrectionMode = harmonicCorrectionMode.load (std::memory_order_relaxed);
+    return state;
 }
 
 float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept

@@ -13,8 +13,11 @@ struct PitchState
     float inputRmsDb = -100.0f;
     float rawPitchHz = 0.0f;
     float correctedPitchHz = 0.0f;
+    float displayStablePitchHz = 0.0f;
+    float correctionInputPitchHz = 0.0f;
     float stablePitchHz = 0.0f;
     float harmonyPitchHz = 0.0f;
+    float ratioSmoothingCoefficient = 0.0f;
     float confidence = 0.0f;
     bool voiced = false;
     int harmonicCorrectionMode = 0;
@@ -64,7 +67,7 @@ private:
         float applyMedianFilter (float correctedPitchHz) noexcept;
         bool shouldAcceptCandidate (float candidatePitchHz) noexcept;
         void updateStablePitch (float candidatePitchHz) noexcept;
-        void updateHarmonyPitch() noexcept;
+        void updateCorrectionInputPitch (float targetPitchHz) noexcept;
         static float computeRmsDb (const std::array<float, 2048>& frame) noexcept;
         static float getParabolicOffset (float previous, float current, float next) noexcept;
         static float centsBetween (float a, float b) noexcept;
@@ -78,7 +81,7 @@ private:
         static constexpr float confidenceThreshold = 0.75f;
         static constexpr float veryHighConfidenceThreshold = 0.9f;
         static constexpr float smoothingAlpha = 0.2f;
-        static constexpr float harmonySmoothingAlpha = 0.1f;
+        static constexpr float correctionFastAttackAlpha = 0.7f;
         static constexpr float holdTimeMs = 100.0f;
         static constexpr float yinThreshold = 1.0f - confidenceThreshold;
         static constexpr float maxJumpCents = 350.0f;
@@ -130,7 +133,7 @@ private:
 
     static constexpr float minPitchRatio = 0.25f;
     static constexpr float maxPitchRatio = 8.0f;
-    static constexpr float ratioSmoothingAlpha = 0.1f;
+    static constexpr float ratioSmoothingAlpha = 0.35f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;
