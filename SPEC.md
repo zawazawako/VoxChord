@@ -1,7 +1,20 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.21
+Project version: 0.1.22
+
+## 0.1.22 Update - MIDI note transition de-click
+
+- CMake project version: `0.1.22`.
+- GUI pitch debug build string: `Build: midi-declick-001`.
+- MIDI note transitions now use short de-click smoothing while preserving the input-synced window pitch shifter.
+- Per-voice envelope state was added: `envelopeGain`, `targetEnvelopeGain`, `leftGain`, `rightGain`, `monoGain`, and `delayOffsetSamples`.
+- New active voices fade in with `voiceAttackSeconds = 0.008`.
+- Released voices remain rendered until their envelope fades out with `voiceReleaseSeconds = 0.012`, instead of being removed from the wet render immediately.
+- `targetRatio` changes now use log-domain smoothing via `noteTransitionRatioSmoothingSeconds = 0.008` when Glide is effectively off.
+- Existing active voice note changes keep phase/window state rather than resetting `phaseA`, `phaseB`, or active grain window lengths.
+- Active input-synced grains still keep their own `windowSamplesA/B` until phase wrap.
+- No empirical ratio correction is applied.
 
 ## 0.1.21 Update - click-safe input-synced window continuity
 
@@ -82,7 +95,7 @@ Project version: 0.1.21
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: input-synced-window-continuity-001`。
+- pitch debug subtitle の現在の build string は `Build: midi-declick-001`。
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -101,7 +114,7 @@ Project version: 0.1.21
 
 ## Build Configuration
 
-- CMake project version: `0.1.21`
+- CMake project version: `0.1.22`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -352,9 +365,18 @@ Pitch shifter:
 
 Ratio smoothing:
 
-- Current minimum ratio smoothing alpha: `0.35`.
-- If Glide is active, ratio coefficient is `min(0.35, glideCoefficient)`.
-- The purpose is to reduce zipper noise while avoiding excessive lag in input-pitch tracking.
+- MIDI target ratio transitions use log-domain smoothing.
+- If Glide is effectively off, the transition time is approximately `8 ms`.
+- If Glide is active, the ratio coefficient uses the slower of the MIDI de-click coefficient and the Glide coefficient.
+- The purpose is to reduce note-change clicks while avoiding excessive lag in input-pitch tracking.
+
+Voice envelope:
+
+- Each wet voice has a lightweight attack/release envelope.
+- Attack time: approximately `8 ms`.
+- Release time: approximately `12 ms`.
+- Note Off and voice-limit release do not remove the DSP voice immediately; the voice remains rendered until its envelope is below `0.0001`.
+- Note changes on an existing slot do not reset phase/window state.
 
 Glide:
 
@@ -403,7 +425,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: input-synced-window-continuity-001`
+- `Build: midi-declick-001`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`

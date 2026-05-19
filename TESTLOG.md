@@ -411,6 +411,48 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.22 phase 3T MIDI note transition de-click
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+User finding:
+
+- Input-synced window made harmony muddiness almost negligible.
+- Click/pop artifacts from window changes were greatly reduced.
+- Occasional clicks remain when MIDI input changes quickly.
+
+Implemented:
+
+- Kept the input-synced window pitch shifter path.
+- Added per-voice attack/release envelope for MIDI note transitions.
+- New voices fade in over approximately `8 ms`.
+- Released voices fade out over approximately `12 ms` and continue rendering during release.
+- MIDI target ratio changes now use short log-domain smoothing when Glide is off.
+- Existing slot note changes preserve `phaseA`, `phaseB`, and active `windowSamplesA/B`.
+- Active grains still do not change window length mid-grain.
+- GUI debug build string updated to `Build: midi-declick-001`.
+- CMake project version updated to `0.1.22`.
+
+Not changed:
+
+- No empirical ratio correction coefficient was added.
+- PitchDetector behavior was not changed.
+- The input-synced window continuity behavior remains in place.
+
+Verification pending:
+
+- User build of Debug/Release targets.
+- Confirm existing pitch shifter self test PASS behavior is unchanged.
+- Confirm fast MIDI note changes produce fewer clicks.
+- Confirm Note Off release does not feel too sluggish for live playing.
+
 ## 0.1.21 phase 3S input-synced window continuity
 
 Date: 2026-05-19

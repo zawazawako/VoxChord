@@ -69,6 +69,12 @@ private:
         float phaseB = 0.5f;
         float currentPitchRatio = 1.0f;
         float targetPitchRatio = 1.0f;
+        float envelopeGain = 0.0f;
+        float targetEnvelopeGain = 0.0f;
+        float leftGain = 0.0f;
+        float rightGain = 0.0f;
+        float monoGain = 0.0f;
+        float delayOffsetSamples = 0.0f;
         int windowSamplesA = 1024;
         int windowSamplesB = 1024;
     };
@@ -139,6 +145,8 @@ private:
     static float getPitchRatioForNote (int midiNote, float inputFrequencyHz) noexcept;
     static float applyTuneToRatio (float pitchRatio, float tune) noexcept;
     static float getGlideCoefficient (float glide, double sampleRate) noexcept;
+    static float getNoteTransitionRatioCoefficient (double sampleRate) noexcept;
+    static float getEnvelopeCoefficient (float timeSeconds, double sampleRate) noexcept;
     static float getCharacterPitchRatio (int slot, float character) noexcept;
     static float getCharacterGain (int slot, float character) noexcept;
     static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
@@ -170,6 +178,10 @@ private:
     static constexpr float windowPitchSmoothingSeconds = 0.15f;
     static constexpr float maxWindowChangeRatioPerGrain = 1.25f;
     static constexpr int maxWindowChangeSamplesPerGrain = 512;
+    static constexpr float noteTransitionRatioSmoothingSeconds = 0.008f;
+    static constexpr float voiceAttackSeconds = 0.008f;
+    static constexpr float voiceReleaseSeconds = 0.012f;
+    static constexpr float voiceEnvelopeSilenceThreshold = 0.0001f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;
