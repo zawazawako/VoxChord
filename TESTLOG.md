@@ -411,6 +411,63 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.17 phase 3O pitch shifter phase wrap diagnostics
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+ユーザー確認済みの 0.1.16 self test 傾向:
+
+- ratio `1.0` は完全一致。
+- target ratio `2.0` -> actual ratio `2.01008`
+- target ratio `1.5` -> actual ratio `1.50505`
+- target ratio `0.5` -> actual ratio `0.49495`
+- ratio が `1.0` から離れる方向に実効 ratio が約 `1.010` 倍過剰に動いている。
+
+実装方針:
+
+- 経験的な ratio 補正係数は追加しない。
+- pitch shifter の音を変えず、phase / delay / read position / window wrap の実測診断ログだけを追加する。
+
+実装済み:
+
+- PitchShifterSelfTest の各ケースで phaseA / phaseB の wrap interval samples を計測するようにした。
+- `measuredDelayStepA/B avg/min/max/count` を DBG に追加した。
+- `measuredReadStepA/B avg/min/max/count` を DBG に追加した。
+- `phaseWrapA/B count/avg/min/max` を DBG に追加した。
+- read position step は delay buffer wrap の影響で巨大差分にならないよう circular delta として計測する。
+- GUI debug 表示を `Build: pitch-shifter-wrap-diagnostics-001` に更新した。
+- CMake project version を `0.1.17` に更新した。
+- `SPEC.md` に phase wrap / delay step / read step 診断仕様を追記した。
+
+コード再確認メモ:
+
+- `renderPitchShiftedSample()` は delayA/delayB と gainA/gainB を現在の phaseA/phaseB から計算し、`readDelayLine()` 後に phaseA/phaseB を更新する。
+- `readDelayLine()` は `readPosition = writeIndex - delaySamples` 相当の計算を行い、circular buffer 内に wrap した後、`index0=floor(readPosition)`, `index1=index0+1`, `fraction=readPosition-index0` で線形補間する。
+- ratio `2.0` では理論上 delay step は `-1.0 sample/output sample`、read step は `2.0 sample/output sample`。
+- ratio `0.5` では理論上 delay step は `+0.5 sample/output sample`、read step は `0.5 sample/output sample`。
+- `pitchWindowSamples=864` で ratio `2.0` の場合、phase wrap interval は理論上 `864 samples`。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- phaseWrapA/B の actual wrap interval が `pitchWindowSamples` と一致するか。
+- measuredDelayStepA/B が理論 delay step と一致するか。
+- measuredReadStepA/B が theoreticalReadSpeed と一致するか。
+- これらが一致する場合、次の疑いを window crossfade / effective window length / 測定窓へ進めること。
+
+次に確認すべきこと:
+
+- Debug Standalone を起動し、ratio `2.0`, `1.5`, `0.5` の `measuredDelayStep`, `measuredReadStep`, `phaseWrap` を確認すること。
+- phase wrap interval が約 `855 samples` ではなく `864 samples` か確認すること。
+- delay/read step が理論値と一致するか確認すること。
+
 ## 0.1.16 phase 3N pitch shifter ratio diagnostics
 
 日付: 2026-05-19

@@ -69,6 +69,61 @@ namespace
 
         return static_cast<float> (sampleRate / averagePeriodSamples);
     }
+
+    struct RunningStats
+    {
+        void add (float value) noexcept
+        {
+            if (count == 0)
+            {
+                min = value;
+                max = value;
+            }
+            else
+            {
+                min = juce::jmin (min, value);
+                max = juce::jmax (max, value);
+            }
+
+            sum += static_cast<double> (value);
+            ++count;
+        }
+
+        float average() const noexcept
+        {
+            return count > 0 ? static_cast<float> (sum / static_cast<double> (count)) : 0.0f;
+        }
+
+        double sum = 0.0;
+        float min = 0.0f;
+        float max = 0.0f;
+        int count = 0;
+    };
+
+    bool didPhaseWrap (float previous, float current, float phaseDelta) noexcept
+    {
+        if (phaseDelta > 0.0f)
+            return current < previous;
+
+        if (phaseDelta < 0.0f)
+            return current > previous;
+
+        return false;
+    }
+
+    float circularDelta (float current, float previous, int bufferSize) noexcept
+    {
+        auto delta = current - previous;
+        const auto size = static_cast<float> (bufferSize);
+        const auto halfSize = size * 0.5f;
+
+        if (delta > halfSize)
+            delta -= size;
+        else if (delta < -halfSize)
+            delta += size;
+
+        return delta;
+    }
 }
 
 void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
@@ -199,6 +254,22 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
 
         auto phase = 0.0;
         auto* delay = engine.delayBuffer.getWritePointer (0);
+        const auto phaseDelta = (1.0f - testCase.ratio) / static_cast<float> (engine.pitchWindowSamples);
+        const auto baseDelay = static_cast<float> (engine.minimumDelaySamples);
+        auto previousPhaseA = voice.phaseA;
+        auto previousPhaseB = voice.phaseB;
+        auto previousDelayA = baseDelay + previousPhaseA * static_cast<float> (engine.pitchWindowSamples);
+        auto previousDelayB = baseDelay + previousPhaseB * static_cast<float> (engine.pitchWindowSamples);
+        auto previousReadA = static_cast<float> (engine.writeIndex) - previousDelayA;
+        auto previousReadB = static_cast<float> (engine.writeIndex) - previousDelayB;
+        auto lastWrapA = -1;
+        auto lastWrapB = -1;
+        RunningStats delayStepAStats;
+        RunningStats delayStepBStats;
+        RunningStats readStepAStats;
+        RunningStats readStepBStats;
+        RunningStats wrapIntervalAStats;
+        RunningStats wrapIntervalBStats;
 
         for (auto sample = 0; sample < totalSamples; ++sample)
         {
@@ -206,6 +277,41 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
             delay[engine.writeIndex] = input;
 
             const auto shifted = engine.renderPitchShiftedSample (voice, 1.0f, 0.0f);
+
+            const auto currentDelayA = baseDelay + voice.phaseA * static_cast<float> (engine.pitchWindowSamples);
+            const auto currentDelayB = baseDelay + voice.phaseB * static_cast<float> (engine.pitchWindowSamples);
+            const auto currentReadA = static_cast<float> ((engine.writeIndex + 1) % engine.delayBufferSize) - currentDelayA;
+            const auto currentReadB = static_cast<float> ((engine.writeIndex + 1) % engine.delayBufferSize) - currentDelayB;
+            const auto wrappedA = didPhaseWrap (previousPhaseA, voice.phaseA, phaseDelta);
+            const auto wrappedB = didPhaseWrap (previousPhaseB, voice.phaseB, phaseDelta);
+
+            if (sample > 0 && ! wrappedA)
+            {
+                delayStepAStats.add (currentDelayA - previousDelayA);
+                readStepAStats.add (circularDelta (currentReadA, previousReadA, engine.delayBufferSize));
+            }
+
+            if (sample > 0 && ! wrappedB)
+            {
+                delayStepBStats.add (currentDelayB - previousDelayB);
+                readStepBStats.add (circularDelta (currentReadB, previousReadB, engine.delayBufferSize));
+            }
+
+            if (wrappedA)
+            {
+                if (lastWrapA >= 0)
+                    wrapIntervalAStats.add (static_cast<float> (sample - lastWrapA));
+
+                lastWrapA = sample;
+            }
+
+            if (wrappedB)
+            {
+                if (lastWrapB >= 0)
+                    wrapIntervalBStats.add (static_cast<float> (sample - lastWrapB));
+
+                lastWrapB = sample;
+            }
 
             if (sample >= skipSamples)
                 output.push_back (shifted);
@@ -218,6 +324,13 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
 
             if (phase >= juce::MathConstants<double>::twoPi)
                 phase -= juce::MathConstants<double>::twoPi;
+
+            previousPhaseA = voice.phaseA;
+            previousPhaseB = voice.phaseB;
+            previousDelayA = currentDelayA;
+            previousDelayB = currentDelayB;
+            previousReadA = currentReadA;
+            previousReadB = currentReadB;
         }
 
         const auto expectedHz = testCase.inputFrequencyHz * testCase.ratio;
@@ -226,7 +339,6 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
         const auto absoluteErrorCents = std::abs (errorCents);
         const auto actualRatio = testCase.inputFrequencyHz > 0.0f ? measuredHz / testCase.inputFrequencyHz : 0.0f;
         const auto actualRatioOverTarget = testCase.ratio > 0.0f ? actualRatio / testCase.ratio : 0.0f;
-        const auto phaseDelta = (1.0f - testCase.ratio) / static_cast<float> (engine.pitchWindowSamples);
         const auto delayStepPerSample = phaseDelta * static_cast<float> (engine.pitchWindowSamples);
         const auto theoreticalReadSpeed = 1.0f - delayStepPerSample;
         const auto withinTenCents = std::abs (errorCents) <= 10.0f;
@@ -254,6 +366,36 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
              + ", phaseDelta " + juce::String (phaseDelta, 9)
              + ", delayStep " + juce::String (delayStepPerSample, 6)
              + ", theoreticalReadSpeed " + juce::String (theoreticalReadSpeed, 6)
+             + ", measuredDelayStepA avg/min/max/count "
+             + juce::String (delayStepAStats.average(), 6) + "/"
+             + juce::String (delayStepAStats.min, 6) + "/"
+             + juce::String (delayStepAStats.max, 6) + "/"
+             + juce::String (delayStepAStats.count)
+             + ", measuredDelayStepB avg/min/max/count "
+             + juce::String (delayStepBStats.average(), 6) + "/"
+             + juce::String (delayStepBStats.min, 6) + "/"
+             + juce::String (delayStepBStats.max, 6) + "/"
+             + juce::String (delayStepBStats.count)
+             + ", measuredReadStepA avg/min/max/count "
+             + juce::String (readStepAStats.average(), 6) + "/"
+             + juce::String (readStepAStats.min, 6) + "/"
+             + juce::String (readStepAStats.max, 6) + "/"
+             + juce::String (readStepAStats.count)
+             + ", measuredReadStepB avg/min/max/count "
+             + juce::String (readStepBStats.average(), 6) + "/"
+             + juce::String (readStepBStats.min, 6) + "/"
+             + juce::String (readStepBStats.max, 6) + "/"
+             + juce::String (readStepBStats.count)
+             + ", phaseWrapA count/avg/min/max "
+             + juce::String (wrapIntervalAStats.count) + "/"
+             + juce::String (wrapIntervalAStats.average(), 3) + "/"
+             + juce::String (wrapIntervalAStats.min, 3) + "/"
+             + juce::String (wrapIntervalAStats.max, 3)
+             + ", phaseWrapB count/avg/min/max "
+             + juce::String (wrapIntervalBStats.count) + "/"
+             + juce::String (wrapIntervalBStats.average(), 3) + "/"
+             + juce::String (wrapIntervalBStats.min, 3) + "/"
+             + juce::String (wrapIntervalBStats.max, 3)
              + ", within +/-10 cents: " + juce::String (withinTenCents ? "yes" : "no")
              + ", pitchWindowSamples: " + juce::String (engine.pitchWindowSamples)
              + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
