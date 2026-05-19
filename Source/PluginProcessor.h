@@ -112,6 +112,7 @@ private:
     juce::AudioBuffer<float> tunedLeadBuffer;
     juce::SmoothedValue<float> dryWetSmoothed { 0.0f };
     juce::SmoothedValue<float> leadTuneDryMixSmoothed { 0.0f };
+    juce::SmoothedValue<float> characterAmountSmoothed { 0.0f };
     juce::SmoothedValue<float> inputGainSmoothed { 1.0f };
     juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
 

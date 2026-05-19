@@ -1,5 +1,37 @@
 # VoxChord Test Log
 
+## 0.1.26 Character Type plus Amount
+
+Date: 2026-05-19
+
+Implementation status:
+
+- Split Character control into `Char Type` and `Amount`.
+- `Char Type` uses existing `characterMode` with GUI choices: Warm, Bright, Vowel, Digital.
+- `Formant-ish` display text was removed and renamed to `Vowel`.
+- `Amount` reuses the existing `character` parameter ID; no new `characterAmount` ID was added.
+- `Amount` range is `0.0-1.0`, displayed as 0-100%, default `0.0`.
+- Amount scales Character pitch detune, per-slot gain variation, delay offset, and tone shaping.
+- Amount `0%` should be effectively Clean regardless of selected Character Type.
+- Amount is smoothed at the processor level over about `20 ms`.
+- Existing input-synced window, Tuned Lead, Voice 8, and MIDI transition de-click behavior are intended to remain unchanged.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Character Type dropdown shows Warm / Bright / Vowel / Digital, with no visible Formant-ish entry.
+- Character Amount knob is visible and changes from 0% to 100%.
+- Character Amount 0% behaves like Clean.
+- Character Amount 50% gives an intermediate coloration.
+- Character Amount 100% gives the strongest selected Character Type effect.
+- Warm, Bright, Vowel, and Digital all respond to Amount.
+- Amount and Type changes do not create obvious clicks.
+- Digital and Vowel do not make pitch accuracy feel unstable.
+- Voice 8 and Tuned Lead still work together with Character enabled.
+
 ## 0.1.25 Priority B tuned lead / 8 voices / character modes
 
 Date: 2026-05-19

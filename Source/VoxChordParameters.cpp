@@ -56,14 +56,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         ParameterID { ParameterIDs::character, 1 },
         "Character",
         juce::NormalisableRange<float> { 0.0f, 1.0f, 0.01f },
-        0.35f,
+        0.0f,
         percentAttributes()));
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         ParameterID { ParameterIDs::characterMode, 1 },
         "Character",
-        juce::StringArray { "Clean", "Warm", "Bright", "Formant-ish", "Digital" },
-        0));
+        juce::StringArray { "Clean", "Warm", "Bright", "Vowel", "Digital" },
+        1));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         ParameterID { ParameterIDs::spread, 1 },

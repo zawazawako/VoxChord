@@ -122,6 +122,8 @@ void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     dryWetSmoothed.setCurrentAndTargetValue (getDryWet());
     leadTuneDryMixSmoothed.reset (sampleRate, 0.012);
     leadTuneDryMixSmoothed.setCurrentAndTargetValue (getLeadTuneEnabled() ? 1.0f : 0.0f);
+    characterAmountSmoothed.reset (sampleRate, 0.02);
+    characterAmountSmoothed.setCurrentAndTargetValue (getCharacter());
     inputGainSmoothed.reset (sampleRate, 0.02);
     inputGainSmoothed.setCurrentAndTargetValue (getInputGain());
     outputGainSmoothed.reset (sampleRate, 0.02);
@@ -172,6 +174,10 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     handleMidi (midiMessages);
     copyInputToDryBuffer (buffer);
     const auto inputPeak = calculatePeak (dryBuffer, dryBuffer.getNumChannels(), samples);
+    characterAmountSmoothed.setTargetValue (getCharacter());
+    const auto characterAmount = samples > 0
+                                     ? characterAmountSmoothed.skip (samples)
+                                     : characterAmountSmoothed.getCurrentValue();
     choirEngine.render (dryBuffer,
                          wetBuffer,
                          tunedLeadBuffer,
@@ -181,6 +187,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getTune(),
                          getGlide(),
                          getCharacterMode(),
+                         characterAmount,
                          getLeadTuneEnabled());
     const auto pitchState = choirEngine.getPitchState();
     detectedInputPitchHz.store (pitchState.correctionInputPitchHz, std::memory_order_relaxed);

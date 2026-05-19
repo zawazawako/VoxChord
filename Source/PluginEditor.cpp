@@ -89,7 +89,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return juce::String ("Build: priority-b-001 | ")
+        return juce::String ("Build: character-type-amount-001 | ")
              + "Pitch Shifter SelfTest | "
              + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
              + " | "
@@ -180,32 +180,36 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
 
     configureSlider (voiceCountSlider, voiceCountLabel, "Voices");
     configureSlider (glideSlider, glideLabel, "Glide");
+    configureSlider (characterAmountSlider, characterLabel, "Amount");
     configureSlider (spreadSlider, spreadLabel, "Spread");
     configureSlider (dryWetSlider, dryWetLabel, "Dry/Wet");
     configureCompactSlider (inputGainSlider, inputGainLabel, "Input Gain");
     configureCompactSlider (outputSlider, outputLabel, "Output");
 
     voiceCountSlider.setNumDecimalPlacesToDisplay (0);
+    characterAmountSlider.setNumDecimalPlacesToDisplay (0);
     inputGainSlider.setNumDecimalPlacesToDisplay (1);
     outputSlider.setNumDecimalPlacesToDisplay (1);
 
     voiceCountAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountSlider);
     glideAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::glide, glideSlider);
+    characterAmountAttachment = std::make_unique<SliderAttachment> (state,
+                                                                    voxchord::ParameterIDs::character,
+                                                                    characterAmountSlider);
     spreadAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::spread, spreadSlider);
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
     inputGainAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::inputGainDb, inputGainSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
 
-    characterLabel.setText ("Character", juce::dontSendNotification);
-    characterLabel.setJustificationType (juce::Justification::centred);
-    characterLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
-    characterLabel.setFont (juce::FontOptions { 14.0f, juce::Font::bold });
-    addAndMakeVisible (characterLabel);
+    characterTypeLabel.setText ("Char Type", juce::dontSendNotification);
+    characterTypeLabel.setJustificationType (juce::Justification::centred);
+    characterTypeLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
+    characterTypeLabel.setFont (juce::FontOptions { 14.0f, juce::Font::bold });
+    addAndMakeVisible (characterTypeLabel);
 
-    characterModeBox.addItem ("Clean", 1);
     characterModeBox.addItem ("Warm", 2);
     characterModeBox.addItem ("Bright", 3);
-    characterModeBox.addItem ("Formant-ish", 4);
+    characterModeBox.addItem ("Vowel", 4);
     characterModeBox.addItem ("Digital", 5);
     characterModeBox.setColour (juce::ComboBox::backgroundColourId, panelColour());
     characterModeBox.setColour (juce::ComboBox::textColourId, juce::Colours::white);
@@ -337,11 +341,12 @@ void VoxChordAudioProcessorEditor::resized()
     outputMeter.setBounds (meterArea.removeFromTop (54));
 
     auto controls = bounds.removeFromTop (190);
-    const auto knobWidth = controls.getWidth() / 5;
+    const auto knobWidth = controls.getWidth() / 6;
 
     layoutSlider (voiceCountSlider, voiceCountLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (glideSlider, glideLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutComboBox (characterModeBox, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
+    layoutComboBox (characterModeBox, characterTypeLabel, controls.removeFromLeft (knobWidth).reduced (5));
+    layoutSlider (characterAmountSlider, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (spreadSlider, spreadLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controls.reduced (5));
 

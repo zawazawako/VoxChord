@@ -1,7 +1,24 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.25
+Project version: 0.1.26
+
+## 0.1.26 Update - Character Type plus Amount
+
+- CMake project version: `0.1.26`.
+- Debug GUI pitch subtitle build string: `Build: character-type-amount-001`.
+- Character control is now split into `Char Type` and `Amount`.
+- `Char Type` is backed by existing `characterMode`; GUI-visible choices are `Warm`, `Bright`, `Vowel`, and `Digital`.
+- `Formant-ish` was renamed to `Vowel` for GUI/parameter display.
+- Internal `characterMode` index `0` (`Clean`) remains for compatibility, but is not shown in the normal GUI dropdown.
+- `Amount` reuses the existing `character` parameter ID instead of adding a new `characterAmount` ID.
+- `character` / Amount range remains `0.0-1.0`; default is now `0.0`.
+- Amount `0%` is effectively Clean for all Character Types.
+- Amount `100%` applies the full selected Character Type.
+- Amount scales pitch detune, per-slot gain variation, delay offset, and tone shaping.
+- Amount is not used as an empirical pitch-ratio correction; it only scales the existing per-character coloration.
+- Processor-side Character Amount smoothing uses the existing APVTS smoothing style with a `20 ms` smoother.
+- Existing input-synced window, Tuned Lead, 8 voice support, and MIDI transition de-click architecture remain unchanged.
 
 ## 0.1.25 Update - Priority B tuned lead, 8 voices, character modes
 
@@ -136,7 +153,7 @@ Project version: 0.1.25
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
 
 - Current visible GUI groups the main performance controls on the left and input/output utilities on the right.
-- Visible main controls: Voice Count, Glide, Character mode, Spread, Dry/Wet.
+- Visible main controls: Voice Count, Glide, Char Type, Amount, Spread, Dry/Wet.
 - The Tune APVTS parameter remains but the unused Tune knob is hidden.
 - Right-top utility controls: Input Source, Input Gain, Output, Lead Tune, PANIC.
 - Right-bottom meters use custom horizontal bar components for input/output peaks.
@@ -167,7 +184,7 @@ Project version: 0.1.25
 
 ## Build Configuration
 
-- CMake project version: `0.1.25`
+- CMake project version: `0.1.26`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -237,15 +254,20 @@ Dry/wet and output:
 
 - Type: float percent
 - Range: `0.0-1.0`
-- Default: `0.35`
-- Compatibility parameter retained for older states. It is not exposed in the current GUI and is not the primary character control.
+- Default: `0.0`
+- Visible GUI label: `Amount`
+- Reused as Character Amount for compatibility.
+- Amount `0%` is effectively Clean; Amount `100%` applies the full selected Character Type.
+- Scales Character pitch detune, per-slot gain variation, delay offset, and tone shaping.
 
 `characterMode`
 
 - Type: choice
-- Choices: `Clean`, `Warm`, `Bright`, `Formant-ish`, `Digital`
-- Default: `Clean`
-- Controls lightweight per-voice tone shaping and small colored-mode detune/delay/gain offsets.
+- Internal choices: `Clean`, `Warm`, `Bright`, `Vowel`, `Digital`
+- GUI-visible choices: `Warm`, `Bright`, `Vowel`, `Digital`
+- Default: `Warm`
+- Controls lightweight per-voice tone shaping and small colored-mode detune/delay/gain offsets, scaled by `character`.
+- Internal `Clean` remains only for compatibility; normal Clean behavior is achieved with Amount `0%`.
 
 `spread`
 

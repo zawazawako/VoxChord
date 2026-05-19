@@ -625,6 +625,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                 float tune,
                                 float glide,
                                 int characterMode,
+                                float characterAmount,
                                 bool leadTuneEnabled) noexcept
 {
     wetOutput.clear();
@@ -643,6 +644,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto safeVoiceLimit = juce::jlimit (1, MidiVoiceState::maxVoices, voiceLimit);
     const auto safeGlide = juce::jlimit (0.0f, 1.0f, glide);
     const auto safeCharacterMode = sanitizeCharacterMode (characterMode);
+    const auto safeCharacterAmount = juce::jlimit (0.0f, 1.0f, characterAmount);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
     const auto transitionRatioCoefficient = getNoteTransitionRatioCoefficient (currentSampleRate);
@@ -709,7 +711,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         const auto targetRatio = juce::jlimit (minPitchRatio,
                                                maxPitchRatio,
                                                getPitchRatioForNote (midiNote, inputFrequencyHz)
-                                                   * getCharacterPitchRatio (slot, safeCharacterMode));
+                                                   * getCharacterPitchRatio (slot, safeCharacterMode, safeCharacterAmount));
 
         const auto wasAlreadyActive = voice.wasActive;
 
@@ -735,7 +737,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         }
 
         const auto pan = getPanForVoice (activeIndex, activeCount, spread);
-        const auto voiceGain = baseVoiceGain * getCharacterGain (slot, safeCharacterMode);
+        const auto voiceGain = baseVoiceGain * getCharacterGain (slot, safeCharacterMode, safeCharacterAmount);
 
         voice.targetEnvelopeGain = 1.0f;
         voice.leftGain = voiceGain * (pan <= 0.0f ? 1.0f : 1.0f - pan);
@@ -743,6 +745,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         voice.monoGain = voiceGain;
         voice.delayOffsetSamples = getCharacterDelayOffsetSamples (slot,
                                                                    safeCharacterMode,
+                                                                   safeCharacterAmount,
                                                                    currentSampleRate);
         renderSlots[static_cast<size_t> (renderCount++)] = slot;
         ++activeIndex;
@@ -805,7 +808,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             const auto charactered = applyCharacterTone (voice,
                                                          shifted,
                                                          renderSlots[static_cast<size_t> (index)],
-                                                         safeCharacterMode);
+                                                         safeCharacterMode,
+                                                         safeCharacterAmount);
             const auto enveloped = charactered * voice.envelopeGain;
 
             left[sample] += enveloped * (outputChannels > 1 ? voice.leftGain : voice.monoGain);
@@ -1345,42 +1349,51 @@ float SimpleChoirEngine::getChromaticLeadPitchRatio (float inputFrequencyHz) noe
     return juce::jlimit (minPitchRatio, maxPitchRatio, targetHz / inputFrequencyHz);
 }
 
-float SimpleChoirEngine::getCharacterPitchRatio (int slot, int characterMode) noexcept
+float SimpleChoirEngine::getCharacterPitchRatio (int slot, int characterMode, float characterAmount) noexcept
 {
     static constexpr std::array<float, MidiVoiceState::maxVoices> centsBySlot {{
         -5.0f, 4.0f, -3.0f, 6.0f, -6.0f, 3.0f, -4.0f, 5.0f
     }};
 
     const auto mode = sanitizeCharacterMode (characterMode);
+    const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
     const auto multiplier = mode == 4 ? 1.6f : (mode == 3 ? 0.75f : 0.0f);
     const auto cents = centsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
-                     * multiplier;
+                     * multiplier
+                     * amount;
 
     return std::exp2 (cents / 1200.0f);
 }
 
-float SimpleChoirEngine::getCharacterGain (int slot, int characterMode) noexcept
+float SimpleChoirEngine::getCharacterGain (int slot, int characterMode, float characterAmount) noexcept
 {
     static constexpr std::array<float, MidiVoiceState::maxVoices> gainOffsetsBySlot {{
         -0.025f, 0.02f, -0.015f, 0.025f, -0.02f, 0.015f, -0.025f, 0.02f
     }};
 
     const auto mode = sanitizeCharacterMode (characterMode);
-    const auto amount = mode == 0 ? 0.0f : (mode == 4 ? 1.0f : 0.55f);
+    const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
+    const auto baseAmount = mode == 0 ? 0.0f : (mode == 4 ? 1.0f : 0.55f);
+    const auto effectiveAmount = baseAmount * amount;
     return juce::jmax (0.0f,
                        1.0f + gainOffsetsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
-                                  * amount);
+                                  * effectiveAmount);
 }
 
-float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot, int characterMode, double sampleRate) noexcept
+float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot,
+                                                         int characterMode,
+                                                         float characterAmount,
+                                                         double sampleRate) noexcept
 {
     static constexpr std::array<float, MidiVoiceState::maxVoices> delayMsBySlot {{
         0.0f, 1.6f, 3.2f, 4.8f, 2.4f, 4.0f, 5.6f, 7.2f
     }};
 
     const auto mode = sanitizeCharacterMode (characterMode);
-    const auto amount = mode == 4 ? 1.0f : (mode == 3 ? 0.55f : 0.0f);
+    const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
+    const auto baseAmount = mode == 4 ? 1.0f : (mode == 3 ? 0.55f : 0.0f);
     const auto delayMs = delayMsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
+                       * baseAmount
                        * amount;
 
     return delayMs * 0.001f * static_cast<float> (juce::jmax (1.0, sampleRate));
@@ -1389,12 +1402,11 @@ float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot, int character
 float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
                                              float sample,
                                              int slot,
-                                             int characterMode) noexcept
+                                             int characterMode,
+                                             float characterAmount) noexcept
 {
     const auto mode = sanitizeCharacterMode (characterMode);
-
-    if (mode == 0)
-        return sample;
+    const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
 
     const auto lowCoefficient = 0.025f;
     const auto midCoefficient = 0.11f + 0.015f * static_cast<float> (slot % 3);
@@ -1403,17 +1415,30 @@ float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
 
     const auto high = sample - voice.toneLowState;
     const auto mid = voice.toneMidState - voice.toneLowState;
+    auto coloured = sample;
 
     switch (mode)
     {
-        case 1:  return sample - high * 0.12f + voice.toneLowState * 0.03f;
-        case 2:  return sample + high * 0.10f;
-        case 3:  return sample + mid * (slot % 2 == 0 ? 0.12f : -0.08f);
-        case 4:  return sample + high * 0.14f + mid * 0.05f;
+        case 1:
+            coloured = sample - high * 0.12f + voice.toneLowState * 0.03f;
+            break;
+
+        case 2:
+            coloured = sample + high * 0.10f;
+            break;
+
+        case 3:
+            coloured = sample + mid * (slot % 2 == 0 ? 0.12f : -0.08f);
+            break;
+
+        case 4:
+            coloured = sample + high * 0.14f + mid * 0.05f;
+            break;
+
         default: break;
     }
 
-    return sample;
+    return sample + (coloured - sample) * amount;
 }
 
 int SimpleChoirEngine::getFixedPitchWindowSamples (double sampleRate) noexcept

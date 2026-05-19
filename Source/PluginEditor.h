@@ -46,6 +46,7 @@ private:
 
     juce::Slider voiceCountSlider;
     juce::Slider glideSlider;
+    juce::Slider characterAmountSlider;
     juce::Slider spreadSlider;
     juce::Slider dryWetSlider;
     juce::Slider inputGainSlider;
@@ -53,6 +54,7 @@ private:
 
     juce::Label voiceCountLabel;
     juce::Label glideLabel;
+    juce::Label characterTypeLabel;
     juce::Label characterLabel;
     juce::Label spreadLabel;
     juce::Label dryWetLabel;
@@ -75,6 +77,7 @@ private:
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
     std::unique_ptr<SliderAttachment> glideAttachment;
+    std::unique_ptr<SliderAttachment> characterAmountAttachment;
     std::unique_ptr<SliderAttachment> spreadAttachment;
     std::unique_ptr<SliderAttachment> dryWetAttachment;
     std::unique_ptr<SliderAttachment> inputGainAttachment;

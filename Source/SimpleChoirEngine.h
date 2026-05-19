@@ -58,6 +58,7 @@ public:
                  float tune,
                  float glide,
                  int characterMode,
+                 float characterAmount,
                  bool leadTuneEnabled) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
     PitchState getPitchState() const noexcept { return pitchState; }
@@ -153,10 +154,10 @@ private:
     static float getEnvelopeCoefficient (float timeSeconds, double sampleRate) noexcept;
     static int sanitizeCharacterMode (int characterMode) noexcept;
     static float getChromaticLeadPitchRatio (float inputFrequencyHz) noexcept;
-    static float getCharacterPitchRatio (int slot, int characterMode) noexcept;
-    static float getCharacterGain (int slot, int characterMode) noexcept;
-    static float getCharacterDelayOffsetSamples (int slot, int characterMode, double sampleRate) noexcept;
-    static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode) noexcept;
+    static float getCharacterPitchRatio (int slot, int characterMode, float characterAmount) noexcept;
+    static float getCharacterGain (int slot, int characterMode, float characterAmount) noexcept;
+    static float getCharacterDelayOffsetSamples (int slot, int characterMode, float characterAmount, double sampleRate) noexcept;
+    static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode, float characterAmount) noexcept;
     static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
     static int getLimitedPitchWindowSamples (int currentWindowSamples, int targetWindowSamples) noexcept;
