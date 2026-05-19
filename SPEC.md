@@ -1,7 +1,7 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.14
+Project version: 0.1.15
 
 このファイルは `Source/` 以下のファイル構造と実装仕様を記録する。今後、ソースコードを編集した場合は、git commit とあわせてこの `SPEC.md` に変更内容を反映する。
 
@@ -42,7 +42,8 @@ Project version: 0.1.14
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: pitch-shifter-selftest-001`。
+- pitch debug subtitle の現在の build string は `Build: pitch-shifter-selftest-gui-001`。
+- Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
 `Source/SimpleChoirEngine.h`, `Source/SimpleChoirEngine.cpp`
@@ -60,7 +61,7 @@ Project version: 0.1.14
 
 ## Build Configuration
 
-- CMake project version: `0.1.14`
+- CMake project version: `0.1.15`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -241,6 +242,9 @@ Pitch shifter self test:
 - Uses an internal sine wave, one `VoicePitchState`, Character=0 equivalent, delay offset `0`, and `glideCoefficient=1.0f`.
 - Ratio smoothing and glide are fully bypassed by setting `currentPitchRatio` and `targetPitchRatio` to the fixed ratio and calling `renderPitchShiftedSample()` with glide coefficient `1.0f`.
 - Measures output frequency from positive-going zero crossings after initial transient skip.
+- Stores a summary in `PitchShifterSelfTestSummary`.
+- GUI debug subtitle displays `Pitch Shifter SelfTest: PASS/FAIL`, max error cents, worst input Hz, worst ratio, and worst measured Hz.
+- If the self test has not run, GUI displays `Pitch Shifter SelfTest: NOT RUN`.
 - Test cases:
 - `220 Hz * 2.0 -> 440 Hz`
 - `440 Hz * 2.0 -> 880 Hz`
@@ -333,7 +337,8 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: pitch-shifter-selftest-001`
+- `Build: pitch-shifter-selftest-gui-001`
+- `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`
 - `Corr`

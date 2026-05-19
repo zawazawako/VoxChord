@@ -79,6 +79,7 @@ public:
     int getCurrentVoiceLimit() const noexcept;
     float getDetectedInputPitchHz() const noexcept;
     voxchord::PitchState getPitchState() const noexcept;
+    voxchord::PitchShifterSelfTestSummary getPitchShifterSelfTestSummary() const noexcept;
     const voxchord::LevelMeterState& getLevelMeterState() const noexcept { return meters; }
 
 private:

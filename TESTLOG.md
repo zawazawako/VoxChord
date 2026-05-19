@@ -411,6 +411,45 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.15 phase 3M pitch shifter self test GUI summary
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- PitchShifterSelfTest の詳細ログは `DBG()` のまま残し、GUI debug 欄にも成否要約を表示する。
+- pitch shifter 本体、pitch detector、MIDI 処理、choir 音質は変更しない。
+
+実装済み:
+
+- `PitchShifterSelfTestSummary` を追加した。
+- `SimpleChoirEngine::runPitchShifterSelfTest()` が max error cents と worst case を保存するようにした。
+- `SimpleChoirEngine::getPitchShifterSelfTestSummary()` と `VoxChordAudioProcessor::getPitchShifterSelfTestSummary()` を追加した。
+- GUI debug subtitle に `Pitch Shifter SelfTest: PASS / FAIL`, max error cents, worst case input Hz, worst case ratio, worst case measured Hz を表示するようにした。
+- self test 未実行時は `Pitch Shifter SelfTest: NOT RUN` と表示するようにした。
+- GUI debug 表示を `Build: pitch-shifter-selftest-gui-001` に更新した。
+- CMake project version を `0.1.15` に更新した。
+- `SPEC.md` に GUI summary 仕様を追記した。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- Debug Standalone 起動時に GUI debug 欄で PASS/FAIL が見えること。
+- GUI の max error cents / worst input / worst ratio / worst measured が `DBG()` 詳細ログと一致すること。
+- Release など self test 未実行時に `NOT RUN` と表示されること。
+
+次に確認すべきこと:
+
+- Debug Standalone を起動し、GUI 上で `Pitch Shifter SelfTest: PASS` または `FAIL` が表示されること。
+- FAIL の場合は GUI の worst case と `DBG()` の該当行を照合すること。
+
 ## 0.1.14 phase 3L pitch shifter self test
 
 日付: 2026-05-19

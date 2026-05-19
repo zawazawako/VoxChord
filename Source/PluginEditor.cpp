@@ -61,14 +61,29 @@ namespace
         return "none";
     }
 
-    juce::String formatDetailedPitchDebug (const voxchord::PitchState& state)
+    juce::String formatPitchShifterSelfTestSummary (const voxchord::PitchShifterSelfTestSummary& summary)
+    {
+        if (! summary.hasRun)
+            return "Pitch Shifter SelfTest: NOT RUN";
+
+        return juce::String ("Pitch Shifter SelfTest: ") + juce::String (summary.passed ? "PASS" : "FAIL")
+             + " | MaxErr: " + juce::String (summary.maxErrorCents, 2) + " c"
+             + " | WorstIn: " + juce::String (summary.worstInputHz, 1) + " Hz"
+             + " | Ratio: " + juce::String (summary.worstRatio, 3)
+             + " | Meas: " + juce::String (summary.worstMeasuredHz, 2) + " Hz";
+    }
+
+    juce::String formatDetailedPitchDebug (const voxchord::PitchState& state,
+                                           const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
         const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
         const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-shifter-selftest-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        return "Build: pitch-shifter-selftest-gui-001 | "
+             + formatPitchShifterSelfTestSummary (selfTestSummary)
+             + " | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText
              + " | Disp: " + displayText
@@ -350,9 +365,10 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
     const auto pitchState = processorRef.getPitchState();
+    const auto pitchShifterSelfTestSummary = processorRef.getPitchShifterSelfTestSummary();
     const auto pitchText = formatPitchDebug (pitchState.correctionInputPitchHz);
 
     pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
-    subtitleLabel.setText (formatDetailedPitchDebug (pitchState),
+    subtitleLabel.setText (formatDetailedPitchDebug (pitchState, pitchShifterSelfTestSummary),
                            juce::dontSendNotification);
 }

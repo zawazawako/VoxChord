@@ -268,6 +268,11 @@ voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
     return state;
 }
 
+voxchord::PitchShifterSelfTestSummary VoxChordAudioProcessor::getPitchShifterSelfTestSummary() const noexcept
+{
+    return voxchord::SimpleChoirEngine::getPitchShifterSelfTestSummary();
+}
+
 float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept
 {
     auto peak = 0.0f;

@@ -16,6 +16,12 @@ namespace
         return juce::String (pitchHz, 1) + " Hz";
     }
 
+    PitchShifterSelfTestSummary& pitchShifterSelfTestSummary() noexcept
+    {
+        static PitchShifterSelfTestSummary summary;
+        return summary;
+    }
+
     float centsError (float measuredHz, float expectedHz)
     {
         if (measuredHz <= 0.0f || expectedHz <= 0.0f)
@@ -168,6 +174,10 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
 
     DBG ("VoxChord PitchShifter SelfTest: fixed ratio, Character=0, Glide disabled, VoiceCount=1 equivalent");
 
+    auto summary = PitchShifterSelfTestSummary {};
+    summary.hasRun = true;
+    summary.passed = true;
+
     for (const auto testCase : testCases)
     {
         SimpleChoirEngine engine;
@@ -210,7 +220,19 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
         const auto expectedHz = testCase.inputFrequencyHz * testCase.ratio;
         const auto measuredHz = measureFrequencyFromPositiveZeroCrossings (output, testSampleRate);
         const auto errorCents = centsError (measuredHz, expectedHz);
+        const auto absoluteErrorCents = std::abs (errorCents);
         const auto withinTenCents = std::abs (errorCents) <= 10.0f;
+
+        if (absoluteErrorCents > summary.maxErrorCents)
+        {
+            summary.maxErrorCents = absoluteErrorCents;
+            summary.worstInputHz = testCase.inputFrequencyHz;
+            summary.worstRatio = testCase.ratio;
+            summary.worstMeasuredHz = measuredHz;
+        }
+
+        if (! withinTenCents)
+            summary.passed = false;
 
         DBG (juce::String ("PitchShifterSelfTest input ")
              + juce::String (testCase.inputFrequencyHz, 1) + " Hz"
@@ -223,6 +245,20 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
              + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
              + ", ratio smoothing/glide disabled: yes");
     }
+
+    pitchShifterSelfTestSummary() = summary;
+
+    DBG (juce::String ("PitchShifterSelfTest summary: ")
+         + (summary.passed ? "PASS" : "FAIL")
+         + ", max error " + juce::String (summary.maxErrorCents, 2) + " cents"
+         + ", worst input " + juce::String (summary.worstInputHz, 1) + " Hz"
+         + ", worst ratio " + juce::String (summary.worstRatio, 3)
+         + ", worst measured " + juce::String (summary.worstMeasuredHz, 2) + " Hz");
+}
+
+PitchShifterSelfTestSummary SimpleChoirEngine::getPitchShifterSelfTestSummary() noexcept
+{
+    return pitchShifterSelfTestSummary();
 }
 
 void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,

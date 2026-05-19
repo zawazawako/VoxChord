@@ -23,6 +23,16 @@ struct PitchState
     int harmonicCorrectionMode = 0;
 };
 
+struct PitchShifterSelfTestSummary
+{
+    bool hasRun = false;
+    bool passed = false;
+    float maxErrorCents = 0.0f;
+    float worstInputHz = 0.0f;
+    float worstRatio = 0.0f;
+    float worstMeasuredHz = 0.0f;
+};
+
 class SimpleChoirEngine final
 {
 public:
@@ -30,6 +40,7 @@ public:
     void reset() noexcept;
     static void runPitchDetectorSelfTest();
     static void runPitchShifterSelfTest();
+    static PitchShifterSelfTestSummary getPitchShifterSelfTestSummary() noexcept;
 
     void render (const juce::AudioBuffer<float>& dryInput,
                  juce::AudioBuffer<float>& wetOutput,
