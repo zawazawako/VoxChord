@@ -1405,8 +1405,13 @@ float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
                                              int characterMode,
                                              float characterAmount) noexcept
 {
+    static constexpr std::array<float, MidiVoiceState::maxVoices> vowelMidBySlot {{
+        0.30f, -0.22f, 0.18f, -0.16f, 0.24f, -0.20f, 0.14f, -0.12f
+    }};
+
     const auto mode = sanitizeCharacterMode (characterMode);
     const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
+    const auto toneAmount = std::pow (amount, 1.2f);
 
     const auto lowCoefficient = 0.025f;
     const auto midCoefficient = 0.11f + 0.015f * static_cast<float> (slot % 3);
@@ -1420,25 +1425,25 @@ float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
     switch (mode)
     {
         case 1:
-            coloured = sample - high * 0.12f + voice.toneLowState * 0.03f;
+            coloured = sample - high * 0.25f + voice.toneLowState * 0.08f;
             break;
 
         case 2:
-            coloured = sample + high * 0.10f;
+            coloured = sample + high * 0.22f;
             break;
 
         case 3:
-            coloured = sample + mid * (slot % 2 == 0 ? 0.12f : -0.08f);
+            coloured = sample + mid * vowelMidBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))];
             break;
 
         case 4:
-            coloured = sample + high * 0.14f + mid * 0.05f;
+            coloured = sample + high * 0.25f + mid * 0.12f;
             break;
 
         default: break;
     }
 
-    return sample + (coloured - sample) * amount;
+    return sample + (coloured - sample) * toneAmount;
 }
 
 int SimpleChoirEngine::getFixedPitchWindowSamples (double sampleRate) noexcept

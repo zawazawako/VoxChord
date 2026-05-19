@@ -1,5 +1,36 @@
 # VoxChord Test Log
 
+## 0.1.27 Stronger Character coloration
+
+Date: 2026-05-19
+
+Implementation status:
+
+- Strengthened Character Amount 100% tone coloration for Warm, Bright, Vowel, and Digital.
+- Warm now applies stronger high attenuation and low warmth.
+- Bright now applies stronger high emphasis.
+- Vowel now uses per-slot mid coefficients across 8 voices for clearer variation.
+- Digital now applies stronger high and mid emphasis.
+- Character Amount tone blend uses `pow(amount, 1.2)` so low values stay controlled and 100% is clearer.
+- Pitch detune, pitch ratio behavior, delay offset, and gain variation were not strengthened in this pass.
+- Existing Voice 8, Tuned Lead, input-synced window, Glide, and Input Gain behavior are intended to remain unchanged.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Character Amount 0% remains effectively Clean for all Types.
+- Character Amount 50% gives usable moderate coloration.
+- Character Amount 100% makes Warm / Bright / Vowel / Digital clearly distinguishable.
+- Warm 100% sounds rounder/warmer without becoming too muffled.
+- Bright 100% sounds clearer/brighter without becoming painfully sharp.
+- Vowel 100% makes vowel-like mid coloration easier to perceive.
+- Digital 100% sounds more artificial/bright without making pitch feel unstable.
+- Amount and Type changes do not add obvious clicks.
+- Voice 8 + Character 100% and Tuned Lead + Character 100% do not break existing behavior.
+
 ## 0.1.26 Character Type plus Amount
 
 Date: 2026-05-19

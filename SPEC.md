@@ -1,7 +1,20 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.26
+Project version: 0.1.27
+
+## 0.1.27 Update - stronger Character coloration
+
+- CMake project version: `0.1.27`.
+- Debug GUI pitch subtitle build string: `Build: character-strength-001`.
+- Character Amount 100% coloration was strengthened while keeping Amount 0% effectively Clean.
+- Warm tone shaping now applies stronger high attenuation and low warmth in `applyCharacterTone()`.
+- Bright tone shaping now applies stronger high emphasis in `applyCharacterTone()`.
+- Vowel tone shaping now uses an 8-slot `vowelMidBySlot` coefficient table for more varied voice color.
+- Digital tone shaping now applies stronger high and mid emphasis in `applyCharacterTone()`.
+- Character Amount tone blend now uses `pow(amount, 1.2)` so low Amount values remain controlled while 100% is more obvious.
+- Pitch detune, pitchRatio behavior, gain variation, delay offsets, pitch shifter, and input-synced window behavior were not strengthened in this pass.
+- The main strengthening target is tone/EQ, preserving pitch accuracy and live stability.
 
 ## 0.1.26 Update - Character Type plus Amount
 
@@ -184,7 +197,7 @@ Project version: 0.1.26
 
 ## Build Configuration
 
-- CMake project version: `0.1.26`
+- CMake project version: `0.1.27`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
