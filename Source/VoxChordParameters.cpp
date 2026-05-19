@@ -82,8 +82,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
             .withLabel ("dB")
             .withStringFromValueFunction (formatDecibels)));
 
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        ParameterID { ParameterIDs::inputSource, 1 },
+        "Input Source",
+        juce::StringArray { "Auto", "Input 1", "Input 2", "Mix 1+2" },
+        0));
+
     return layout;
 }
 
 } // namespace voxchord
-

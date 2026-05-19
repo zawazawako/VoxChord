@@ -68,7 +68,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: hard-tune-tracking-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        return "Build: input-source-standalone-001 | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText
              + " | Disp: " + displayText
@@ -123,6 +123,23 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     spreadAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::spread, spreadSlider);
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
+
+    inputSourceLabel.setText ("Input", juce::dontSendNotification);
+    inputSourceLabel.setJustificationType (juce::Justification::centredRight);
+    inputSourceLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
+    addAndMakeVisible (inputSourceLabel);
+
+    inputSourceBox.addItem ("Auto", 1);
+    inputSourceBox.addItem ("Input 1", 2);
+    inputSourceBox.addItem ("Input 2", 3);
+    inputSourceBox.addItem ("Mix 1+2", 4);
+    inputSourceBox.setColour (juce::ComboBox::backgroundColourId, panelColour());
+    inputSourceBox.setColour (juce::ComboBox::textColourId, juce::Colours::white);
+    inputSourceBox.setColour (juce::ComboBox::outlineColourId, accentColour().withAlpha (0.55f));
+    addAndMakeVisible (inputSourceBox);
+    inputSourceAttachment = std::make_unique<ComboBoxAttachment> (state,
+                                                                  voxchord::ParameterIDs::inputSource,
+                                                                  inputSourceBox);
 
     configureStatusLabel (midiNotesLabel, "MIDI: -- | Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
@@ -215,6 +232,9 @@ void VoxChordAudioProcessorEditor::resized()
 
     auto eventRow = status.removeFromTop (42);
     pitchDebugLabel.setBounds (eventRow.removeFromRight (170).reduced (6));
+    auto inputSourceArea = eventRow.removeFromRight (186).reduced (6);
+    inputSourceLabel.setBounds (inputSourceArea.removeFromLeft (46));
+    inputSourceBox.setBounds (inputSourceArea);
     midiStatusLabel.setBounds (eventRow.reduced (6));
 }
 

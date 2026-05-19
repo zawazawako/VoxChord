@@ -16,6 +16,7 @@ public:
 
 private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
     void timerCallback() override;
     void configureSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
@@ -50,6 +51,8 @@ private:
     juce::Label pitchDebugLabel;
     juce::Label inputMeterLabel;
     juce::Label outputMeterLabel;
+    juce::Label inputSourceLabel;
+    juce::ComboBox inputSourceBox;
     juce::TextButton panicButton { "PANIC" };
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
@@ -59,6 +62,7 @@ private:
     std::unique_ptr<SliderAttachment> spreadAttachment;
     std::unique_ptr<SliderAttachment> dryWetAttachment;
     std::unique_ptr<SliderAttachment> outputAttachment;
+    std::unique_ptr<ComboBoxAttachment> inputSourceAttachment;
 
     uint32_t lastSeenMidiActivityCounter = 0;
 

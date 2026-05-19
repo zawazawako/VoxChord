@@ -1,7 +1,7 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-18
-Project version: 0.1.12
+Last updated: 2026-05-19
+Project version: 0.1.13
 
 このファイルは `Source/` 以下のファイル構造と実装仕様を記録する。今後、ソースコードを編集した場合は、git commit とあわせてこの `SPEC.md` に変更内容を反映する。
 
@@ -39,9 +39,10 @@ Project version: 0.1.12
 
 - 1 画面のライブ向け GUI。
 - 7 sliders: Voice Count, Tune, Glide, Character, Spread, Dry/Wet, Output。
+- Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: hard-tune-tracking-001`。
+- pitch debug subtitle の現在の build string は `Build: input-source-standalone-001`。
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
 `Source/SimpleChoirEngine.h`, `Source/SimpleChoirEngine.cpp`
@@ -55,15 +56,16 @@ Project version: 0.1.12
 
 - APVTS parameter layout を定義する。
 - Parameter ID は後方互換のため原則変更しない。
-- 現在の parameter IDs: `voiceCount`, `tune`, `glide`, `character`, `spread`, `dryWet`, `outputLevel`。
+- 現在の parameter IDs: `voiceCount`, `tune`, `glide`, `character`, `spread`, `dryWet`, `outputLevel`, `inputSource`。
 
 ## Build Configuration
 
-- CMake project version: `0.1.12`
+- CMake project version: `0.1.13`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
 - Compile definitions:
+- `JUCE_ASIO=1`
 - `JUCE_WEB_BROWSER=0`
 - `JUCE_USE_CURL=0`
 - `JUCE_VST3_CAN_REPLACE_VST2=0`
@@ -72,16 +74,18 @@ Project version: 0.1.12
 
 Input/output:
 
-- Audio input: mono primary. Stereo input layouts are allowed and copied as stereo dry buffer when present.
+- Audio input: stereo default, mono/stereo layouts are allowed.
 - Audio output: stereo primary. Mono/stereo output layouts are allowed.
 - MIDI input: required.
 - MIDI output: disabled.
+- Standalone input source can select Auto, Input 1, Input 2, or Mix 1+2.
+- VST3 always uses ch0/L as the vocal input and does not expose physical input channel routing.
 
 Audio block flow:
 
 1. Apply pending Panic request.
 2. Parse MIDI messages and update `MidiVoiceState`.
-3. Copy host input into internal `dryBuffer`.
+3. Select mono vocal input and copy it into stereo `dryBuffer`.
 4. Render wet choir into `wetBuffer` using `SimpleChoirEngine`.
 5. Publish pitch debug fields to atomics.
 6. Mix dry/wet into host output buffer.
@@ -144,6 +148,15 @@ Dry/wet and output:
 - Range: `-24.0-6.0 dB`
 - Default: `-3.0 dB`
 - Smoothed final output gain.
+
+`inputSource`
+
+- Type: choice
+- Choices: `Auto`, `Input 1`, `Input 2`, `Mix 1+2`
+- Default: `Auto`
+- Intended mainly for Standalone use.
+- In Standalone, it controls which physical input channel becomes VoxChord's mono vocal input.
+- In VST3, it is ignored by DSP; DAW routing is respected and ch0/L is used.
 
 ## MIDI Voice Specification
 
@@ -223,9 +236,18 @@ Self test:
 
 ## Harmony DSP Specification
 
+Input source selection:
+
+- The selected mono input is used consistently for dry path, wet choir render input, pitch detector input, and input meter.
+- Standalone `Input 1`: use input channel 0.
+- Standalone `Input 2`: use input channel 1 when present, otherwise fall back to channel 0.
+- Standalone `Mix 1+2`: use `0.5 * (ch0 + ch1)` when channel 1 is present, otherwise channel 0.
+- Standalone `Auto`: compare current block peak of ch0 and ch1 and use the louder channel; if ch1 is missing, use ch0.
+- VST3: always use ch0/L, regardless of `inputSource`.
+
 Wet rendering:
 
-- Input is read as mono. Stereo input is averaged for DSP pitch analysis/render input.
+- Input is read from the selected mono vocal input.
 - Delay buffer is mono.
 - Wet output is stereo.
 - Active MIDI notes determine target notes.
@@ -295,7 +317,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: hard-tune-tracking-001`
+- `Build: input-source-standalone-001`
 - `RMS`
 - `Raw`
 - `Corr`

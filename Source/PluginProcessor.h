@@ -30,6 +30,14 @@ public:
         uint32_t counter = 0;
     };
 
+    enum class InputSource
+    {
+        autoDetect = 0,
+        input1,
+        input2,
+        mix12
+    };
+
     VoxChordAudioProcessor();
     ~VoxChordAudioProcessor() override = default;
 
@@ -83,6 +91,7 @@ private:
     float getTune() const noexcept;
     float getGlide() const noexcept;
     float getCharacter() const noexcept;
+    InputSource getInputSource() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
     void publishMidiActivity (MidiActivity activity) noexcept;
@@ -123,6 +132,7 @@ private:
     std::atomic<float>* characterParameter = nullptr;
     std::atomic<float>* spreadParameter = nullptr;
     std::atomic<float>* outputLevelParameter = nullptr;
+    std::atomic<float>* inputSourceParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)
 };

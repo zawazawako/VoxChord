@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.12)
+project(VoxChord VERSION 0.1.13)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -33,6 +33,7 @@ target_sources(VoxChord
 
 target_compile_definitions(VoxChord
     PUBLIC
+        JUCE_ASIO=1
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0)

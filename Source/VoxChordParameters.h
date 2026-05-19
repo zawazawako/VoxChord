@@ -13,9 +13,9 @@ namespace ParameterIDs
     inline constexpr auto spread = "spread";
     inline constexpr auto dryWet = "dryWet";
     inline constexpr auto outputLevel = "outputLevel";
+    inline constexpr auto inputSource = "inputSource";
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 } // namespace voxchord
-

@@ -8,13 +8,18 @@ namespace
         return set == juce::AudioChannelSet::mono()
             || set == juce::AudioChannelSet::stereo();
     }
+
+    bool isStandaloneWrapper (juce::AudioProcessor::WrapperType wrapperType) noexcept
+    {
+        return wrapperType == juce::AudioProcessor::wrapperType_Standalone;
+    }
 }
 
 VoxChordAudioProcessor::VoxChordAudioProcessor()
     : AudioProcessor (BusesProperties()
         #if ! JucePlugin_IsMidiEffect
          #if ! JucePlugin_IsSynth
-          .withInput  ("Input",  juce::AudioChannelSet::mono(), true)
+          .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
          #endif
           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
         #endif
@@ -28,6 +33,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     characterParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::character);
     spreadParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::spread);
     outputLevelParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::outputLevel);
+    inputSourceParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputSource);
 
     for (auto& note : activeMidiNotes)
         note.store (-1, std::memory_order_relaxed);
@@ -39,6 +45,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     jassert (characterParameter != nullptr);
     jassert (spreadParameter != nullptr);
     jassert (outputLevelParameter != nullptr);
+    jassert (inputSourceParameter != nullptr);
 
     #if JUCE_DEBUG
     voxchord::SimpleChoirEngine::runPitchDetectorSelfTest();
@@ -140,7 +147,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const auto samples = buffer.getNumSamples();
     const auto inputChannels = getTotalNumInputChannels();
     const auto outputChannels = getTotalNumOutputChannels();
-    const auto inputPeak = calculatePeak (buffer, inputChannels, samples);
+    juce::ignoreUnused (inputChannels);
 
     if (panicRequested.exchange (false, std::memory_order_acq_rel))
     {
@@ -151,6 +158,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     handleMidi (midiMessages);
     copyInputToDryBuffer (buffer);
+    const auto inputPeak = calculatePeak (dryBuffer, dryBuffer.getNumChannels(), samples);
     choirEngine.render (dryBuffer,
                          wetBuffer,
                          getActiveMidiNotes(),
@@ -328,6 +336,18 @@ float VoxChordAudioProcessor::getCharacter() const noexcept
     return juce::jlimit (0.0f, 1.0f, characterParameter->load (std::memory_order_relaxed));
 }
 
+VoxChordAudioProcessor::InputSource VoxChordAudioProcessor::getInputSource() const noexcept
+{
+    if (inputSourceParameter == nullptr)
+        return InputSource::autoDetect;
+
+    const auto index = juce::jlimit (0,
+                                     3,
+                                     juce::roundToInt (inputSourceParameter->load (std::memory_order_relaxed)));
+
+    return static_cast<InputSource> (index);
+}
+
 void VoxChordAudioProcessor::handleMidi (const juce::MidiBuffer& midiMessages) noexcept
 {
     const auto voiceLimit = getVoiceLimit();
@@ -377,15 +397,50 @@ void VoxChordAudioProcessor::copyInputToDryBuffer (const juce::AudioBuffer<float
     if (inputChannels == 0)
         return;
 
-    if (inputChannels == 1)
+    const auto hasCh1 = inputChannels > 1 && buffer.getNumChannels() > 1;
+    const auto useStandaloneInputSelection = isStandaloneWrapper (wrapperType);
+    const auto source = useStandaloneInputSelection ? getInputSource() : InputSource::input1;
+    auto autoSelectInput2 = false;
+
+    if (source == InputSource::autoDetect && hasCh1)
     {
-        dryBuffer.copyFrom (0, 0, buffer, 0, 0, samples);
-        dryBuffer.copyFrom (1, 0, buffer, 0, 0, samples);
-        return;
+        const auto peak0 = buffer.getMagnitude (0, 0, samples);
+        const auto peak1 = buffer.getMagnitude (1, 0, samples);
+        autoSelectInput2 = peak1 > peak0;
     }
 
-    dryBuffer.copyFrom (0, 0, buffer, 0, 0, samples);
-    dryBuffer.copyFrom (1, 0, buffer, 1, 0, samples);
+    auto* left = dryBuffer.getWritePointer (0);
+    auto* right = dryBuffer.getWritePointer (1);
+
+    for (auto sample = 0; sample < samples; ++sample)
+    {
+        const auto input0 = buffer.getSample (0, sample);
+        const auto input1 = hasCh1 ? buffer.getSample (1, sample) : input0;
+        auto selected = input0;
+
+        switch (source)
+        {
+            case InputSource::input2:
+                selected = input1;
+                break;
+
+            case InputSource::mix12:
+                selected = hasCh1 ? (input0 + input1) * 0.5f : input0;
+                break;
+
+            case InputSource::autoDetect:
+                selected = autoSelectInput2 ? input1 : input0;
+                break;
+
+            case InputSource::input1:
+            default:
+                selected = input0;
+                break;
+        }
+
+        left[sample] = selected;
+        right[sample] = selected;
+    }
 }
 
 void VoxChordAudioProcessor::mixDryWetToOutput (juce::AudioBuffer<float>& buffer) noexcept

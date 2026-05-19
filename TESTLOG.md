@@ -411,6 +411,53 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.13 phase 5A standalone input source
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- `directions/0518_5.md` に従い、音質系 DSP / pitch detector / MIDI voice 仕様は変更せず、入力チャンネル選択と mono 化処理だけを対象にした。
+- Standalone では物理入力の `Input 1`, `Input 2`, `Mix 1+2`, `Auto` を選べるようにした。
+- VST3 では DAW ルーティングを尊重し、常に ch0/L を VoxChord の vocal input として扱う。
+
+実装済み:
+
+- APVTS に `inputSource` choice parameter を追加した。選択肢は `Auto`, `Input 1`, `Input 2`, `Mix 1+2`、default は `Auto`。
+- GUI event row に最小限の Input Source ComboBox を追加した。
+- `copyInputToDryBuffer()` で、Standalone のみ `inputSource` に従って mono input を選択し、dry buffer の L/R 両方へ同じ信号を書き込むようにした。
+- `Input 2` は ch1 が存在する場合 ch1、存在しない場合 ch0 fallback とした。
+- `Mix 1+2` は ch1 が存在する場合 `0.5 * (ch0 + ch1)`、存在しない場合 ch0 とした。
+- `Auto` は block ごとの ch0/ch1 peak を比較し、大きい方を選択する。ch1 が存在しない場合は ch0。
+- VST3 では `inputSource` に関係なく ch0/L 固定で処理するようにした。
+- input meter は選択後 mono input の level を表示するようにした。
+- GUI debug 表示を `Build: input-source-standalone-001` に更新した。
+- CMake project version を `0.1.13` に更新した。
+- `SPEC.md` に input source 仕様、Standalone/VST3 の分岐、既知制限を追記した。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- ASIO Standalone / UR22C / Input 1 / Dry/Wet=0 で音が出ること。
+- ASIO Standalone / UR22C / Input 2 / Dry/Wet=0 で音が出ること。
+- ASIO Standalone / UR22C / Mix 1+2 / Dry/Wet=0 で音が出ること。
+- ASIO Standalone / UR22C / Auto で Input 1 または Input 2 を選べること。
+- VST3 で stereo input 時に L/ch0 のみが vocal input として使われること。
+
+次に確認すべきこと:
+
+- Standalone で Input Source ComboBox が表示され、選択できること。
+- Dry/Wet=0 でも選択した input source が dry through されること。
+- PitchDetector と wet choir も選択した input source に追従すること。
+- VST3 では inputSource による物理入力選択を期待せず、DAW 側の routing で入力を選ぶこと。
+
 ## 0.1.12 phase 3K hard tune tracking
 
 日付: 2026-05-18
