@@ -1,7 +1,19 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.19
+Project version: 0.1.20
+
+## 0.1.20 Update - separated pitch shifter summaries and default-candidate input-sync
+
+- CMake project version: `0.1.20`.
+- GUI pitch debug build string: `Build: input-synced-window-002`.
+- `PitchShifterSelfTestSummary` now stores separate `fixedWindow` and `inputSyncedWindow` summaries.
+- The GUI debug subtitle reports fixed-window and input-synced-window self test status independently.
+- Input-synced window mode is now the render-path default candidate, controlled by `useInputSyncedPitchWindowByDefault`.
+- Window tuning constants are grouped in `SimpleChoirEngine`: `fixedPitchWindowSeconds`, `inputSyncedPitchWindowCycles`, `inputSyncedMinWindowSamples`, and `inputSyncedMaxWindowSamples`.
+- Input-synced self test coverage now spans input `100/150/220/330/440/660/880 Hz` with ratios `0.5/0.75/1.0/1.5/2.0`.
+- Fixed-window representative tests remain for regression comparison.
+- No empirical ratio correction is applied.
 
 ## 0.1.19 Update - input-synced pitch window prototype
 
@@ -56,7 +68,7 @@ Project version: 0.1.19
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: input-synced-window-001`。
+- pitch debug subtitle の現在の build string は `Build: input-synced-window-002`。
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -75,7 +87,7 @@ Project version: 0.1.19
 
 ## Build Configuration
 
-- CMake project version: `0.1.19`
+- CMake project version: `0.1.20`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -256,10 +268,10 @@ Pitch shifter self test:
 - Uses an internal sine wave, one `VoicePitchState`, Character=0 equivalent, delay offset `0`, and `glideCoefficient=1.0f`.
 - Ratio smoothing and glide are fully bypassed by setting `currentPitchRatio` and `targetPitchRatio` to the fixed ratio and calling `renderPitchShiftedSample()` with glide coefficient `1.0f`.
 - Measures output frequency from positive-going zero crossings after initial transient skip.
-- Stores a summary in `PitchShifterSelfTestSummary`.
-- GUI debug subtitle displays `Pitch Shifter SelfTest: PASS/FAIL`, max error cents, worst input Hz, worst ratio, and worst measured Hz.
+- Stores separate fixed-window and input-synced-window summaries in `PitchShifterSelfTestSummary`.
+- GUI debug subtitle displays fixed-window and input-synced-window `Pitch Shifter SelfTest` summaries independently, including PASS/FAIL, max error cents, worst input Hz, worst ratio, and worst measured Hz.
 - GUI debug subtitle also displays the worst measured actual ratio.
-- If the self test has not run, GUI displays `Pitch Shifter SelfTest: NOT RUN`.
+- If a self test mode has not run, GUI displays `Fixed: NOT RUN` or `InputSync: NOT RUN`.
 - Test cases:
 - `440 Hz * 1.0 -> 440 Hz`
 - `660 Hz * 1.0 -> 660 Hz`
@@ -270,11 +282,9 @@ Pitch shifter self test:
 - `440 Hz * 0.5 -> 220 Hz`
 - `660 Hz * 0.5 -> 330 Hz`
 - `880 Hz * 0.5 -> 440 Hz`
-- Additional input-synced window prototype cases:
-- `440 Hz * 0.5 -> 220 Hz`
-- `660 Hz * 0.5 -> 330 Hz`
-- `880 Hz * 0.5 -> 440 Hz`
-- `440 Hz * 2.0 -> 880 Hz`
+- Input-synced window coverage:
+- inputs `100/150/220/330/440/660/880 Hz`
+- ratios `0.5/0.75/1.0/1.5/2.0`
 - Debug output reports expected frequency, measured frequency, error cents, +/-10 cents result, `pitchWindowSamples`, `minimumDelaySamples`, and whether ratio smoothing/glide were disabled.
 - Debug output also reports `windowMode`, `fixedPitchWindowSamples`, `inputPeriodSamples`, and `inputSyncedWindowCycles`.
 - Debug output also reports actual ratio, actual/target ratio, `phaseDelta`, delay step per sample, and theoretical read speed.
@@ -313,7 +323,9 @@ Pitch shifter:
 - Two phase windows per voice: `phaseA`, `phaseB`.
 - Window function: Hann-like `0.5 - 0.5*cos(2*pi*phase)`.
 - `pitchWindowSamples` is approximately `18 ms`, limited to `256-4096`.
-- The experimental active pitch window is input-synced when a valid `correctionInputPitchHz` is present: `clamp(round(6.0 * sampleRate / correctionInputPitchHz), 256, 4096)`.
+- Input-synced pitch window is the current default candidate when a valid `correctionInputPitchHz` is present: `clamp(round(6.0 * sampleRate / correctionInputPitchHz), 256, 4096)`.
+- `useInputSyncedPitchWindowByDefault` can switch the render path back to fixed-window behavior for comparison.
+- Adjustable constants: `fixedPitchWindowSeconds = 0.018`, `inputSyncedPitchWindowCycles = 6.0`, `inputSyncedMinWindowSamples = 256`, `inputSyncedMaxWindowSamples = 4096`.
 - If no valid pitch is available, the active pitch window falls back to the fixed `18 ms` value.
 - `minimumDelaySamples` is approximately `4 ms`, limited to `32-1024`.
 - No empirical ratio correction is applied.
@@ -372,7 +384,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: input-synced-window-001`
+- `Build: input-synced-window-002`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`

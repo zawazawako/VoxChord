@@ -61,12 +61,13 @@ namespace
         return "none";
     }
 
-    juce::String formatPitchShifterSelfTestSummary (const voxchord::PitchShifterSelfTestSummary& summary)
+    juce::String formatPitchShifterSelfTestModeSummary (const char* label,
+                                                        const voxchord::PitchShifterSelfTestModeSummary& summary)
     {
         if (! summary.hasRun)
-            return "Pitch Shifter SelfTest: NOT RUN";
+            return juce::String (label) + ": NOT RUN";
 
-        return juce::String ("Pitch Shifter SelfTest: ") + juce::String (summary.passed ? "PASS" : "FAIL")
+        return juce::String (label) + ": " + juce::String (summary.passed ? "PASS" : "FAIL")
              + " | MaxErr: " + juce::String (summary.maxErrorCents, 2) + " c"
              + " | WorstIn: " + juce::String (summary.worstInputHz, 1) + " Hz"
              + " | Ratio: " + juce::String (summary.worstRatio, 3)
@@ -82,8 +83,11 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: input-synced-window-001 | "
-             + formatPitchShifterSelfTestSummary (selfTestSummary)
+        return "Build: input-synced-window-002 | "
+             + "Pitch Shifter SelfTest | "
+             + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
+             + " | "
+             + formatPitchShifterSelfTestModeSummary ("InputSync", selfTestSummary.inputSyncedWindow)
              + " | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText

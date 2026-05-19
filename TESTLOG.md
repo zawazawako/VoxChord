@@ -411,6 +411,47 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.20 phase 3R separated self test summaries and expanded input-sync tests
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+Context:
+
+- User confirmed that the input-synced window direction is effective.
+- Next diagnostic need: fixed-window and input-synced-window self test summaries must be separated so fixed failures do not obscure input-synced results.
+- Low input frequencies can produce long windows, so window tuning values should be easy to adjust.
+
+Implemented:
+
+- Split `PitchShifterSelfTestSummary` into separate `fixedWindow` and `inputSyncedWindow` mode summaries.
+- GUI debug subtitle now reports fixed and input-synced self test PASS/FAIL independently.
+- Input-synced window is now the render-path default candidate via `useInputSyncedPitchWindowByDefault = true`.
+- Window constants are grouped for tuning: `fixedPitchWindowSeconds`, `inputSyncedPitchWindowCycles`, `inputSyncedMinWindowSamples`, `inputSyncedMaxWindowSamples`.
+- Input-synced self test coverage was expanded to inputs `100/150/220/330/440/660/880 Hz` and ratios `0.5/0.75/1.0/1.5/2.0`.
+- Fixed-window representative cases remain for regression comparison.
+- GUI debug build string updated to `Build: input-synced-window-002`.
+- CMake project version updated to `0.1.20`.
+
+Not changed:
+
+- No empirical ratio correction coefficient was added.
+- PitchDetector behavior was not changed.
+- The delay-window pitch shifter structure was not replaced.
+
+Verification pending:
+
+- User build of Debug/Release targets.
+- Confirm the GUI shows separate `Fixed` and `InputSync` self test summaries.
+- Confirm DBG output includes the expanded input-synced test range.
+- Check whether low-frequency cases such as `100 Hz * 0.5` remain acceptable with the current max window clamp.
+
 ## 0.1.19 phase 3Q input-synced pitch window prototype
 
 Date: 2026-05-19

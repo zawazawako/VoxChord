@@ -23,7 +23,7 @@ struct PitchState
     int harmonicCorrectionMode = 0;
 };
 
-struct PitchShifterSelfTestSummary
+struct PitchShifterSelfTestModeSummary
 {
     bool hasRun = false;
     bool passed = false;
@@ -32,6 +32,12 @@ struct PitchShifterSelfTestSummary
     float worstRatio = 0.0f;
     float worstActualRatio = 0.0f;
     float worstMeasuredHz = 0.0f;
+};
+
+struct PitchShifterSelfTestSummary
+{
+    PitchShifterSelfTestModeSummary fixedWindow;
+    PitchShifterSelfTestModeSummary inputSyncedWindow;
 };
 
 class SimpleChoirEngine final
@@ -134,6 +140,7 @@ private:
     static float getCharacterPitchRatio (int slot, float character) noexcept;
     static float getCharacterGain (int slot, float character) noexcept;
     static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
+    static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
     static float readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept;
     static float wrapPhase (float phase) noexcept;
@@ -149,9 +156,11 @@ private:
     static constexpr float minPitchRatio = 0.25f;
     static constexpr float maxPitchRatio = 8.0f;
     static constexpr float ratioSmoothingAlpha = 0.35f;
-    static constexpr float inputSyncedWindowCycles = 6.0f;
-    static constexpr int minPitchWindowSamples = 256;
-    static constexpr int maxPitchWindowSamples = 4096;
+    static constexpr bool useInputSyncedPitchWindowByDefault = true;
+    static constexpr float fixedPitchWindowSeconds = 0.018f;
+    static constexpr float inputSyncedPitchWindowCycles = 6.0f;
+    static constexpr int inputSyncedMinWindowSamples = 256;
+    static constexpr int inputSyncedMaxWindowSamples = 4096;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;

@@ -234,11 +234,9 @@ namespace
 void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
 {
     currentSampleRate = juce::jmax (1.0, sampleRate);
-    pitchWindowSamples = juce::jlimit (minPitchWindowSamples,
-                                       maxPitchWindowSamples,
-                                       juce::roundToInt (currentSampleRate * 0.018));
+    pitchWindowSamples = getFixedPitchWindowSamples (currentSampleRate);
     minimumDelaySamples = juce::jlimit (32, 1024, juce::roundToInt (currentSampleRate * 0.004));
-    delayBufferSize = juce::jmax (minimumDelaySamples + maxPitchWindowSamples * 2 + maxBlockSize + 8,
+    delayBufferSize = juce::jmax (minimumDelaySamples + inputSyncedMaxWindowSamples * 2 + maxBlockSize + 8,
                                   juce::roundToInt (currentSampleRate * 0.25));
 
     delayBuffer.setSize (1, delayBufferSize, false, false, true);
@@ -326,7 +324,7 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
     constexpr auto maxBlockSize = 512;
     constexpr auto totalSamples = 57600;
     constexpr auto skipSamples = 16800;
-    constexpr std::array<TestCase, 13> testCases {{
+    constexpr std::array<TestCase, 44> testCases {{
         { 440.0f, 1.0f },
         { 660.0f, 1.0f },
         { 880.0f, 1.0f },
@@ -339,19 +337,52 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
         { 440.0f, 0.5f, true },
         { 660.0f, 0.5f, true },
         { 880.0f, 0.5f, true },
-        { 440.0f, 2.0f, true }
+        { 440.0f, 2.0f, true },
+        { 100.0f, 0.5f, true },
+        { 100.0f, 0.75f, true },
+        { 100.0f, 1.0f, true },
+        { 100.0f, 1.5f, true },
+        { 100.0f, 2.0f, true },
+        { 150.0f, 0.5f, true },
+        { 150.0f, 0.75f, true },
+        { 150.0f, 1.0f, true },
+        { 150.0f, 1.5f, true },
+        { 150.0f, 2.0f, true },
+        { 220.0f, 0.5f, true },
+        { 220.0f, 0.75f, true },
+        { 220.0f, 1.0f, true },
+        { 220.0f, 1.5f, true },
+        { 220.0f, 2.0f, true },
+        { 330.0f, 0.5f, true },
+        { 330.0f, 0.75f, true },
+        { 330.0f, 1.0f, true },
+        { 330.0f, 1.5f, true },
+        { 330.0f, 2.0f, true },
+        { 440.0f, 0.75f, true },
+        { 440.0f, 1.0f, true },
+        { 440.0f, 1.5f, true },
+        { 660.0f, 0.75f, true },
+        { 660.0f, 1.0f, true },
+        { 660.0f, 1.5f, true },
+        { 660.0f, 2.0f, true },
+        { 880.0f, 0.75f, true },
+        { 880.0f, 1.0f, true },
+        { 880.0f, 1.5f, true },
+        { 880.0f, 2.0f, true }
     }};
 
     DBG ("VoxChord PitchShifter SelfTest: fixed ratio, Character=0, Glide disabled, VoiceCount=1 equivalent");
     DBG (juce::String ("VoxChord PitchShifter SelfTest: input-synced window prototype cycles ")
-         + juce::String (inputSyncedWindowCycles, 1)
-         + ", clamp " + juce::String (minPitchWindowSamples)
-         + "-" + juce::String (maxPitchWindowSamples)
+         + juce::String (inputSyncedPitchWindowCycles, 1)
+         + ", clamp " + juce::String (inputSyncedMinWindowSamples)
+         + "-" + juce::String (inputSyncedMaxWindowSamples)
          + " samples, no empirical ratio correction");
 
     auto summary = PitchShifterSelfTestSummary {};
-    summary.hasRun = true;
-    summary.passed = true;
+    summary.fixedWindow.hasRun = true;
+    summary.fixedWindow.passed = true;
+    summary.inputSyncedWindow.hasRun = true;
+    summary.inputSyncedWindow.passed = true;
 
     for (const auto testCase : testCases)
     {
@@ -465,17 +496,19 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
         const auto withinTenCents = std::abs (errorCents) <= 10.0f;
         const auto windowMode = testCase.useInputSyncedWindow ? "input-synced" : "fixed";
 
-        if (absoluteErrorCents > summary.maxErrorCents)
+        auto& modeSummary = testCase.useInputSyncedWindow ? summary.inputSyncedWindow : summary.fixedWindow;
+
+        if (absoluteErrorCents > modeSummary.maxErrorCents)
         {
-            summary.maxErrorCents = absoluteErrorCents;
-            summary.worstInputHz = testCase.inputFrequencyHz;
-            summary.worstRatio = testCase.ratio;
-            summary.worstActualRatio = actualRatio;
-            summary.worstMeasuredHz = measuredHz;
+            modeSummary.maxErrorCents = absoluteErrorCents;
+            modeSummary.worstInputHz = testCase.inputFrequencyHz;
+            modeSummary.worstRatio = testCase.ratio;
+            modeSummary.worstActualRatio = actualRatio;
+            modeSummary.worstMeasuredHz = measuredHz;
         }
 
         if (! withinTenCents)
-            summary.passed = false;
+            modeSummary.passed = false;
 
         DBG (juce::String ("PitchShifterSelfTest input ")
              + juce::String (testCase.inputFrequencyHz, 1) + " Hz"
@@ -523,7 +556,7 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
              + ", pitchWindowSamples: " + juce::String (windowSamples)
              + ", fixedPitchWindowSamples: " + juce::String (engine.pitchWindowSamples)
              + ", inputPeriodSamples: " + juce::String (inputPeriodSamples, 3)
-             + ", inputSyncedWindowCycles: " + juce::String (inputSyncedWindowCycles, 1)
+             + ", inputSyncedWindowCycles: " + juce::String (inputSyncedPitchWindowCycles, 1)
              + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
              + ", ratio smoothing/glide disabled: yes");
 
@@ -556,13 +589,20 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
 
     pitchShifterSelfTestSummary() = summary;
 
-    DBG (juce::String ("PitchShifterSelfTest summary: ")
-         + (summary.passed ? "PASS" : "FAIL")
-         + ", max error " + juce::String (summary.maxErrorCents, 2) + " cents"
-         + ", worst input " + juce::String (summary.worstInputHz, 1) + " Hz"
-         + ", worst ratio " + juce::String (summary.worstRatio, 3)
-         + ", worst actual ratio " + juce::String (summary.worstActualRatio, 6)
-         + ", worst measured " + juce::String (summary.worstMeasuredHz, 2) + " Hz");
+    const auto logSummary = [] (const char* label, const PitchShifterSelfTestModeSummary& modeSummary)
+    {
+        DBG (juce::String ("PitchShifterSelfTest summary ")
+             + label + ": "
+             + (modeSummary.passed ? "PASS" : "FAIL")
+             + ", max error " + juce::String (modeSummary.maxErrorCents, 2) + " cents"
+             + ", worst input " + juce::String (modeSummary.worstInputHz, 1) + " Hz"
+             + ", worst ratio " + juce::String (modeSummary.worstRatio, 3)
+             + ", worst actual ratio " + juce::String (modeSummary.worstActualRatio, 6)
+             + ", worst measured " + juce::String (modeSummary.worstMeasuredHz, 2) + " Hz");
+    };
+
+    logSummary ("fixed", summary.fixedWindow);
+    logSummary ("input-synced", summary.inputSyncedWindow);
 }
 
 PitchShifterSelfTestSummary SimpleChoirEngine::getPitchShifterSelfTestSummary() noexcept
@@ -601,7 +641,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     pitchState.ratioSmoothingCoefficient = ratioSmoothingCoefficient;
     const auto inputFrequencyHz = pitchState.correctionInputPitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
-    const auto activePitchWindowSamples = getInputSyncedPitchWindowSamples (inputFrequencyHz, currentSampleRate);
+    const auto activePitchWindowSamples = useInputSyncedPitchWindowByDefault
+                                              ? getInputSyncedPitchWindowSamples (inputFrequencyHz, currentSampleRate)
+                                              : pitchWindowSamples;
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
     std::array<float, MidiVoiceState::maxVoices> leftGains {};
@@ -1217,17 +1259,22 @@ float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot, float charact
     return delayMs * 0.001f * static_cast<float> (juce::jmax (1.0, sampleRate));
 }
 
+int SimpleChoirEngine::getFixedPitchWindowSamples (double sampleRate) noexcept
+{
+    return juce::jlimit (inputSyncedMinWindowSamples,
+                         inputSyncedMaxWindowSamples,
+                         juce::roundToInt (juce::jmax (1.0, sampleRate) * fixedPitchWindowSeconds));
+}
+
 int SimpleChoirEngine::getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept
 {
     if (inputFrequencyHz <= 0.0f || sampleRate <= 1.0)
-        return juce::jlimit (minPitchWindowSamples,
-                             maxPitchWindowSamples,
-                             juce::roundToInt (sampleRate * 0.018));
+        return getFixedPitchWindowSamples (sampleRate);
 
     const auto periodSamples = static_cast<float> (sampleRate) / inputFrequencyHz;
-    return juce::jlimit (minPitchWindowSamples,
-                         maxPitchWindowSamples,
-                         juce::roundToInt (inputSyncedWindowCycles * periodSamples));
+    return juce::jlimit (inputSyncedMinWindowSamples,
+                         inputSyncedMaxWindowSamples,
+                         juce::roundToInt (inputSyncedPitchWindowCycles * periodSamples));
 }
 
 float SimpleChoirEngine::readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept
@@ -1298,7 +1345,9 @@ float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice,
         voice.currentPitchRatio += (voice.targetPitchRatio - voice.currentPitchRatio) * glideCoefficient;
 
     const auto ratio = juce::jlimit (minPitchRatio, maxPitchRatio, voice.currentPitchRatio);
-    const auto safeWindowSamples = juce::jlimit (minPitchWindowSamples, maxPitchWindowSamples, windowSamples);
+    const auto safeWindowSamples = juce::jlimit (inputSyncedMinWindowSamples,
+                                                 inputSyncedMaxWindowSamples,
+                                                 windowSamples);
     const auto windowSamplesFloat = static_cast<float> (safeWindowSamples);
     const auto phaseDelta = (1.0f - ratio) / windowSamplesFloat;
 
