@@ -49,6 +49,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
 
     #if JUCE_DEBUG
     voxchord::SimpleChoirEngine::runPitchDetectorSelfTest();
+    voxchord::SimpleChoirEngine::runPitchShifterSelfTest();
     #endif
 }
 

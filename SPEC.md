@@ -1,7 +1,7 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.13
+Project version: 0.1.14
 
 このファイルは `Source/` 以下のファイル構造と実装仕様を記録する。今後、ソースコードを編集した場合は、git commit とあわせてこの `SPEC.md` に変更内容を反映する。
 
@@ -32,7 +32,7 @@ Project version: 0.1.13
 - APVTS で MVP パラメータを保持する。
 - `processBlock()` の主な流れは、panic 処理、MIDI 処理、dry buffer コピー、wet choir render、pitch debug state publish、dry/wet mix、meter publish。
 - `setLatencySamples(0)` を設定している。
-- Debug ビルドでは processor 生成時に `SimpleChoirEngine::runPitchDetectorSelfTest()` を一度実行する。
+- Debug ビルドでは processor 生成時に `SimpleChoirEngine::runPitchDetectorSelfTest()` と `SimpleChoirEngine::runPitchShifterSelfTest()` を一度実行する。
 - GUI 共有用の MIDI / pitch / meter 状態は atomic または専用 state 経由で公開する。
 
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
@@ -42,7 +42,7 @@ Project version: 0.1.13
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: input-source-standalone-001`。
+- pitch debug subtitle の現在の build string は `Build: pitch-shifter-selftest-001`。
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
 `Source/SimpleChoirEngine.h`, `Source/SimpleChoirEngine.cpp`
@@ -60,7 +60,7 @@ Project version: 0.1.13
 
 ## Build Configuration
 
-- CMake project version: `0.1.13`
+- CMake project version: `0.1.14`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -234,6 +234,22 @@ Self test:
 - Harmonic correction is OFF during self test.
 - Self test must not run inside normal real-time `processBlock()`.
 
+Pitch shifter self test:
+
+- Debug only, run once from processor constructor after pitch detector self test.
+- Does not use PitchDetector or MIDI voice allocation.
+- Uses an internal sine wave, one `VoicePitchState`, Character=0 equivalent, delay offset `0`, and `glideCoefficient=1.0f`.
+- Ratio smoothing and glide are fully bypassed by setting `currentPitchRatio` and `targetPitchRatio` to the fixed ratio and calling `renderPitchShiftedSample()` with glide coefficient `1.0f`.
+- Measures output frequency from positive-going zero crossings after initial transient skip.
+- Test cases:
+- `220 Hz * 2.0 -> 440 Hz`
+- `440 Hz * 2.0 -> 880 Hz`
+- `440 Hz * 1.5 -> 660 Hz`
+- `440 Hz * 0.5 -> 220 Hz`
+- `660 Hz * 0.5 -> 330 Hz`
+- `880 Hz * 0.5 -> 440 Hz`
+- Debug output reports expected frequency, measured frequency, error cents, +/-10 cents result, `pitchWindowSamples`, `minimumDelaySamples`, and whether ratio smoothing/glide were disabled.
+
 ## Harmony DSP Specification
 
 Input source selection:
@@ -317,7 +333,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: input-source-standalone-001`
+- `Build: pitch-shifter-selftest-001`
 - `RMS`
 - `Raw`
 - `Corr`

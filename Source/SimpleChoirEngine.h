@@ -29,6 +29,7 @@ public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset() noexcept;
     static void runPitchDetectorSelfTest();
+    static void runPitchShifterSelfTest();
 
     void render (const juce::AudioBuffer<float>& dryInput,
                  juce::AudioBuffer<float>& wetOutput,

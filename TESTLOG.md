@@ -411,6 +411,57 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.14 phase 3L pitch shifter self test
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- ユーザー指示に従い、高域 ratio 補正などの経験的ハックは行わず、既存 delay-window pitch shifter 単体の固定 ratio 精度を検証する debug self test のみ追加した。
+- PitchDetector 改善、choir 音質改善、新 pitch shifter 追加、MIDI voice 仕様変更は行っていない。
+- 通常の `processBlock()` では self test を実行しない。
+
+実装済み:
+
+- `SimpleChoirEngine::runPitchShifterSelfTest()` を追加した。
+- Debug ビルド時に processor 生成時だけ、PitchDetector self test とは別に pitch shifter self test を実行するようにした。
+- self test は内部サイン波を delay buffer に書き込み、固定 ratio の `renderPitchShiftedSample()` に直接通す。
+- Character=0 相当、delay offset `0`、Voice Count=1 相当、Glide 無効として実行する。
+- ratio smoothing/glide は、`currentPitchRatio` と `targetPitchRatio` を固定 ratio に揃え、`renderPitchShiftedSample()` に `glideCoefficient=1.0f` を渡すことで完全に無効化した。
+- 出力信号の周波数は、初期 transient を skip した後の正方向ゼロクロスから測定する。
+- Debug output に expected frequency, measured frequency, error cents, +/-10 cents 判定, `pitchWindowSamples`, `minimumDelaySamples`, ratio smoothing/glide disabled を出力する。
+- GUI debug 表示を `Build: pitch-shifter-selftest-001` に更新した。
+- CMake project version を `0.1.14` に更新した。
+- `SPEC.md` に pitch shifter self test 仕様を追記した。
+
+Self test cases:
+
+- input `220 Hz`, ratio `2.0`, expected `440 Hz`
+- input `440 Hz`, ratio `2.0`, expected `880 Hz`
+- input `440 Hz`, ratio `1.5`, expected `660 Hz`
+- input `440 Hz`, ratio `0.5`, expected `220 Hz`
+- input `660 Hz`, ratio `0.5`, expected `330 Hz`
+- input `880 Hz`, ratio `0.5`, expected `440 Hz`
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- Debug output に PitchShifterSelfTest の各ケース結果が表示されること。
+- 各ケースが pitch shifter 単体で +/-10 cents 以内に収まること。
+- `pitchWindowSamples` / `minimumDelaySamples` が debug output に表示されること。
+
+次に確認すべきこと:
+
+- Debug Standalone または Debug VST3 を起動し、Output window の `PitchShifterSelfTest` 行を確認すること。
+- measured frequency と error cents を共有して、問題が pitch shifter 本体か、それ以前の pitch tracking / ratio generation かを切り分けること。
+
 ## 0.1.13 phase 5A standalone input source
 
 日付: 2026-05-19

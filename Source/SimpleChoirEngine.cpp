@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace voxchord
 {
@@ -13,6 +14,54 @@ namespace
             return "--";
 
         return juce::String (pitchHz, 1) + " Hz";
+    }
+
+    float centsError (float measuredHz, float expectedHz)
+    {
+        if (measuredHz <= 0.0f || expectedHz <= 0.0f)
+            return 0.0f;
+
+        return 1200.0f * std::log2 (measuredHz / expectedHz);
+    }
+
+    float measureFrequencyFromPositiveZeroCrossings (const std::vector<float>& samples, double sampleRate)
+    {
+        if (samples.size() < 2 || sampleRate <= 0.0)
+            return 0.0f;
+
+        std::vector<double> crossings;
+        crossings.reserve (samples.size() / 64);
+
+        for (size_t index = 1; index < samples.size(); ++index)
+        {
+            const auto previous = samples[index - 1];
+            const auto current = samples[index];
+
+            if (previous < 0.0f && current >= 0.0f)
+            {
+                const auto denominator = static_cast<double> (current - previous);
+                const auto fraction = std::abs (denominator) > 0.0000001
+                                          ? static_cast<double> (-previous) / denominator
+                                          : 0.0;
+
+                crossings.push_back (static_cast<double> (index - 1) + fraction);
+            }
+        }
+
+        if (crossings.size() < 2)
+            return 0.0f;
+
+        auto periodSum = 0.0;
+
+        for (size_t index = 1; index < crossings.size(); ++index)
+            periodSum += crossings[index] - crossings[index - 1];
+
+        const auto averagePeriodSamples = periodSum / static_cast<double> (crossings.size() - 1);
+
+        if (averagePeriodSamples <= 0.0)
+            return 0.0f;
+
+        return static_cast<float> (sampleRate / averagePeriodSamples);
     }
 }
 
@@ -93,6 +142,86 @@ void SimpleChoirEngine::runPitchDetectorSelfTest()
              + ", Corrected: " + formatSelfTestPitch (result.correctedPitchHz)
              + ", Stable: " + formatSelfTestPitch (result.displayStablePitchHz)
              + ", Confidence: " + juce::String (result.confidence, 2));
+    }
+}
+
+void SimpleChoirEngine::runPitchShifterSelfTest()
+{
+    struct TestCase
+    {
+        float inputFrequencyHz = 0.0f;
+        float ratio = 1.0f;
+    };
+
+    constexpr double testSampleRate = 48000.0;
+    constexpr auto maxBlockSize = 512;
+    constexpr auto totalSamples = 57600;
+    constexpr auto skipSamples = 16800;
+    constexpr std::array<TestCase, 6> testCases {{
+        { 220.0f, 2.0f },
+        { 440.0f, 2.0f },
+        { 440.0f, 1.5f },
+        { 440.0f, 0.5f },
+        { 660.0f, 0.5f },
+        { 880.0f, 0.5f }
+    }};
+
+    DBG ("VoxChord PitchShifter SelfTest: fixed ratio, Character=0, Glide disabled, VoiceCount=1 equivalent");
+
+    for (const auto testCase : testCases)
+    {
+        SimpleChoirEngine engine;
+        engine.prepare (testSampleRate, maxBlockSize);
+
+        auto& voice = engine.voiceStates[0];
+        voice.wasActive = true;
+        voice.lastMidiNote = 0;
+        voice.phaseA = 0.0f;
+        voice.phaseB = 0.5f;
+        voice.currentPitchRatio = testCase.ratio;
+        voice.targetPitchRatio = testCase.ratio;
+
+        std::vector<float> output;
+        output.reserve (totalSamples - skipSamples);
+
+        auto phase = 0.0;
+        auto* delay = engine.delayBuffer.getWritePointer (0);
+
+        for (auto sample = 0; sample < totalSamples; ++sample)
+        {
+            const auto input = 0.35f * std::sin (static_cast<float> (phase));
+            delay[engine.writeIndex] = input;
+
+            const auto shifted = engine.renderPitchShiftedSample (voice, 1.0f, 0.0f);
+
+            if (sample >= skipSamples)
+                output.push_back (shifted);
+
+            engine.writeIndex = (engine.writeIndex + 1) % engine.delayBufferSize;
+
+            phase += juce::MathConstants<double>::twoPi
+                   * static_cast<double> (testCase.inputFrequencyHz)
+                   / testSampleRate;
+
+            if (phase >= juce::MathConstants<double>::twoPi)
+                phase -= juce::MathConstants<double>::twoPi;
+        }
+
+        const auto expectedHz = testCase.inputFrequencyHz * testCase.ratio;
+        const auto measuredHz = measureFrequencyFromPositiveZeroCrossings (output, testSampleRate);
+        const auto errorCents = centsError (measuredHz, expectedHz);
+        const auto withinTenCents = std::abs (errorCents) <= 10.0f;
+
+        DBG (juce::String ("PitchShifterSelfTest input ")
+             + juce::String (testCase.inputFrequencyHz, 1) + " Hz"
+             + ", ratio " + juce::String (testCase.ratio, 3)
+             + " -> expected " + juce::String (expectedHz, 1) + " Hz"
+             + ", measured " + juce::String (measuredHz, 2) + " Hz"
+             + ", error " + juce::String (errorCents, 2) + " cents"
+             + ", within +/-10 cents: " + juce::String (withinTenCents ? "yes" : "no")
+             + ", pitchWindowSamples: " + juce::String (engine.pitchWindowSamples)
+             + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
+             + ", ratio smoothing/glide disabled: yes");
     }
 }
 
