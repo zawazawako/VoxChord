@@ -1,5 +1,28 @@
 # VoxChord Test Log
 
+## 0.1.29 Debug self-test quiet mode
+
+Date: 2026-05-20
+
+Implementation status:
+
+- Disabled Debug startup execution of `runPitchDetectorSelfTest()` and `runPitchShifterSelfTest()` by default.
+- Left both self-test functions in the codebase for future restoration.
+- Added `enableDebugStartupSelfTests = false` in `PluginProcessor.cpp` as the restore point.
+- Disabled Debug GUI display of the Pitch Shifter SelfTest summary by default.
+- Added `showDebugSelfTestSummary = false` in `PluginEditor.cpp` as the restore point.
+- Runtime pitch and Character diagnostics remain visible in Debug builds.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Debug Standalone/VST3 startup no longer runs the PitchDetector/PitchShifter self-test DBG spam.
+- Debug GUI subtitle no longer shows the Pitch Shifter SelfTest summary.
+- Runtime pitch and Character diagnostics remain visible.
+
 ## 0.1.28 Character signal-path diagnostics
 
 Date: 2026-05-20

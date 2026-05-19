@@ -1,7 +1,17 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.28
+Project version: 0.1.29
+
+## 0.1.29 Update - Debug self-test quiet mode
+
+- CMake project version: `0.1.29`.
+- Debug GUI pitch subtitle build string: `Build: debug-runtime-quiet-001`.
+- Debug startup self tests are disabled by default via `enableDebugStartupSelfTests = false` in `PluginProcessor.cpp`.
+- `runPitchDetectorSelfTest()` and `runPitchShifterSelfTest()` remain in the codebase and can be restored by toggling the flag.
+- Debug GUI self-test summary display is disabled by default via `showDebugSelfTestSummary = false` in `PluginEditor.cpp`.
+- Pitch shifter self-test summary formatting code remains available for future re-enable.
+- Runtime pitch / Character diagnostics remain visible in Debug builds.
 
 ## 0.1.28 Update - Character signal-path diagnostics
 
@@ -85,7 +95,7 @@ Project version: 0.1.28
 - CMake project version: `0.1.23`.
 - Debug GUI pitch subtitle build string: `Build: priority-a-001`.
 - Release GUI pitch subtitle now shows only `VoxChord v` plus `JucePlugin_VersionString`.
-- Debug GUI pitch subtitle keeps the detailed self-test / pitch / RMS / confidence display.
+- Debug GUI pitch subtitle keeps runtime pitch / RMS / confidence display; self-test summary display is now disabled by default.
 - Added APVTS parameter `inputGainDb`.
 - Input Gain range is `-24.0 dB` to `+24.0 dB`, default `0.0 dB`, step `0.1 dB`.
 - Input Gain is applied after Input Source selection and before Pitch Detector, Harmony render input, dry path, and input metering.
@@ -176,7 +186,7 @@ Project version: 0.1.28
 - APVTS で MVP パラメータを保持する。
 - `processBlock()` の主な流れは、panic 処理、MIDI 処理、dry buffer コピー、wet choir render、pitch debug state publish、dry/wet mix、meter publish。
 - `setLatencySamples(0)` を設定している。
-- Debug ビルドでは processor 生成時に `SimpleChoirEngine::runPitchDetectorSelfTest()` と `SimpleChoirEngine::runPitchShifterSelfTest()` を一度実行する。
+- Debug startup self tests are disabled by default; set `enableDebugStartupSelfTests = true` to run `SimpleChoirEngine::runPitchDetectorSelfTest()` and `SimpleChoirEngine::runPitchShifterSelfTest()` once from the processor constructor.
 - GUI 共有用の MIDI / pitch / meter 状態は atomic または専用 state 経由で公開する。
 
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
@@ -195,7 +205,7 @@ Project version: 0.1.28
 - Timer は `30 Hz`。
 - pitch debug subtitle の現在の Debug build string は `Build: priority-a-001`。
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
-- Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
+- Debug GUI self-test summary display is disabled by default; set `showDebugSelfTestSummary = true` to show the pitch shifter self test summary again.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
 `Source/SimpleChoirEngine.h`, `Source/SimpleChoirEngine.cpp`
@@ -213,7 +223,7 @@ Project version: 0.1.28
 
 ## Build Configuration
 
-- CMake project version: `0.1.28`
+- CMake project version: `0.1.29`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -415,20 +425,22 @@ Median/stability:
 
 Self test:
 
-- Debug only, run once from processor constructor.
+- Debug-only self test code remains available, but startup execution is disabled by default via `enableDebugStartupSelfTests = false`.
+- When re-enabled, it runs once from processor constructor.
 - Test frequencies: `100`, `150`, `220`, `261.63`, `329.63`, `440`, `523.25`, `600`, `659.25`, `700`, `800`, `880 Hz`.
 - Harmonic correction is OFF during self test.
 - Self test must not run inside normal real-time `processBlock()`.
 
 Pitch shifter self test:
 
-- Debug only, run once from processor constructor after pitch detector self test.
+- Debug-only self test code remains available, but startup execution is disabled by default via `enableDebugStartupSelfTests = false`.
+- When re-enabled, it runs once from processor constructor after pitch detector self test.
 - Does not use PitchDetector or MIDI voice allocation.
 - Uses an internal sine wave, one `VoicePitchState`, Character=0 equivalent, delay offset `0`, and `glideCoefficient=1.0f`.
 - Ratio smoothing and glide are fully bypassed by setting `currentPitchRatio` and `targetPitchRatio` to the fixed ratio and calling `renderPitchShiftedSample()` with glide coefficient `1.0f`.
 - Measures output frequency from positive-going zero crossings after initial transient skip.
 - Stores separate fixed-window and input-synced-window summaries in `PitchShifterSelfTestSummary`.
-- GUI debug subtitle displays fixed-window and input-synced-window `Pitch Shifter SelfTest` summaries independently, including PASS/FAIL, max error cents, worst input Hz, worst ratio, and worst measured Hz.
+- GUI debug subtitle self-test summary display is disabled by default via `showDebugSelfTestSummary = false`; when re-enabled it displays fixed-window and input-synced-window summaries independently, including PASS/FAIL, max error cents, worst input Hz, worst ratio, and worst measured Hz.
 - GUI debug subtitle also displays the worst measured actual ratio.
 - If a self test mode has not run, GUI displays `Fixed: NOT RUN` or `InputSync: NOT RUN`.
 - Test cases:
@@ -565,7 +577,7 @@ Status/debug:
 - Pitch debug subtitle currently includes:
 - Debug: `Build: gui-layout-001`
 - Release: `VoxChord v<version>`
-- `Pitch Shifter SelfTest: PASS/FAIL`
+- Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`
 - `Raw`
 - `Corr`

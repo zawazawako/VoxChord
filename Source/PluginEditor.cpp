@@ -2,6 +2,8 @@
 
 namespace
 {
+    constexpr auto showDebugSelfTestSummary = false;
+
     juce::Colour backgroundColour()
     {
         return juce::Colour::fromRGB (12, 15, 18);
@@ -88,13 +90,22 @@ namespace
         const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
+        auto text = juce::String ("Build: debug-runtime-quiet-001 | ");
 
-        return juce::String ("Build: character-diagnostics-001 | ")
-             + "Pitch Shifter SelfTest | "
-             + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
-             + " | "
-             + formatPitchShifterSelfTestModeSummary ("InputSync", selfTestSummary.inputSyncedWindow)
-             + " | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+        if constexpr (showDebugSelfTestSummary)
+        {
+            text += "Pitch Shifter SelfTest | "
+                  + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
+                  + " | "
+                  + formatPitchShifterSelfTestModeSummary ("InputSync", selfTestSummary.inputSyncedWindow)
+                  + " | ";
+        }
+        else
+        {
+            juce::ignoreUnused (selfTestSummary);
+        }
+
+        text += "RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText
              + " | Corr: " + correctedText
              + " | Disp: " + displayText
@@ -109,6 +120,8 @@ namespace
              + "/" + juce::String (state.characterAmountSmoothed, 2)
              + " | CharDelta rms/pk: " + juce::String (state.characterDeltaRms, 5)
              + "/" + juce::String (state.characterDeltaPeak, 5);
+
+        return text;
 #else
         juce::ignoreUnused (state, selfTestSummary);
         return juce::String ("VoxChord v") + JucePlugin_VersionString;

@@ -3,6 +3,8 @@
 
 namespace
 {
+    constexpr auto enableDebugStartupSelfTests = false;
+
     bool isMonoOrStereo (const juce::AudioChannelSet& set)
     {
         return set == juce::AudioChannelSet::mono()
@@ -54,8 +56,11 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     jassert (leadTuneEnabledParameter != nullptr);
 
     #if JUCE_DEBUG
-    voxchord::SimpleChoirEngine::runPitchDetectorSelfTest();
-    voxchord::SimpleChoirEngine::runPitchShifterSelfTest();
+    if constexpr (enableDebugStartupSelfTests)
+    {
+        voxchord::SimpleChoirEngine::runPitchDetectorSelfTest();
+        voxchord::SimpleChoirEngine::runPitchShifterSelfTest();
+    }
     #endif
 }
 
