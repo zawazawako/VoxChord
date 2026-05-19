@@ -702,12 +702,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         }
 
         const auto pan = getPanForVoice (activeIndex, activeCount, spread);
-        const auto voiceGain = getCharacterGain (slot, safeCharacter) / static_cast<float> (activeCount);
+        const auto voiceGain = baseVoiceGain * getCharacterGain (slot, safeCharacter);
 
         voice.targetEnvelopeGain = 1.0f;
         voice.leftGain = voiceGain * (pan <= 0.0f ? 1.0f : 1.0f - pan);
         voice.rightGain = voiceGain * (pan >= 0.0f ? 1.0f : 1.0f + pan);
-        voice.monoGain = 1.0f / static_cast<float> (activeCount);
+        voice.monoGain = voiceGain;
         voice.delayOffsetSamples = getCharacterDelayOffsetSamples (slot,
                                                                    safeCharacter,
                                                                    currentSampleRate);

@@ -87,6 +87,7 @@ private:
 
     int getVoiceLimit() const noexcept;
     float getDryWet() const noexcept;
+    float getInputGain() const noexcept;
     float getOutputGain() const noexcept;
     float getSpread() const noexcept;
     float getTune() const noexcept;
@@ -107,6 +108,7 @@ private:
     juce::AudioBuffer<float> dryBuffer;
     juce::AudioBuffer<float> wetBuffer;
     juce::SmoothedValue<float> dryWetSmoothed { 0.0f };
+    juce::SmoothedValue<float> inputGainSmoothed { 1.0f };
     juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
 
     std::array<std::atomic<int>, voxchord::MidiVoiceState::maxVoices> activeMidiNotes;
@@ -133,6 +135,7 @@ private:
     std::atomic<float>* characterParameter = nullptr;
     std::atomic<float>* spreadParameter = nullptr;
     std::atomic<float>* outputLevelParameter = nullptr;
+    std::atomic<float>* inputGainParameter = nullptr;
     std::atomic<float>* inputSourceParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)

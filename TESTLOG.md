@@ -411,6 +411,50 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.23 priority A live usability pass
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+Implementation request:
+
+- Follow `directions/0519_1.md` priority A items.
+- Do not change PitchDetector, input-synced window pitch shifter, ASIO/Standalone/VST3 basics, or existing parameter IDs.
+
+Implemented:
+
+- Release build top debug subtitle now shows only `VoxChord v<version>`.
+- Debug build keeps detailed self-test, pitch, RMS, confidence, voiced, harmonic correction, ratio smoothing, and build tag display.
+- Added `inputGainDb` APVTS parameter: `-24.0 dB` to `+24.0 dB`, default `0.0 dB`, step `0.1 dB`.
+- Added GUI Input Gain knob.
+- Input Gain is applied after Input Source selection and before Pitch Detector / Harmony / dry path / Input Meter.
+- Input Gain uses `20 ms` smoothing.
+- Changed wet voice gain from active-count-normalized gain to constant voice-level style gain with `baseVoiceGain = 0.45`.
+- Changed voice stealing assignment to prefer the active voice with the nearest MIDI note to the incoming note, using oldest age as a tie breaker.
+- GUI Debug build string updated to `Build: priority-a-001`.
+- CMake project version updated to `0.1.23`.
+
+Not changed:
+
+- No empirical ratio correction coefficient was added.
+- PitchDetector behavior was not changed.
+- Input-synced window and MIDI de-click behavior remain in place.
+- No new pitch shifter, reverb, Tuned Lead, Voice 8, PSOLA, or formant shifter was added.
+
+Verification pending:
+
+- Release build top display shows version only.
+- Debug build still shows detailed debug status.
+- Input Gain `-12 / 0 / +12 dB` changes input level, input meter, pitch detector input, and harmony input consistently.
+- Voice Count `1 / 2 / 4` keeps per-voice loudness more consistent, while total wet level may rise naturally.
+- Fast chord movement such as `C-E-G -> D-F-A` maps closer notes together more naturally.
+
 ## 0.1.22 phase 3T MIDI note transition de-click
 
 Date: 2026-05-19

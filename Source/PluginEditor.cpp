@@ -78,12 +78,13 @@ namespace
     juce::String formatDetailedPitchDebug (const voxchord::PitchState& state,
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
+#if JUCE_DEBUG
         const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
         const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return juce::String ("Build: midi-declick-001 | ")
+        return juce::String ("Build: priority-a-001 | ")
              + "Pitch Shifter SelfTest | "
              + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
              + " | "
@@ -97,6 +98,10 @@ namespace
              + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
              + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode)
              + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2);
+#else
+        juce::ignoreUnused (state, selfTestSummary);
+        return juce::String ("VoxChord v") + JucePlugin_VersionString;
+#endif
     }
 
     void configureStatusLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
@@ -131,9 +136,11 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     configureSlider (characterSlider, characterLabel, "Character");
     configureSlider (spreadSlider, spreadLabel, "Spread");
     configureSlider (dryWetSlider, dryWetLabel, "Dry/Wet");
+    configureSlider (inputGainSlider, inputGainLabel, "Input Gain");
     configureSlider (outputSlider, outputLabel, "Output");
 
     voiceCountSlider.setNumDecimalPlacesToDisplay (0);
+    inputGainSlider.setNumDecimalPlacesToDisplay (1);
     outputSlider.setNumDecimalPlacesToDisplay (1);
 
     voiceCountAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountSlider);
@@ -142,6 +149,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     characterAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::character, characterSlider);
     spreadAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::spread, spreadSlider);
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
+    inputGainAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::inputGainDb, inputGainSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
 
     inputSourceLabel.setText ("Input", juce::dontSendNotification);
@@ -227,7 +235,7 @@ void VoxChordAudioProcessorEditor::resized()
     bounds.removeFromTop (18);
 
     auto controls = bounds.removeFromTop (190);
-    const auto knobWidth = controls.getWidth() / 7;
+    const auto knobWidth = controls.getWidth() / 8;
 
     layoutSlider (voiceCountSlider, voiceCountLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (tuneSlider, tuneLabel, controls.removeFromLeft (knobWidth).reduced (5));
@@ -235,6 +243,7 @@ void VoxChordAudioProcessorEditor::resized()
     layoutSlider (characterSlider, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (spreadSlider, spreadLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controls.removeFromLeft (knobWidth).reduced (5));
+    layoutSlider (inputGainSlider, inputGainLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (outputSlider, outputLabel, controls.reduced (5));
 
     bounds.removeFromTop (24);

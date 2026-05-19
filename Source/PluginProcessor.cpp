@@ -33,6 +33,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     characterParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::character);
     spreadParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::spread);
     outputLevelParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::outputLevel);
+    inputGainParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputGainDb);
     inputSourceParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputSource);
 
     for (auto& note : activeMidiNotes)
@@ -45,6 +46,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     jassert (characterParameter != nullptr);
     jassert (spreadParameter != nullptr);
     jassert (outputLevelParameter != nullptr);
+    jassert (inputGainParameter != nullptr);
     jassert (inputSourceParameter != nullptr);
 
     #if JUCE_DEBUG
@@ -113,6 +115,8 @@ void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     wetBuffer.setSize (2, samplesPerBlock, false, false, true);
     dryWetSmoothed.reset (sampleRate, 0.02);
     dryWetSmoothed.setCurrentAndTargetValue (getDryWet());
+    inputGainSmoothed.reset (sampleRate, 0.02);
+    inputGainSmoothed.setCurrentAndTargetValue (getInputGain());
     outputGainSmoothed.reset (sampleRate, 0.02);
     outputGainSmoothed.setCurrentAndTargetValue (getOutputGain());
     publishMidiSnapshot();
@@ -302,6 +306,14 @@ float VoxChordAudioProcessor::getDryWet() const noexcept
     return juce::jlimit (0.0f, 1.0f, dryWetParameter->load (std::memory_order_relaxed));
 }
 
+float VoxChordAudioProcessor::getInputGain() const noexcept
+{
+    if (inputGainParameter == nullptr)
+        return 1.0f;
+
+    return juce::Decibels::decibelsToGain (inputGainParameter->load (std::memory_order_relaxed));
+}
+
 float VoxChordAudioProcessor::getOutputGain() const noexcept
 {
     if (outputLevelParameter == nullptr)
@@ -417,6 +429,7 @@ void VoxChordAudioProcessor::copyInputToDryBuffer (const juce::AudioBuffer<float
 
     auto* left = dryBuffer.getWritePointer (0);
     auto* right = dryBuffer.getWritePointer (1);
+    inputGainSmoothed.setTargetValue (getInputGain());
 
     for (auto sample = 0; sample < samples; ++sample)
     {
@@ -444,8 +457,9 @@ void VoxChordAudioProcessor::copyInputToDryBuffer (const juce::AudioBuffer<float
                 break;
         }
 
-        left[sample] = selected;
-        right[sample] = selected;
+        const auto gained = selected * inputGainSmoothed.getNextValue();
+        left[sample] = gained;
+        right[sample] = gained;
     }
 }
 

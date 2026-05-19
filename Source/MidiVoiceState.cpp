@@ -1,5 +1,8 @@
 #include "MidiVoiceState.h"
 
+#include <cmath>
+#include <limits>
+
 namespace voxchord
 {
 namespace
@@ -81,7 +84,7 @@ void MidiVoiceState::noteOn (int midiNote, float velocity, int voiceLimit) noexc
         }
     }
 
-    auto selectedIndex = 0;
+    auto selectedIndex = -1;
 
     for (auto index = 0; index < limit; ++index)
     {
@@ -90,9 +93,25 @@ void MidiVoiceState::noteOn (int midiNote, float velocity, int voiceLimit) noexc
             selectedIndex = index;
             break;
         }
+    }
 
-        if (voices[static_cast<size_t> (index)].age < voices[static_cast<size_t> (selectedIndex)].age)
-            selectedIndex = index;
+    if (selectedIndex < 0)
+    {
+        auto bestDistance = std::numeric_limits<int>::max();
+        auto oldestAge = std::numeric_limits<int>::max();
+
+        for (auto index = 0; index < limit; ++index)
+        {
+            const auto& candidate = voices[static_cast<size_t> (index)];
+            const auto distance = std::abs (candidate.midiNote - midiNote);
+
+            if (distance < bestDistance || (distance == bestDistance && candidate.age < oldestAge))
+            {
+                selectedIndex = index;
+                bestDistance = distance;
+                oldestAge = candidate.age;
+            }
+        }
     }
 
     auto& voice = voices[static_cast<size_t> (selectedIndex)];
@@ -124,4 +143,3 @@ void MidiVoiceState::clearVoice (MidiVoice& voice) noexcept
 }
 
 } // namespace voxchord
-

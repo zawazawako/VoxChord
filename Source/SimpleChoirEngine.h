@@ -182,6 +182,7 @@ private:
     static constexpr float voiceAttackSeconds = 0.008f;
     static constexpr float voiceReleaseSeconds = 0.012f;
     static constexpr float voiceEnvelopeSilenceThreshold = 0.0001f;
+    static constexpr float baseVoiceGain = 0.45f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;

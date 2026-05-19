@@ -1,7 +1,21 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.22
+Project version: 0.1.23
+
+## 0.1.23 Update - priority A live usability pass
+
+- CMake project version: `0.1.23`.
+- Debug GUI pitch subtitle build string: `Build: priority-a-001`.
+- Release GUI pitch subtitle now shows only `VoxChord v` plus `JucePlugin_VersionString`.
+- Debug GUI pitch subtitle keeps the detailed self-test / pitch / RMS / confidence display.
+- Added APVTS parameter `inputGainDb`.
+- Input Gain range is `-24.0 dB` to `+24.0 dB`, default `0.0 dB`, step `0.1 dB`.
+- Input Gain is applied after Input Source selection and before Pitch Detector, Harmony render input, dry path, and input metering.
+- Input Gain uses a `20 ms` smoothed gain value.
+- Wet voice gain now uses constant voice-level style mixing with `baseVoiceGain = 0.45`, instead of dividing each voice by active voice count.
+- MIDI voice stealing now chooses the active voice whose current MIDI note is closest to the incoming note, with oldest age as the tie breaker.
+- Existing input-synced window, MIDI de-click envelope, and ratio smoothing behavior remain in place.
 
 ## 0.1.22 Update - MIDI note transition de-click
 
@@ -95,7 +109,8 @@ Project version: 0.1.22
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: midi-declick-001`。
+- pitch debug subtitle の現在の Debug build string は `Build: priority-a-001`。
+- Release build subtitle shows only `VoxChord v` plus the plugin version.
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -114,7 +129,7 @@ Project version: 0.1.22
 
 ## Build Configuration
 
-- CMake project version: `0.1.22`
+- CMake project version: `0.1.23`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -133,6 +148,7 @@ Input/output:
 - MIDI input: required.
 - MIDI output: disabled.
 - Standalone input source can select Auto, Input 1, Input 2, or Mix 1+2.
+- Input Gain is applied after input source selection.
 - VST3 always uses ch0/L as the vocal input and does not expose physical input channel routing.
 
 Audio block flow:
@@ -140,16 +156,19 @@ Audio block flow:
 1. Apply pending Panic request.
 2. Parse MIDI messages and update `MidiVoiceState`.
 3. Select mono vocal input and copy it into stereo `dryBuffer`.
-4. Render wet choir into `wetBuffer` using `SimpleChoirEngine`.
-5. Publish pitch debug fields to atomics.
-6. Mix dry/wet into host output buffer.
-7. Apply smoothed output gain.
-8. Publish input/output meters.
+4. Apply smoothed Input Gain to the selected mono input.
+5. Render wet choir into `wetBuffer` using `SimpleChoirEngine`.
+6. Publish pitch debug fields to atomics.
+7. Mix dry/wet into host output buffer.
+8. Apply smoothed output gain.
+9. Publish input/output meters.
 
 Dry/wet and output:
 
+- `Input Gain` is smoothed over `0.02 sec`.
 - `Dry/Wet` is smoothed over `0.02 sec`.
 - `Output` gain is smoothed over `0.02 sec`.
+- Input Gain parameter range is `-24.0 dB` to `+24.0 dB`, default `0.0 dB`.
 - Output parameter range is `-24.0 dB` to `+6.0 dB`, default `-3.0 dB`.
 
 ## Parameters
@@ -203,6 +222,14 @@ Dry/wet and output:
 - Default: `-3.0 dB`
 - Smoothed final output gain.
 
+`inputGainDb`
+
+- Type: float dB
+- Range: `-24.0-24.0 dB`
+- Default: `0.0 dB`
+- Smoothed input gain after input source selection.
+- Affects Pitch Detector, Harmony render input, dry path, and input meter consistently.
+
 `inputSource`
 
 - Type: choice
@@ -217,6 +244,7 @@ Dry/wet and output:
 - Maximum voices: `4`
 - Active notes are exposed as a 4-slot snapshot.
 - Slot allocation favors empty slots, then replaces oldest active voice.
+- When all slots are occupied, voice stealing favors the active voice whose current MIDI note is nearest to the incoming note; oldest age is used as a tie breaker.
 - Repeated Note On for the same MIDI note updates velocity/frequency and age.
 - Panic button requests audio-thread reset via atomic flag.
 - All Notes Off / All Sound Off / Reset All Controllers reset MIDI voices.
@@ -328,6 +356,7 @@ Pitch shifter self test:
 Input source selection:
 
 - The selected mono input is used consistently for dry path, wet choir render input, pitch detector input, and input meter.
+- Input Gain is applied to the selected mono input before these shared downstream paths.
 - Standalone `Input 1`: use input channel 0.
 - Standalone `Input 2`: use input channel 1 when present, otherwise fall back to channel 0.
 - Standalone `Mix 1+2`: use `0.5 * (ch0 + ch1)` when channel 1 is present, otherwise channel 0.
@@ -378,6 +407,13 @@ Voice envelope:
 - Note Off and voice-limit release do not remove the DSP voice immediately; the voice remains rendered until its envelope is below `0.0001`.
 - Note changes on an existing slot do not reset phase/window state.
 
+Voice gain:
+
+- Current wet voice gain uses constant voice-level style mixing.
+- Per voice base gain is `baseVoiceGain = 0.45`.
+- Per-voice gain is not divided by active voice count.
+- Total wet level can rise as voice count increases; final level remains controllable via Output.
+
 Glide:
 
 - MIDI target pitch glide is distinct from input pitch tracking.
@@ -425,7 +461,8 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: midi-declick-001`
+- Debug: `Build: priority-a-001`
+- Release: `VoxChord v<version>`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`

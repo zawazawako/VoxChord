@@ -82,6 +82,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
             .withLabel ("dB")
             .withStringFromValueFunction (formatDecibels)));
 
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        ParameterID { ParameterIDs::inputGainDb, 1 },
+        "Input Gain",
+        juce::NormalisableRange<float> { -24.0f, 24.0f, 0.1f },
+        0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withLabel ("dB")
+            .withStringFromValueFunction (formatDecibels)));
+
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         ParameterID { ParameterIDs::inputSource, 1 },
         "Input Source",
