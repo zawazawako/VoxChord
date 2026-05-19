@@ -33,7 +33,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         ParameterID { ParameterIDs::voiceCount, 1 },
         "Voice Count",
         1,
-        4,
+        8,
         4,
         juce::AudioParameterIntAttributes()
             .withStringFromValueFunction ([] (int value, int) { return juce::String (value); })));
@@ -58,6 +58,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::NormalisableRange<float> { 0.0f, 1.0f, 0.01f },
         0.35f,
         percentAttributes()));
+
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        ParameterID { ParameterIDs::characterMode, 1 },
+        "Character",
+        juce::StringArray { "Clean", "Warm", "Bright", "Formant-ish", "Digital" },
+        0));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         ParameterID { ParameterIDs::spread, 1 },
@@ -96,6 +102,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         "Input Source",
         juce::StringArray { "Auto", "Input 1", "Input 2", "Mix 1+2" },
         0));
+
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        ParameterID { ParameterIDs::leadTuneEnabled, 1 },
+        "Lead Tune",
+        false));
 
     return layout;
 }

@@ -24,7 +24,7 @@ struct MidiVoice
 class MidiVoiceState final
 {
 public:
-    static constexpr int maxVoices = 4;
+    static constexpr int maxVoices = 8;
     using NoteSnapshot = std::array<int, maxVoices>;
 
     void reset() noexcept;
@@ -43,4 +43,3 @@ private:
 };
 
 } // namespace voxchord
-

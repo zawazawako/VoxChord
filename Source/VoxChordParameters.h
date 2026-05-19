@@ -10,11 +10,13 @@ namespace ParameterIDs
     inline constexpr auto tune = "tune";
     inline constexpr auto glide = "glide";
     inline constexpr auto character = "character";
+    inline constexpr auto characterMode = "characterMode";
     inline constexpr auto spread = "spread";
     inline constexpr auto dryWet = "dryWet";
     inline constexpr auto outputLevel = "outputLevel";
     inline constexpr auto inputGainDb = "inputGainDb";
     inline constexpr auto inputSource = "inputSource";
+    inline constexpr auto leadTuneEnabled = "leadTuneEnabled";
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

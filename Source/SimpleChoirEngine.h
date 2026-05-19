@@ -51,12 +51,14 @@ public:
 
     void render (const juce::AudioBuffer<float>& dryInput,
                  juce::AudioBuffer<float>& wetOutput,
+                 juce::AudioBuffer<float>& tunedLeadOutput,
                  const MidiVoiceState::NoteSnapshot& activeNotes,
                  int voiceLimit,
                  float spread,
                  float tune,
                  float glide,
-                 float character) noexcept;
+                 int characterMode,
+                 bool leadTuneEnabled) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
     PitchState getPitchState() const noexcept { return pitchState; }
 
@@ -75,6 +77,8 @@ private:
         float rightGain = 0.0f;
         float monoGain = 0.0f;
         float delayOffsetSamples = 0.0f;
+        float toneLowState = 0.0f;
+        float toneMidState = 0.0f;
         int windowSamplesA = 1024;
         int windowSamplesB = 1024;
     };
@@ -147,9 +151,12 @@ private:
     static float getGlideCoefficient (float glide, double sampleRate) noexcept;
     static float getNoteTransitionRatioCoefficient (double sampleRate) noexcept;
     static float getEnvelopeCoefficient (float timeSeconds, double sampleRate) noexcept;
-    static float getCharacterPitchRatio (int slot, float character) noexcept;
-    static float getCharacterGain (int slot, float character) noexcept;
-    static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
+    static int sanitizeCharacterMode (int characterMode) noexcept;
+    static float getChromaticLeadPitchRatio (float inputFrequencyHz) noexcept;
+    static float getCharacterPitchRatio (int slot, int characterMode) noexcept;
+    static float getCharacterGain (int slot, int characterMode) noexcept;
+    static float getCharacterDelayOffsetSamples (int slot, int characterMode, double sampleRate) noexcept;
+    static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode) noexcept;
     static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
     static int getLimitedPitchWindowSamples (int currentWindowSamples, int targetWindowSamples) noexcept;
@@ -181,10 +188,13 @@ private:
     static constexpr float noteTransitionRatioSmoothingSeconds = 0.008f;
     static constexpr float voiceAttackSeconds = 0.008f;
     static constexpr float voiceReleaseSeconds = 0.012f;
+    static constexpr float leadAttackSeconds = 0.006f;
+    static constexpr float leadReleaseSeconds = 0.010f;
     static constexpr float voiceEnvelopeSilenceThreshold = 0.0001f;
     static constexpr float baseVoiceGain = 0.45f;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
+    VoicePitchState leadVoiceState;
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
     float lastDetectedInputFrequencyHz = 0.0f;

@@ -1,7 +1,26 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.24
+Project version: 0.1.25
+
+## 0.1.25 Update - Priority B tuned lead, 8 voices, character modes
+
+- CMake project version: `0.1.25`.
+- Debug GUI pitch subtitle build string: `Build: priority-b-001`.
+- Added APVTS parameter `leadTuneEnabled` (`Lead Tune`, bool, default `false`).
+- Lead Tune uses the existing input-synced delay-window pitch shifter; no new pitch shifter and no empirical ratio correction were added.
+- Lead Tune computes chromatic correction from `correctionInputPitchHz` to the nearest equal-tempered MIDI note using `69 + 12 * log2(hz / 440)`.
+- When `Lead Tune` is on, the dry side of Dry/Wet uses the tuned lead buffer; when off, it uses the original dry input.
+- If the input is unvoiced or `correctionInputPitchHz <= 0`, the tuned lead path crossfades safely back to the original dry input.
+- Tuned lead has independent pitch/window/envelope state from MIDI harmony voices, with short attack/release de-clicking.
+- Processor-side dry selection between original input and tuned lead is smoothed over `12 ms`.
+- `MidiVoiceState::maxVoices` was expanded from `4` to `8`.
+- `voiceCount` keeps the same parameter ID and now ranges from `1` to `8`, default `4`.
+- Harmony voice arrays, voice snapshot publication, slot display, panning, character offsets, and render loops now support 8 voice slots.
+- Added APVTS parameter `characterMode` (`Character`, choice, default `Clean`) with choices `Clean`, `Warm`, `Bright`, `Formant-ish`, and `Digital`.
+- Existing `character` parameter ID remains for backward compatibility, but the visible GUI and current DSP mode selection use `characterMode`.
+- Character modes use lightweight per-voice one-pole tone shaping plus small per-slot delay/detune/gain differences for the more colored modes.
+- Input-synced window continuity, MIDI note transition de-click, Constant Voice Level, Input Gain, ASIO/Standalone/VST3 structure, and existing self-test summaries remain in place.
 
 ## 0.1.24 Update - focused live GUI layout
 
@@ -117,9 +136,9 @@ Project version: 0.1.24
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
 
 - Current visible GUI groups the main performance controls on the left and input/output utilities on the right.
-- Visible main controls: Voice Count, Glide, Character, Spread, Dry/Wet.
+- Visible main controls: Voice Count, Glide, Character mode, Spread, Dry/Wet.
 - The Tune APVTS parameter remains but the unused Tune knob is hidden.
-- Right-top utility controls: Input Source, Input Gain, Output, PANIC.
+- Right-top utility controls: Input Source, Input Gain, Output, Lead Tune, PANIC.
 - Right-bottom meters use custom horizontal bar components for input/output peaks.
 
 - 1 画面のライブ向け GUI。
@@ -148,7 +167,7 @@ Project version: 0.1.24
 
 ## Build Configuration
 
-- CMake project version: `0.1.24`
+- CMake project version: `0.1.25`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -176,9 +195,9 @@ Audio block flow:
 2. Parse MIDI messages and update `MidiVoiceState`.
 3. Select mono vocal input and copy it into stereo `dryBuffer`.
 4. Apply smoothed Input Gain to the selected mono input.
-5. Render wet choir into `wetBuffer` using `SimpleChoirEngine`.
+5. Render wet choir into `wetBuffer` and optional tuned lead into `tunedLeadBuffer` using `SimpleChoirEngine`.
 6. Publish pitch debug fields to atomics.
-7. Mix dry/wet into host output buffer.
+7. Mix dry/wet into host output buffer, using original dry or tuned lead as the dry side depending on `leadTuneEnabled`.
 8. Apply smoothed output gain.
 9. Publish input/output meters.
 
@@ -186,6 +205,7 @@ Dry/wet and output:
 
 - `Input Gain` is smoothed over `0.02 sec`.
 - `Dry/Wet` is smoothed over `0.02 sec`.
+- Lead Tune dry-source switching is smoothed over `0.012 sec`.
 - `Output` gain is smoothed over `0.02 sec`.
 - Input Gain parameter range is `-24.0 dB` to `+24.0 dB`, default `0.0 dB`.
 - Output parameter range is `-24.0 dB` to `+6.0 dB`, default `-3.0 dB`.
@@ -195,7 +215,7 @@ Dry/wet and output:
 `voiceCount`
 
 - Type: integer
-- Range: `1-4`
+- Range: `1-8`
 - Default: `4`
 - Controls active MIDI voice slot limit.
 
@@ -218,7 +238,14 @@ Dry/wet and output:
 - Type: float percent
 - Range: `0.0-1.0`
 - Default: `0.35`
-- Controls per-voice detune, gain offset, and delay offset.
+- Compatibility parameter retained for older states. It is not exposed in the current GUI and is not the primary character control.
+
+`characterMode`
+
+- Type: choice
+- Choices: `Clean`, `Warm`, `Bright`, `Formant-ish`, `Digital`
+- Default: `Clean`
+- Controls lightweight per-voice tone shaping and small colored-mode detune/delay/gain offsets.
 
 `spread`
 
@@ -258,11 +285,18 @@ Dry/wet and output:
 - In Standalone, it controls which physical input channel becomes VoxChord's mono vocal input.
 - In VST3, it is ignored by DSP; DAW routing is respected and ch0/L is used.
 
+`leadTuneEnabled`
+
+- Type: bool
+- Default: `false`
+- When enabled, the dry side is replaced by a chromatically tuned lead generated from `correctionInputPitchHz`.
+- When disabled, the dry side remains the original input.
+
 ## MIDI Voice Specification
 
-- Maximum voices: `4`
-- Active notes are exposed as a 4-slot snapshot.
-- Slot allocation favors empty slots, then replaces oldest active voice.
+- Maximum voices: `8`
+- Active notes are exposed as an 8-slot snapshot.
+- Slot allocation favors empty slots, then uses nearest-note voice stealing with oldest age as the tie breaker.
 - When all slots are occupied, voice stealing favors the active voice whose current MIDI note is nearest to the incoming note; oldest age is used as a tie breaker.
 - Repeated Note On for the same MIDI note updates velocity/frequency and age.
 - Panic button requests audio-thread reset via atomic flag.

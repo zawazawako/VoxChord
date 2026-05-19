@@ -93,6 +93,8 @@ private:
     float getTune() const noexcept;
     float getGlide() const noexcept;
     float getCharacter() const noexcept;
+    int getCharacterMode() const noexcept;
+    bool getLeadTuneEnabled() const noexcept;
     InputSource getInputSource() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
@@ -107,7 +109,9 @@ private:
     voxchord::LevelMeterState meters;
     juce::AudioBuffer<float> dryBuffer;
     juce::AudioBuffer<float> wetBuffer;
+    juce::AudioBuffer<float> tunedLeadBuffer;
     juce::SmoothedValue<float> dryWetSmoothed { 0.0f };
+    juce::SmoothedValue<float> leadTuneDryMixSmoothed { 0.0f };
     juce::SmoothedValue<float> inputGainSmoothed { 1.0f };
     juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
 
@@ -133,10 +137,12 @@ private:
     std::atomic<float>* tuneParameter = nullptr;
     std::atomic<float>* glideParameter = nullptr;
     std::atomic<float>* characterParameter = nullptr;
+    std::atomic<float>* characterModeParameter = nullptr;
     std::atomic<float>* spreadParameter = nullptr;
     std::atomic<float>* outputLevelParameter = nullptr;
     std::atomic<float>* inputGainParameter = nullptr;
     std::atomic<float>* inputSourceParameter = nullptr;
+    std::atomic<float>* leadTuneEnabledParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)
 };

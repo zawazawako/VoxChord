@@ -17,11 +17,13 @@ public:
 private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     void timerCallback() override;
     void configureSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
     void configureCompactSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
     void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
+    void layoutComboBox (juce::ComboBox& comboBox, juce::Label& label, juce::Rectangle<int> bounds);
     void layoutCompactSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
     void updateMidiState();
     void updateMeters();
@@ -44,7 +46,6 @@ private:
 
     juce::Slider voiceCountSlider;
     juce::Slider glideSlider;
-    juce::Slider characterSlider;
     juce::Slider spreadSlider;
     juce::Slider dryWetSlider;
     juce::Slider inputGainSlider;
@@ -68,16 +69,19 @@ private:
     MeterBar outputMeter;
     juce::Label inputSourceLabel;
     juce::ComboBox inputSourceBox;
+    juce::ComboBox characterModeBox;
+    juce::ToggleButton leadTuneButton { "Lead Tune" };
     juce::TextButton panicButton { "PANIC" };
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
     std::unique_ptr<SliderAttachment> glideAttachment;
-    std::unique_ptr<SliderAttachment> characterAttachment;
     std::unique_ptr<SliderAttachment> spreadAttachment;
     std::unique_ptr<SliderAttachment> dryWetAttachment;
     std::unique_ptr<SliderAttachment> inputGainAttachment;
     std::unique_ptr<SliderAttachment> outputAttachment;
     std::unique_ptr<ComboBoxAttachment> inputSourceAttachment;
+    std::unique_ptr<ComboBoxAttachment> characterModeAttachment;
+    std::unique_ptr<ButtonAttachment> leadTuneAttachment;
 
     uint32_t lastSeenMidiActivityCounter = 0;
 

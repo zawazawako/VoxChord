@@ -1,5 +1,35 @@
 # VoxChord Test Log
 
+## 0.1.25 Priority B tuned lead / 8 voices / character modes
+
+Date: 2026-05-19
+
+Implementation status:
+
+- Added `leadTuneEnabled` parameter and GUI toggle.
+- Lead Tune uses nearest chromatic pitch correction from `correctionInputPitchHz`.
+- Lead Tune replaces the dry side when enabled; original dry remains the dry side when disabled.
+- Lead Tune falls back/crossfades to original dry when input pitch is unvoiced or invalid.
+- Lead Tune dry-source switching is smoothed to reduce on/off clicks.
+- Extended MIDI harmony voice capacity and `voiceCount` range from 4 to 8 voices.
+- Added `characterMode` choice parameter and GUI dropdown: Clean, Warm, Bright, Formant-ish, Digital.
+- Existing `character` parameter remains for compatibility but is not the visible primary control.
+- Existing input-synced pitch shifter, window continuity, MIDI transition de-click, Input Gain, meters, and self-test summaries are intended to remain unchanged.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Standalone/VST3 open without parameter-state issues after adding `leadTuneEnabled` and `characterMode`.
+- `Voice Count` can select up to 8 and displays/plays up to 8 MIDI harmony slots.
+- `Lead Tune` off: Dry/Wet dry side remains original input.
+- `Lead Tune` on and Dry/Wet 0%: dry side becomes chromatically tuned lead.
+- `Lead Tune` on with invalid/unvoiced pitch: output safely falls back toward original dry without clicks.
+- Character dropdown modes produce audible but lightweight differences without breaking pitch accuracy.
+- Fast MIDI note changes remain de-clicked.
+
 VoxChord の各バージョンで確認した動作を記録する。
 
 ## 0.1.0 scaffold

@@ -89,7 +89,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return juce::String ("Build: gui-layout-001 | ")
+        return juce::String ("Build: priority-b-001 | ")
              + "Pitch Shifter SelfTest | "
              + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
              + " | "
@@ -180,7 +180,6 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
 
     configureSlider (voiceCountSlider, voiceCountLabel, "Voices");
     configureSlider (glideSlider, glideLabel, "Glide");
-    configureSlider (characterSlider, characterLabel, "Character");
     configureSlider (spreadSlider, spreadLabel, "Spread");
     configureSlider (dryWetSlider, dryWetLabel, "Dry/Wet");
     configureCompactSlider (inputGainSlider, inputGainLabel, "Input Gain");
@@ -192,11 +191,29 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
 
     voiceCountAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountSlider);
     glideAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::glide, glideSlider);
-    characterAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::character, characterSlider);
     spreadAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::spread, spreadSlider);
     dryWetAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::dryWet, dryWetSlider);
     inputGainAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::inputGainDb, inputGainSlider);
     outputAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::outputLevel, outputSlider);
+
+    characterLabel.setText ("Character", juce::dontSendNotification);
+    characterLabel.setJustificationType (juce::Justification::centred);
+    characterLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
+    characterLabel.setFont (juce::FontOptions { 14.0f, juce::Font::bold });
+    addAndMakeVisible (characterLabel);
+
+    characterModeBox.addItem ("Clean", 1);
+    characterModeBox.addItem ("Warm", 2);
+    characterModeBox.addItem ("Bright", 3);
+    characterModeBox.addItem ("Formant-ish", 4);
+    characterModeBox.addItem ("Digital", 5);
+    characterModeBox.setColour (juce::ComboBox::backgroundColourId, panelColour());
+    characterModeBox.setColour (juce::ComboBox::textColourId, juce::Colours::white);
+    characterModeBox.setColour (juce::ComboBox::outlineColourId, accentColour().withAlpha (0.55f));
+    addAndMakeVisible (characterModeBox);
+    characterModeAttachment = std::make_unique<ComboBoxAttachment> (state,
+                                                                    voxchord::ParameterIDs::characterMode,
+                                                                    characterModeBox);
 
     inputSourceLabel.setText ("Input", juce::dontSendNotification);
     inputSourceLabel.setJustificationType (juce::Justification::centredRight);
@@ -215,10 +232,18 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
                                                                   voxchord::ParameterIDs::inputSource,
                                                                   inputSourceBox);
 
+    leadTuneButton.setColour (juce::ToggleButton::textColourId, juce::Colours::white);
+    leadTuneButton.setColour (juce::ToggleButton::tickColourId, accentColour());
+    addAndMakeVisible (leadTuneButton);
+    leadTuneAttachment = std::make_unique<ButtonAttachment> (state,
+                                                             voxchord::ParameterIDs::leadTuneEnabled,
+                                                             leadTuneButton);
+
     configureStatusLabel (midiNotesLabel, "MIDI: -- | Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
 
-    configureStatusLabel (voiceSlotsLabel, "Slots: V1 -- | V2 -- | V3 -- | V4 --", juce::Justification::centredLeft);
+    configureStatusLabel (voiceSlotsLabel, "Slots: V1 -- | V2 -- | V3 -- | V4 -- | V5 off | V6 off | V7 off | V8 off",
+                          juce::Justification::centredLeft);
     addAndMakeVisible (voiceSlotsLabel);
 
     configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
@@ -262,7 +287,7 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
     body.removeFromRight (14);
     auto controls = body.removeFromTop (198);
     auto status = body.reduced (0, 10);
-    auto rightTop = rightColumn.removeFromTop (214);
+    auto rightTop = rightColumn.removeFromTop (244);
     rightColumn.removeFromTop (14);
     auto rightBottom = rightColumn;
 
@@ -292,16 +317,18 @@ void VoxChordAudioProcessorEditor::resized()
     auto rightColumn = bounds.removeFromRight (220);
     bounds.removeFromRight (18);
 
-    auto rightTop = rightColumn.removeFromTop (198).reduced (10);
+    auto rightTop = rightColumn.removeFromTop (228).reduced (10);
     auto inputRow = rightTop.removeFromTop (34);
     inputSourceLabel.setBounds (inputRow.removeFromLeft (48));
     inputSourceBox.setBounds (inputRow);
-    rightTop.removeFromTop (10);
-    layoutCompactSlider (inputGainSlider, inputGainLabel, rightTop.removeFromTop (48));
     rightTop.removeFromTop (8);
-    layoutCompactSlider (outputSlider, outputLabel, rightTop.removeFromTop (48));
-    rightTop.removeFromTop (12);
-    panicButton.setBounds (rightTop.removeFromTop (38).reduced (18, 0));
+    layoutCompactSlider (inputGainSlider, inputGainLabel, rightTop.removeFromTop (42));
+    rightTop.removeFromTop (6);
+    layoutCompactSlider (outputSlider, outputLabel, rightTop.removeFromTop (42));
+    rightTop.removeFromTop (8);
+    leadTuneButton.setBounds (rightTop.removeFromTop (26).reduced (18, 0));
+    rightTop.removeFromTop (8);
+    panicButton.setBounds (rightTop.removeFromTop (34).reduced (18, 0));
 
     rightColumn.removeFromTop (28);
     auto meterArea = rightColumn.reduced (10);
@@ -314,7 +341,7 @@ void VoxChordAudioProcessorEditor::resized()
 
     layoutSlider (voiceCountSlider, voiceCountLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (glideSlider, glideLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutSlider (characterSlider, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
+    layoutComboBox (characterModeBox, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (spreadSlider, spreadLabel, controls.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controls.reduced (5));
 
@@ -383,6 +410,14 @@ void VoxChordAudioProcessorEditor::layoutSlider (juce::Slider& slider,
 {
     label.setBounds (bounds.removeFromTop (24));
     slider.setBounds (bounds);
+}
+
+void VoxChordAudioProcessorEditor::layoutComboBox (juce::ComboBox& comboBox,
+                                                   juce::Label& label,
+                                                   juce::Rectangle<int> bounds)
+{
+    label.setBounds (bounds.removeFromTop (24));
+    comboBox.setBounds (bounds.withSizeKeepingCentre (juce::jmin (bounds.getWidth() - 8, 116), 34));
 }
 
 void VoxChordAudioProcessorEditor::layoutCompactSlider (juce::Slider& slider,
