@@ -70,6 +70,7 @@ namespace
              + " | MaxErr: " + juce::String (summary.maxErrorCents, 2) + " c"
              + " | WorstIn: " + juce::String (summary.worstInputHz, 1) + " Hz"
              + " | Ratio: " + juce::String (summary.worstRatio, 3)
+             + " | Actual: " + juce::String (summary.worstActualRatio, 5)
              + " | Meas: " + juce::String (summary.worstMeasuredHz, 2) + " Hz";
     }
 
@@ -81,7 +82,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-shifter-selftest-gui-001 | "
+        return "Build: pitch-shifter-diagnostics-001 | "
              + formatPitchShifterSelfTestSummary (selfTestSummary)
              + " | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText

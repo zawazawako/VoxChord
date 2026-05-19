@@ -30,6 +30,7 @@ struct PitchShifterSelfTestSummary
     float maxErrorCents = 0.0f;
     float worstInputHz = 0.0f;
     float worstRatio = 0.0f;
+    float worstActualRatio = 0.0f;
     float worstMeasuredHz = 0.0f;
 };
 

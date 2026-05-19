@@ -163,7 +163,10 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
     constexpr auto maxBlockSize = 512;
     constexpr auto totalSamples = 57600;
     constexpr auto skipSamples = 16800;
-    constexpr std::array<TestCase, 6> testCases {{
+    constexpr std::array<TestCase, 9> testCases {{
+        { 440.0f, 1.0f },
+        { 660.0f, 1.0f },
+        { 880.0f, 1.0f },
         { 220.0f, 2.0f },
         { 440.0f, 2.0f },
         { 440.0f, 1.5f },
@@ -221,6 +224,11 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
         const auto measuredHz = measureFrequencyFromPositiveZeroCrossings (output, testSampleRate);
         const auto errorCents = centsError (measuredHz, expectedHz);
         const auto absoluteErrorCents = std::abs (errorCents);
+        const auto actualRatio = testCase.inputFrequencyHz > 0.0f ? measuredHz / testCase.inputFrequencyHz : 0.0f;
+        const auto actualRatioOverTarget = testCase.ratio > 0.0f ? actualRatio / testCase.ratio : 0.0f;
+        const auto phaseDelta = (1.0f - testCase.ratio) / static_cast<float> (engine.pitchWindowSamples);
+        const auto delayStepPerSample = phaseDelta * static_cast<float> (engine.pitchWindowSamples);
+        const auto theoreticalReadSpeed = 1.0f - delayStepPerSample;
         const auto withinTenCents = std::abs (errorCents) <= 10.0f;
 
         if (absoluteErrorCents > summary.maxErrorCents)
@@ -228,6 +236,7 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
             summary.maxErrorCents = absoluteErrorCents;
             summary.worstInputHz = testCase.inputFrequencyHz;
             summary.worstRatio = testCase.ratio;
+            summary.worstActualRatio = actualRatio;
             summary.worstMeasuredHz = measuredHz;
         }
 
@@ -240,6 +249,11 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
              + " -> expected " + juce::String (expectedHz, 1) + " Hz"
              + ", measured " + juce::String (measuredHz, 2) + " Hz"
              + ", error " + juce::String (errorCents, 2) + " cents"
+             + ", actual ratio " + juce::String (actualRatio, 6)
+             + ", actual/target " + juce::String (actualRatioOverTarget, 6)
+             + ", phaseDelta " + juce::String (phaseDelta, 9)
+             + ", delayStep " + juce::String (delayStepPerSample, 6)
+             + ", theoreticalReadSpeed " + juce::String (theoreticalReadSpeed, 6)
              + ", within +/-10 cents: " + juce::String (withinTenCents ? "yes" : "no")
              + ", pitchWindowSamples: " + juce::String (engine.pitchWindowSamples)
              + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
@@ -253,6 +267,7 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
          + ", max error " + juce::String (summary.maxErrorCents, 2) + " cents"
          + ", worst input " + juce::String (summary.worstInputHz, 1) + " Hz"
          + ", worst ratio " + juce::String (summary.worstRatio, 3)
+         + ", worst actual ratio " + juce::String (summary.worstActualRatio, 6)
          + ", worst measured " + juce::String (summary.worstMeasuredHz, 2) + " Hz");
 }
 

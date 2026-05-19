@@ -1,7 +1,7 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.15
+Project version: 0.1.16
 
 このファイルは `Source/` 以下のファイル構造と実装仕様を記録する。今後、ソースコードを編集した場合は、git commit とあわせてこの `SPEC.md` に変更内容を反映する。
 
@@ -42,7 +42,7 @@ Project version: 0.1.15
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: pitch-shifter-selftest-gui-001`。
+- pitch debug subtitle の現在の build string は `Build: pitch-shifter-diagnostics-001`。
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -61,7 +61,7 @@ Project version: 0.1.15
 
 ## Build Configuration
 
-- CMake project version: `0.1.15`
+- CMake project version: `0.1.16`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -244,8 +244,12 @@ Pitch shifter self test:
 - Measures output frequency from positive-going zero crossings after initial transient skip.
 - Stores a summary in `PitchShifterSelfTestSummary`.
 - GUI debug subtitle displays `Pitch Shifter SelfTest: PASS/FAIL`, max error cents, worst input Hz, worst ratio, and worst measured Hz.
+- GUI debug subtitle also displays the worst measured actual ratio.
 - If the self test has not run, GUI displays `Pitch Shifter SelfTest: NOT RUN`.
 - Test cases:
+- `440 Hz * 1.0 -> 440 Hz`
+- `660 Hz * 1.0 -> 660 Hz`
+- `880 Hz * 1.0 -> 880 Hz`
 - `220 Hz * 2.0 -> 440 Hz`
 - `440 Hz * 2.0 -> 880 Hz`
 - `440 Hz * 1.5 -> 660 Hz`
@@ -253,6 +257,8 @@ Pitch shifter self test:
 - `660 Hz * 0.5 -> 330 Hz`
 - `880 Hz * 0.5 -> 440 Hz`
 - Debug output reports expected frequency, measured frequency, error cents, +/-10 cents result, `pitchWindowSamples`, `minimumDelaySamples`, and whether ratio smoothing/glide were disabled.
+- Debug output also reports actual ratio, actual/target ratio, `phaseDelta`, delay step per sample, and theoretical read speed.
+- The phase/delay model under investigation is `phaseDelta = (1 - ratio) / pitchWindowSamples`, `delay = baseDelay + phase * pitchWindowSamples`, and `readPosition = writePosition - delay`; therefore `delayStep = 1 - ratio` and theoretical read speed is `ratio`.
 
 ## Harmony DSP Specification
 
@@ -337,7 +343,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: pitch-shifter-selftest-gui-001`
+- `Build: pitch-shifter-diagnostics-001`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`

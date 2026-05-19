@@ -411,6 +411,62 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.16 phase 3N pitch shifter ratio diagnostics
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+ユーザー確認済みの 0.1.15 self test 傾向:
+
+- ratio `2.0` は約 `+8.70 cents`
+- ratio `1.5` は約 `+5.82 cents`
+- ratio `0.5` は約 `-17.56` から `-17.59 cents`
+- 実効 ratio は target ratio からランダムではなく系統的にずれている可能性がある。
+
+実装方針:
+
+- 経験的な ratio 補正係数は追加しない。
+- pitch detector 改善、choir 音質改善、新 pitch shifter 追加は行わない。
+- まず ratio 1.0 と phase/delay/read speed の診断ログを追加し、原因が phaseDelta / delay / readPosition / interpolation / measurement のどこにあるか切り分ける。
+
+実装済み:
+
+- PitchShifterSelfTest に ratio `1.0` ケースを追加した。
+- 追加ケースは `440 Hz * 1.0 -> 440 Hz`, `660 Hz * 1.0 -> 660 Hz`, `880 Hz * 1.0 -> 880 Hz`。
+- 各ケースの debug output に `actual ratio`, `actual/target`, `phaseDelta`, `delayStep`, `theoreticalReadSpeed` を追加した。
+- GUI summary に worst case の actual ratio を追加した。
+- GUI debug 表示を `Build: pitch-shifter-diagnostics-001` に更新した。
+- CMake project version を `0.1.16` に更新した。
+- `SPEC.md` に ratio 1.0 追加ケースと診断ログ仕様を追記した。
+
+コード再確認メモ:
+
+- 現在の phase 更新順序は、delay/read 計算後に `phaseA` / `phaseB` を更新する形。
+- `readDelayLine()` は `readPosition = writeIndex - delaySamples` を circular buffer 内へ wrap し、`index0=floor(readPosition)`, `index1=index0+1`, `fraction=readPosition-index0` で線形補間している。
+- 式だけを見ると `delay = baseDelay + phase * pitchWindowSamples`, `phaseDelta = (1 - ratio) / pitchWindowSamples` なので、`delayStep = 1 - ratio`, `readPositionStep = 1 - delayStep = ratio` となる。
+- したがって、現段階では数学式上の read speed は target ratio と一致する想定であり、残る切り分け対象は window wrap/crossfade, window 有効長, interpolation, self test measurement である。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- ratio `1.0` の measured frequency と error cents。
+- ratio `1.0` の誤差が十分小さいか。
+- actual/target が ratio 依存で同じ傾向を示すか。
+- GUI summary と DBG 詳細ログが一致するか。
+
+次に確認すべきこと:
+
+- Debug Standalone を起動し、ratio `1.0` 3ケースの `PitchShifterSelfTest` 詳細ログを確認すること。
+- 各ケースの `actual ratio`, `actual/target`, `phaseDelta`, `delayStep`, `theoreticalReadSpeed` を確認すること。
+- ratio `1.0` でも誤差が出る場合は measurement / readDelayLine / delay tap 側を優先して疑うこと。
+- ratio `1.0` が正確で ratio != 1 だけずれる場合は window wrap/crossfade または phase window 有効長を優先して疑うこと。
+
 ## 0.1.15 phase 3M pitch shifter self test GUI summary
 
 日付: 2026-05-19
