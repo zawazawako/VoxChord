@@ -100,6 +100,20 @@ namespace
         int count = 0;
     };
 
+    struct SpectralPeak
+    {
+        float frequencyHz = 0.0f;
+        float magnitude = 0.0f;
+    };
+
+    struct SpectralDiagnostics
+    {
+        std::array<SpectralPeak, 5> topPeaks {};
+        SpectralPeak expectedBin;
+        SpectralPeak measuredBin;
+        float binResolutionHz = 0.0f;
+    };
+
     bool didPhaseWrap (float previous, float current, float phaseDelta) noexcept
     {
         if (phaseDelta > 0.0f)
@@ -123,6 +137,97 @@ namespace
             delta += size;
 
         return delta;
+    }
+
+    float goertzelMagnitudeForBin (const std::vector<float>& samples, int startSample, int sampleCount, int bin)
+    {
+        if (sampleCount <= 1 || bin <= 0)
+            return 0.0f;
+
+        const auto omega = juce::MathConstants<double>::twoPi * static_cast<double> (bin) / static_cast<double> (sampleCount);
+        const auto coefficient = 2.0 * std::cos (omega);
+        auto q0 = 0.0;
+        auto q1 = 0.0;
+        auto q2 = 0.0;
+        auto windowSum = 0.0;
+
+        for (auto index = 0; index < sampleCount; ++index)
+        {
+            const auto window = 0.5 - 0.5 * std::cos (juce::MathConstants<double>::twoPi
+                                                       * static_cast<double> (index)
+                                                       / static_cast<double> (sampleCount - 1));
+            const auto value = static_cast<double> (samples[static_cast<size_t> (startSample + index)]) * window;
+            q0 = value + coefficient * q1 - q2;
+            q2 = q1;
+            q1 = q0;
+            windowSum += window;
+        }
+
+        const auto magnitudeSquared = q1 * q1 + q2 * q2 - coefficient * q1 * q2;
+        const auto magnitude = std::sqrt (juce::jmax (0.0, magnitudeSquared));
+        return static_cast<float> (magnitude / juce::jmax (1.0, windowSum));
+    }
+
+    void insertSpectralPeak (std::array<SpectralPeak, 5>& peaks, SpectralPeak candidate) noexcept
+    {
+        for (auto index = 0; index < static_cast<int> (peaks.size()); ++index)
+        {
+            if (candidate.magnitude <= peaks[static_cast<size_t> (index)].magnitude)
+                continue;
+
+            for (auto move = static_cast<int> (peaks.size()) - 1; move > index; --move)
+                peaks[static_cast<size_t> (move)] = peaks[static_cast<size_t> (move - 1)];
+
+            peaks[static_cast<size_t> (index)] = candidate;
+            break;
+        }
+    }
+
+    SpectralDiagnostics analyseSpectrum (const std::vector<float>& samples,
+                                         double sampleRate,
+                                         float expectedHz,
+                                         float measuredHz)
+    {
+        SpectralDiagnostics diagnostics;
+
+        if (samples.size() < 4096 || sampleRate <= 0.0)
+            return diagnostics;
+
+        const auto analysisSamples = juce::jmin (32768, static_cast<int> (samples.size()));
+        const auto startSample = static_cast<int> (samples.size()) - analysisSamples;
+        const auto binHz = static_cast<float> (sampleRate / static_cast<double> (analysisSamples));
+        const auto minBin = juce::jmax (1, static_cast<int> (std::floor (20.0f / binHz)));
+        const auto maxBin = juce::jmin (analysisSamples / 2 - 1, static_cast<int> (std::ceil (4000.0f / binHz)));
+        diagnostics.binResolutionHz = binHz;
+
+        std::vector<float> magnitudes (static_cast<size_t> (maxBin + 1), 0.0f);
+
+        for (auto bin = minBin; bin <= maxBin; ++bin)
+            magnitudes[static_cast<size_t> (bin)] = goertzelMagnitudeForBin (samples, startSample, analysisSamples, bin);
+
+        for (auto bin = minBin + 1; bin < maxBin; ++bin)
+        {
+            const auto previous = magnitudes[static_cast<size_t> (bin - 1)];
+            const auto current = magnitudes[static_cast<size_t> (bin)];
+            const auto next = magnitudes[static_cast<size_t> (bin + 1)];
+
+            if (current >= previous && current >= next)
+                insertSpectralPeak (diagnostics.topPeaks, { static_cast<float> (bin) * binHz, current });
+        }
+
+        const auto expectedBin = juce::jlimit (minBin, maxBin, juce::roundToInt (expectedHz / binHz));
+        const auto measuredBin = juce::jlimit (minBin, maxBin, juce::roundToInt (measuredHz / binHz));
+        diagnostics.expectedBin = { static_cast<float> (expectedBin) * binHz, magnitudes[static_cast<size_t> (expectedBin)] };
+        diagnostics.measuredBin = { static_cast<float> (measuredBin) * binHz, magnitudes[static_cast<size_t> (measuredBin)] };
+        return diagnostics;
+    }
+
+    bool shouldReportSpectrum (float inputHz, float ratio) noexcept
+    {
+        return (std::abs (inputHz - 440.0f) < 0.01f && std::abs (ratio - 0.5f) < 0.001f)
+            || (std::abs (inputHz - 660.0f) < 0.01f && std::abs (ratio - 0.5f) < 0.001f)
+            || (std::abs (inputHz - 880.0f) < 0.01f && std::abs (ratio - 0.5f) < 0.001f)
+            || (std::abs (inputHz - 440.0f) < 0.01f && std::abs (ratio - 2.0f) < 0.001f);
     }
 }
 
@@ -400,6 +505,31 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
              + ", pitchWindowSamples: " + juce::String (engine.pitchWindowSamples)
              + ", minimumDelaySamples: " + juce::String (engine.minimumDelaySamples)
              + ", ratio smoothing/glide disabled: yes");
+
+        if (shouldReportSpectrum (testCase.inputFrequencyHz, testCase.ratio))
+        {
+            const auto spectrum = analyseSpectrum (output, testSampleRate, expectedHz, measuredHz);
+            auto spectrumText = juce::String ("PitchShifterSpectrum input ")
+                              + juce::String (testCase.inputFrequencyHz, 1) + " Hz"
+                              + ", ratio " + juce::String (testCase.ratio, 3)
+                              + ", expected " + juce::String (expectedHz, 1) + " Hz"
+                              + ", zeroCrossMeasured " + juce::String (measuredHz, 2) + " Hz"
+                              + ", peak frequency used for measured result: zeroCrossMeasured"
+                              + ", binResolution " + juce::String (spectrum.binResolutionHz, 3) + " Hz"
+                              + ", expectedBin " + juce::String (spectrum.expectedBin.frequencyHz, 2) + " Hz/"
+                              + juce::String (spectrum.expectedBin.magnitude, 6)
+                              + ", measuredBin " + juce::String (spectrum.measuredBin.frequencyHz, 2) + " Hz/"
+                              + juce::String (spectrum.measuredBin.magnitude, 6)
+                              + ", top5";
+
+            for (const auto peak : spectrum.topPeaks)
+            {
+                spectrumText += " | " + juce::String (peak.frequencyHz, 2) + " Hz/"
+                              + juce::String (peak.magnitude, 6);
+            }
+
+            DBG (spectrumText);
+        }
     }
 
     pitchShifterSelfTestSummary() = summary;

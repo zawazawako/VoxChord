@@ -411,6 +411,49 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.18 phase 3P pitch shifter spectral diagnostics
+
+日付: 2026-05-19
+
+対象ビルド:
+
+- Debug Standalone: ユーザー確認待ち
+- Debug VST3: ユーザー確認待ち
+- Release Standalone: ユーザー確認待ち
+- Release VST3: ユーザー確認待ち
+
+実装方針:
+
+- pitch shifter の ratio 補正や音質変更は行わない。
+- PitchShifterSelfTest の出力波形に対して、expected/measured 付近と sideband を確認するためのスペクトル診断ログを追加する。
+
+実装済み:
+
+- 指定4ケースに `PitchShifterSpectrum` DBG 行を追加した。
+- 対象ケースは `440 Hz * 0.5 -> 220 Hz`, `660 Hz * 0.5 -> 330 Hz`, `880 Hz * 0.5 -> 440 Hz`, `440 Hz * 2.0 -> 880 Hz`。
+- top 5 spectral peaks を frequency / magnitude で表示するようにした。
+- expected frequency bin magnitude を表示するようにした。
+- measured frequency bin magnitude を表示するようにした。
+- measured result に使っている周波数源を `zeroCrossMeasured` と明記した。
+- スペクトル解析は self test output の tail に対して Hann window + Goertzel scan で行う。
+- GUI debug 表示を `Build: pitch-shifter-spectrum-001` に更新した。
+- CMake project version を `0.1.18` に更新した。
+- `SPEC.md` に spectral diagnostics 仕様を追記した。
+
+未確認:
+
+- ユーザー環境での Debug / Release ビルド。
+- expected frequency 付近に強い peak があるか。
+- zero-cross measured frequency 付近に別の強い peak があるか。
+- window/crossfade 由来の sideband が top 5 に出るか。
+- ratio `0.5`, expected `330 Hz` 周辺の peak 構造。
+
+次に確認すべきこと:
+
+- Debug Standalone を起動し、`PitchShifterSpectrum` 行を確認すること。
+- top 5 peak と expectedBin / measuredBin の magnitude を比較すること。
+- expectedBin が最大 peak なのか、zero-cross measured 付近や sideband が強いのかを確認すること。
+
 ## 0.1.17 phase 3O pitch shifter phase wrap diagnostics
 
 日付: 2026-05-19
