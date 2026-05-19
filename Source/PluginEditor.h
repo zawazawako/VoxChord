@@ -20,15 +20,29 @@ private:
 
     void timerCallback() override;
     void configureSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
+    void configureCompactSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
     void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
+    void layoutCompactSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
     void updateMidiState();
     void updateMeters();
     void updatePitchDebug();
 
+    class MeterBar final : public juce::Component
+    {
+    public:
+        void setTitle (const juce::String& newTitle);
+        void setLevel (float newPeak, bool isClipped);
+        void paint (juce::Graphics& g) override;
+
+    private:
+        juce::String title;
+        float peak = 0.0f;
+        bool clipped = false;
+    };
+
     VoxChordAudioProcessor& processorRef;
 
     juce::Slider voiceCountSlider;
-    juce::Slider tuneSlider;
     juce::Slider glideSlider;
     juce::Slider characterSlider;
     juce::Slider spreadSlider;
@@ -37,7 +51,6 @@ private:
     juce::Slider outputSlider;
 
     juce::Label voiceCountLabel;
-    juce::Label tuneLabel;
     juce::Label glideLabel;
     juce::Label characterLabel;
     juce::Label spreadLabel;
@@ -51,14 +64,13 @@ private:
     juce::Label voiceSlotsLabel;
     juce::Label midiStatusLabel;
     juce::Label pitchDebugLabel;
-    juce::Label inputMeterLabel;
-    juce::Label outputMeterLabel;
+    MeterBar inputMeter;
+    MeterBar outputMeter;
     juce::Label inputSourceLabel;
     juce::ComboBox inputSourceBox;
     juce::TextButton panicButton { "PANIC" };
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
-    std::unique_ptr<SliderAttachment> tuneAttachment;
     std::unique_ptr<SliderAttachment> glideAttachment;
     std::unique_ptr<SliderAttachment> characterAttachment;
     std::unique_ptr<SliderAttachment> spreadAttachment;

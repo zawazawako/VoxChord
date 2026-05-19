@@ -1,7 +1,19 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.23
+Project version: 0.1.24
+
+## 0.1.24 Update - focused live GUI layout
+
+- CMake project version: `0.1.24`.
+- Debug GUI pitch subtitle build string: `Build: gui-layout-001`.
+- The unused Tune knob was removed from the visible GUI.
+- The `tune` APVTS parameter remains for compatibility, but is not exposed in the current GUI layout.
+- Main performance controls are now `Voices`, `Glide`, `Character`, `Spread`, and `Dry/Wet`.
+- Input Source selection moved to the upper-right control area.
+- Input Gain, Output Gain, and PANIC moved to the upper-right control area and use smaller controls than the main performance knobs.
+- Input and Output meters are now custom horizontal bar indicators in the lower-right area.
+- Meter bars show post-input-gain input level and final output level, with clip state reflected by the bar outline/fill color.
 
 ## 0.1.23 Update - priority A live usability pass
 
@@ -104,10 +116,17 @@ Project version: 0.1.23
 
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
 
+- Current visible GUI groups the main performance controls on the left and input/output utilities on the right.
+- Visible main controls: Voice Count, Glide, Character, Spread, Dry/Wet.
+- The Tune APVTS parameter remains but the unused Tune knob is hidden.
+- Right-top utility controls: Input Source, Input Gain, Output, PANIC.
+- Right-bottom meters use custom horizontal bar components for input/output peaks.
+
 - 1 画面のライブ向け GUI。
-- 7 sliders: Voice Count, Tune, Glide, Character, Spread, Dry/Wet, Output。
-- Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
-- MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
+- Main performance controls: Voice Count, Glide, Character, Spread, Dry/Wet。
+- Right-top utility controls: Input Source, Input Gain, Output, PANIC。
+- Right-bottom horizontal bar meters: Input, Output。
+- MIDI note indicator、voice slot 表示、last MIDI event、pitch debug を持つ。
 - Timer は `30 Hz`。
 - pitch debug subtitle の現在の Debug build string は `Build: priority-a-001`。
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
@@ -129,7 +148,7 @@ Project version: 0.1.23
 
 ## Build Configuration
 
-- CMake project version: `0.1.23`
+- CMake project version: `0.1.24`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -446,22 +465,20 @@ Window:
 Controls:
 
 - Voice Count
-- Tune
 - Glide
 - Character
 - Spread
 - Dry/Wet
-- Output
-- PANIC button
+- Right-top compact controls: Input Source, Input Gain, Output, PANIC button
 
 Status/debug:
 
 - MIDI notes and pitch summary.
 - Voice slots.
 - Last MIDI event.
-- Input and output meters.
+- Right-bottom horizontal bar meters for input and output.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: priority-a-001`
+- Debug: `Build: gui-layout-001`
 - Release: `VoxChord v<version>`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`

@@ -411,6 +411,42 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.24 focused live GUI layout
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+Implemented:
+
+- Removed the unused Tune knob from the visible GUI.
+- Kept the `tune` APVTS parameter for compatibility.
+- Moved Input Source selection to the upper-right area.
+- Moved Input Gain, Output Gain, and PANIC to the upper-right area.
+- Changed Input Gain and Output Gain to smaller horizontal controls.
+- Changed the main performance knob row to `Voices`, `Glide`, `Character`, `Spread`, and `Dry/Wet`.
+- Replaced text-only input/output meter labels with horizontal bar-style meter components.
+- Moved input/output bar meters to the lower-right area.
+- GUI Debug build string updated to `Build: gui-layout-001`.
+- CMake project version updated to `0.1.24`.
+
+Not changed:
+
+- No parameter ID was removed or renamed.
+- No DSP, pitch detector, input-synced window, or MIDI de-click behavior was changed.
+
+Verification pending:
+
+- Confirm Tune knob is no longer visible.
+- Confirm Input Source, Input Gain, Output Gain, and PANIC are grouped in the upper-right area.
+- Confirm input/output levels are visually readable as bar meters in the lower-right area.
+- Confirm existing parameter automation/state compatibility is preserved.
+
 ## 0.1.23 priority A live usability pass
 
 Date: 2026-05-19
