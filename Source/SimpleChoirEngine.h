@@ -69,6 +69,8 @@ private:
         float phaseB = 0.5f;
         float currentPitchRatio = 1.0f;
         float targetPitchRatio = 1.0f;
+        int windowSamplesA = 1024;
+        int windowSamplesB = 1024;
     };
 
     class SimplePitchDetector final
@@ -142,16 +144,20 @@ private:
     static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
     static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
+    static int getLimitedPitchWindowSamples (int currentWindowSamples, int targetWindowSamples) noexcept;
+    static float getWindowPitchSmoothingCoefficient (int samples, double sampleRate) noexcept;
+    static float smoothFrequencyLog (float previous, float target, float alpha) noexcept;
     static float readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept;
     static float wrapPhase (float phase) noexcept;
     static float windowGain (float phase) noexcept;
 
+    float updateWindowPitchHz (float correctionInputPitchHz, int samples) noexcept;
     void resetVoice (VoicePitchState& voice) noexcept;
     float readDelayLine (float delaySamples) const noexcept;
     float renderPitchShiftedSample (VoicePitchState& voice,
                                     float glideCoefficient,
                                     float delayOffsetSamples,
-                                    int windowSamples) noexcept;
+                                    int targetWindowSamples) noexcept;
 
     static constexpr float minPitchRatio = 0.25f;
     static constexpr float maxPitchRatio = 8.0f;
@@ -161,11 +167,15 @@ private:
     static constexpr float inputSyncedPitchWindowCycles = 6.0f;
     static constexpr int inputSyncedMinWindowSamples = 256;
     static constexpr int inputSyncedMaxWindowSamples = 4096;
+    static constexpr float windowPitchSmoothingSeconds = 0.15f;
+    static constexpr float maxWindowChangeRatioPerGrain = 1.25f;
+    static constexpr int maxWindowChangeSamplesPerGrain = 512;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
     float lastDetectedInputFrequencyHz = 0.0f;
+    float windowPitchHz = 0.0f;
     PitchState pitchState;
 
     int delayBufferSize = 0;

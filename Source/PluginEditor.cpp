@@ -83,7 +83,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: input-synced-window-002 | "
+        return juce::String ("Build: input-synced-window-continuity-001 | ")
              + "Pitch Shifter SelfTest | "
              + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
              + " | "

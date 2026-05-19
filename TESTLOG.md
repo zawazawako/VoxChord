@@ -411,6 +411,49 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.21 phase 3S input-synced window continuity
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+User finding:
+
+- Input-synced window significantly improved pitch accuracy.
+- In real use, short click/pop artifacts can occur.
+- The likely cause is not CPU dropout, but delay/readPosition discontinuity from dynamic `pitchWindowSamples` changes.
+
+Implemented:
+
+- Separated pitch-ratio input and window-length input.
+- `correctionInputPitchHz` remains the source for MIDI pitch ratio.
+- Added slower-smoothed `windowPitchHz` for input-synced window calculation.
+- Added per-voice `windowSamplesA` and `windowSamplesB`.
+- `delayA` and `delayB` now use each read window's own window length.
+- Target window length is no longer applied immediately to currently playing grains.
+- Each A/B window adopts a new window length only at its own phase wrap.
+- Per-wrap window length changes are limited by `maxWindowChangeRatioPerGrain` and `maxWindowChangeSamplesPerGrain`.
+- GUI debug build string updated to `Build: input-synced-window-continuity-001`.
+- CMake project version updated to `0.1.21`.
+
+Not changed:
+
+- No empirical ratio correction coefficient was added.
+- PitchDetector behavior was not changed.
+- Input-synced window remains the render-path default candidate.
+
+Verification pending:
+
+- User build of Debug/Release targets.
+- Confirm pitch accuracy remains close to the input-synced window build.
+- Confirm click/pop artifacts during vocal pitch changes are reduced.
+- Confirm abrupt pitch changes do not create stuck or unstable grains.
+
 ## 0.1.20 phase 3R separated self test summaries and expanded input-sync tests
 
 Date: 2026-05-19

@@ -251,6 +251,7 @@ void SimpleChoirEngine::reset() noexcept
     writeIndex = 0;
     pitchDetector.reset();
     lastDetectedInputFrequencyHz = 0.0f;
+    windowPitchHz = 0.0f;
     pitchState = {};
 
     for (auto& voice : voiceStates)
@@ -406,12 +407,15 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
                                        ? getInputSyncedPitchWindowSamples (testCase.inputFrequencyHz, testSampleRate)
                                        : engine.pitchWindowSamples;
         const auto inputPeriodSamples = static_cast<float> (testSampleRate / static_cast<double> (testCase.inputFrequencyHz));
+        voice.windowSamplesA = windowSamples;
+        voice.windowSamplesB = windowSamples;
+
         const auto phaseDelta = (1.0f - testCase.ratio) / static_cast<float> (windowSamples);
         const auto baseDelay = static_cast<float> (engine.minimumDelaySamples);
         auto previousPhaseA = voice.phaseA;
         auto previousPhaseB = voice.phaseB;
-        auto previousDelayA = baseDelay + previousPhaseA * static_cast<float> (windowSamples);
-        auto previousDelayB = baseDelay + previousPhaseB * static_cast<float> (windowSamples);
+        auto previousDelayA = baseDelay + previousPhaseA * static_cast<float> (voice.windowSamplesA);
+        auto previousDelayB = baseDelay + previousPhaseB * static_cast<float> (voice.windowSamplesB);
         auto previousReadA = static_cast<float> (engine.writeIndex) - previousDelayA;
         auto previousReadB = static_cast<float> (engine.writeIndex) - previousDelayB;
         auto lastWrapA = -1;
@@ -430,8 +434,8 @@ void SimpleChoirEngine::runPitchShifterSelfTest()
 
             const auto shifted = engine.renderPitchShiftedSample (voice, 1.0f, 0.0f, windowSamples);
 
-            const auto currentDelayA = baseDelay + voice.phaseA * static_cast<float> (windowSamples);
-            const auto currentDelayB = baseDelay + voice.phaseB * static_cast<float> (windowSamples);
+            const auto currentDelayA = baseDelay + voice.phaseA * static_cast<float> (voice.windowSamplesA);
+            const auto currentDelayB = baseDelay + voice.phaseB * static_cast<float> (voice.windowSamplesB);
             const auto currentReadA = static_cast<float> ((engine.writeIndex + 1) % engine.delayBufferSize) - currentDelayA;
             const auto currentReadB = static_cast<float> ((engine.writeIndex + 1) % engine.delayBufferSize) - currentDelayB;
             const auto wrappedA = didPhaseWrap (previousPhaseA, voice.phaseA, phaseDelta);
@@ -641,8 +645,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     pitchState.ratioSmoothingCoefficient = ratioSmoothingCoefficient;
     const auto inputFrequencyHz = pitchState.correctionInputPitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
+    const auto windowFrequencyHz = updateWindowPitchHz (inputFrequencyHz, samples);
     const auto activePitchWindowSamples = useInputSyncedPitchWindowByDefault
-                                              ? getInputSyncedPitchWindowSamples (inputFrequencyHz, currentSampleRate)
+                                              ? getInputSyncedPitchWindowSamples (windowFrequencyHz, currentSampleRate)
                                               : pitchWindowSamples;
 
     std::array<int, MidiVoiceState::maxVoices> activeSlots {};
@@ -677,6 +682,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             {
                 voice.phaseA = 0.0f;
                 voice.phaseB = 0.5f;
+                voice.windowSamplesA = activePitchWindowSamples;
+                voice.windowSamplesB = activePitchWindowSamples;
             }
 
             voice.targetPitchRatio = targetRatio;
@@ -1277,6 +1284,63 @@ int SimpleChoirEngine::getInputSyncedPitchWindowSamples (float inputFrequencyHz,
                          juce::roundToInt (inputSyncedPitchWindowCycles * periodSamples));
 }
 
+int SimpleChoirEngine::getLimitedPitchWindowSamples (int currentWindowSamples, int targetWindowSamples) noexcept
+{
+    const auto current = juce::jlimit (inputSyncedMinWindowSamples,
+                                       inputSyncedMaxWindowSamples,
+                                       currentWindowSamples);
+    const auto target = juce::jlimit (inputSyncedMinWindowSamples,
+                                      inputSyncedMaxWindowSamples,
+                                      targetWindowSamples);
+
+    if (current <= 0)
+        return target;
+
+    const auto ratioLimitedMin = juce::roundToInt (static_cast<float> (current) / maxWindowChangeRatioPerGrain);
+    const auto ratioLimitedMax = juce::roundToInt (static_cast<float> (current) * maxWindowChangeRatioPerGrain);
+    const auto sampleLimitedMin = current - maxWindowChangeSamplesPerGrain;
+    const auto sampleLimitedMax = current + maxWindowChangeSamplesPerGrain;
+    const auto limitedMin = juce::jmax (inputSyncedMinWindowSamples,
+                                        juce::jmax (ratioLimitedMin, sampleLimitedMin));
+    const auto limitedMax = juce::jmin (inputSyncedMaxWindowSamples,
+                                        juce::jmin (ratioLimitedMax, sampleLimitedMax));
+
+    return juce::jlimit (limitedMin, limitedMax, target);
+}
+
+float SimpleChoirEngine::getWindowPitchSmoothingCoefficient (int samples, double sampleRate) noexcept
+{
+    if (samples <= 0 || sampleRate <= 1.0)
+        return 1.0f;
+
+    return 1.0f - std::exp (-static_cast<float> (samples)
+                            / (windowPitchSmoothingSeconds * static_cast<float> (sampleRate)));
+}
+
+float SimpleChoirEngine::smoothFrequencyLog (float previous, float target, float alpha) noexcept
+{
+    if (previous <= 0.0f)
+        return target;
+
+    if (target <= 0.0f)
+        return previous;
+
+    const auto previousLog = std::log2 (previous);
+    const auto targetLog = std::log2 (target);
+    return std::exp2 (previousLog + juce::jlimit (0.0f, 1.0f, alpha) * (targetLog - previousLog));
+}
+
+float SimpleChoirEngine::updateWindowPitchHz (float correctionInputPitchHz, int samples) noexcept
+{
+    if (correctionInputPitchHz <= 0.0f)
+        return windowPitchHz;
+
+    windowPitchHz = smoothFrequencyLog (windowPitchHz,
+                                        correctionInputPitchHz,
+                                        getWindowPitchSmoothingCoefficient (samples, currentSampleRate));
+    return windowPitchHz;
+}
+
 float SimpleChoirEngine::readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept
 {
     const auto channels = input.getNumChannels();
@@ -1314,6 +1378,8 @@ void SimpleChoirEngine::resetVoice (VoicePitchState& voice) noexcept
     voice.phaseB = 0.5f;
     voice.currentPitchRatio = 1.0f;
     voice.targetPitchRatio = 1.0f;
+    voice.windowSamplesA = pitchWindowSamples;
+    voice.windowSamplesB = pitchWindowSamples;
 }
 
 float SimpleChoirEngine::readDelayLine (float delaySamples) const noexcept
@@ -1337,7 +1403,7 @@ float SimpleChoirEngine::readDelayLine (float delaySamples) const noexcept
 float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice,
                                                    float glideCoefficient,
                                                    float delayOffsetSamples,
-                                                   int windowSamples) noexcept
+                                                   int targetWindowSamples) noexcept
 {
     if (glideCoefficient >= 1.0f)
         voice.currentPitchRatio = voice.targetPitchRatio;
@@ -1345,22 +1411,42 @@ float SimpleChoirEngine::renderPitchShiftedSample (VoicePitchState& voice,
         voice.currentPitchRatio += (voice.targetPitchRatio - voice.currentPitchRatio) * glideCoefficient;
 
     const auto ratio = juce::jlimit (minPitchRatio, maxPitchRatio, voice.currentPitchRatio);
-    const auto safeWindowSamples = juce::jlimit (inputSyncedMinWindowSamples,
-                                                 inputSyncedMaxWindowSamples,
-                                                 windowSamples);
-    const auto windowSamplesFloat = static_cast<float> (safeWindowSamples);
-    const auto phaseDelta = (1.0f - ratio) / windowSamplesFloat;
+    const auto safeTargetWindowSamples = juce::jlimit (inputSyncedMinWindowSamples,
+                                                       inputSyncedMaxWindowSamples,
+                                                       targetWindowSamples);
+    const auto windowSamplesA = juce::jlimit (inputSyncedMinWindowSamples,
+                                              inputSyncedMaxWindowSamples,
+                                              voice.windowSamplesA);
+    const auto windowSamplesB = juce::jlimit (inputSyncedMinWindowSamples,
+                                              inputSyncedMaxWindowSamples,
+                                              voice.windowSamplesB);
+    const auto windowSamplesAFloat = static_cast<float> (windowSamplesA);
+    const auto windowSamplesBFloat = static_cast<float> (windowSamplesB);
+    const auto phaseDeltaA = (1.0f - ratio) / windowSamplesAFloat;
+    const auto phaseDeltaB = (1.0f - ratio) / windowSamplesBFloat;
 
     const auto baseDelay = static_cast<float> (minimumDelaySamples) + juce::jmax (0.0f, delayOffsetSamples);
-    const auto delayA = baseDelay + voice.phaseA * windowSamplesFloat;
-    const auto delayB = baseDelay + voice.phaseB * windowSamplesFloat;
+    const auto delayA = baseDelay + voice.phaseA * windowSamplesAFloat;
+    const auto delayB = baseDelay + voice.phaseB * windowSamplesBFloat;
     const auto gainA = windowGain (voice.phaseA);
     const auto gainB = windowGain (voice.phaseB);
     const auto gainSum = gainA + gainB + 0.000001f;
     const auto shifted = (readDelayLine (delayA) * gainA + readDelayLine (delayB) * gainB) / gainSum;
 
-    voice.phaseA = wrapPhase (voice.phaseA + phaseDelta);
-    voice.phaseB = wrapPhase (voice.phaseB + phaseDelta);
+    const auto previousPhaseA = voice.phaseA;
+    const auto previousPhaseB = voice.phaseB;
+    voice.phaseA = wrapPhase (voice.phaseA + phaseDeltaA);
+    voice.phaseB = wrapPhase (voice.phaseB + phaseDeltaB);
+
+    if (didPhaseWrap (previousPhaseA, voice.phaseA, phaseDeltaA))
+        voice.windowSamplesA = getLimitedPitchWindowSamples (windowSamplesA, safeTargetWindowSamples);
+    else
+        voice.windowSamplesA = windowSamplesA;
+
+    if (didPhaseWrap (previousPhaseB, voice.phaseB, phaseDeltaB))
+        voice.windowSamplesB = getLimitedPitchWindowSamples (windowSamplesB, safeTargetWindowSamples);
+    else
+        voice.windowSamplesB = windowSamplesB;
 
     return shifted;
 }

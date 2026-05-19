@@ -1,7 +1,21 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.20
+Project version: 0.1.21
+
+## 0.1.21 Update - click-safe input-synced window continuity
+
+- CMake project version: `0.1.21`.
+- GUI pitch debug build string: `Build: input-synced-window-continuity-001`.
+- `correctionInputPitchHz` remains the pitch used for MIDI target ratio calculation.
+- A separate `windowPitchHz` is now used for input-synced window length calculation.
+- `windowPitchHz` is smoothed more slowly than `correctionInputPitchHz` using `windowPitchSmoothingSeconds = 0.15`.
+- Each voice now stores separate `windowSamplesA` and `windowSamplesB`.
+- `renderPitchShiftedSample()` now calculates `delayA = baseDelay + phaseA * windowSamplesA` and `delayB = baseDelay + phaseB * windowSamplesB`.
+- New target window length is not applied immediately to an active read window.
+- `windowSamplesA` and `windowSamplesB` are updated only when their own phase wraps, so a grain keeps a constant window length while it is playing.
+- Each grain-boundary update is limited by `maxWindowChangeRatioPerGrain = 1.25` and `maxWindowChangeSamplesPerGrain = 512`.
+- No empirical ratio correction is applied.
 
 ## 0.1.20 Update - separated pitch shifter summaries and default-candidate input-sync
 
@@ -68,7 +82,7 @@ Project version: 0.1.20
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: input-synced-window-002`。
+- pitch debug subtitle の現在の build string は `Build: input-synced-window-continuity-001`。
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -87,7 +101,7 @@ Project version: 0.1.20
 
 ## Build Configuration
 
-- CMake project version: `0.1.20`
+- CMake project version: `0.1.21`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -323,9 +337,14 @@ Pitch shifter:
 - Two phase windows per voice: `phaseA`, `phaseB`.
 - Window function: Hann-like `0.5 - 0.5*cos(2*pi*phase)`.
 - `pitchWindowSamples` is approximately `18 ms`, limited to `256-4096`.
-- Input-synced pitch window is the current default candidate when a valid `correctionInputPitchHz` is present: `clamp(round(6.0 * sampleRate / correctionInputPitchHz), 256, 4096)`.
+- Input-synced pitch window is the current default candidate when a valid smoothed `windowPitchHz` is present: `clamp(round(6.0 * sampleRate / windowPitchHz), 256, 4096)`.
+- `correctionInputPitchHz` is still used directly for `pitchRatio = targetMidiHz / correctionInputPitchHz`; `windowPitchHz` is only for grain/window length calculation.
+- `windowPitchHz` uses slower log-frequency smoothing than the harmony ratio input to avoid abrupt window length changes.
+- Each voice stores `windowSamplesA` and `windowSamplesB`; active grains do not change their window length mid-grain.
+- New target window lengths are adopted only when each corresponding phase wraps.
+- Per-wrap window length changes are limited by ratio and sample-count clamps to reduce read-position discontinuities.
 - `useInputSyncedPitchWindowByDefault` can switch the render path back to fixed-window behavior for comparison.
-- Adjustable constants: `fixedPitchWindowSeconds = 0.018`, `inputSyncedPitchWindowCycles = 6.0`, `inputSyncedMinWindowSamples = 256`, `inputSyncedMaxWindowSamples = 4096`.
+- Adjustable constants: `fixedPitchWindowSeconds = 0.018`, `inputSyncedPitchWindowCycles = 6.0`, `inputSyncedMinWindowSamples = 256`, `inputSyncedMaxWindowSamples = 4096`, `windowPitchSmoothingSeconds = 0.15`, `maxWindowChangeRatioPerGrain = 1.25`, `maxWindowChangeSamplesPerGrain = 512`.
 - If no valid pitch is available, the active pitch window falls back to the fixed `18 ms` value.
 - `minimumDelaySamples` is approximately `4 ms`, limited to `32-1024`.
 - No empirical ratio correction is applied.
@@ -384,7 +403,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: input-synced-window-002`
+- `Build: input-synced-window-continuity-001`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`
