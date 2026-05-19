@@ -1,5 +1,27 @@
 # VoxChord Test Log
 
+## 0.1.30 Compact Character debug display
+
+Date: 2026-05-20
+
+Implementation status:
+
+- Hid Debug GUI pitch runtime detail fields by default.
+- Added `showDebugPitchRuntimeDetails = false` in `PluginEditor.cpp` as the restore point.
+- Hidden pitch fields: RMS, Raw, Corr, Disp, RatioIn, Conf, Voiced, Fix, RatioSmooth.
+- Character diagnostics remain visible in the Debug subtitle.
+- Self-test summary display remains hidden by default.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Debug subtitle is no longer filled by Raw/Corr and related pitch diagnostic fields.
+- Character diagnostic fields are visible without being pushed out of view.
+- `showDebugPitchRuntimeDetails = true` restores the pitch runtime details if needed later.
+
 ## 0.1.29 Debug self-test quiet mode
 
 Date: 2026-05-20

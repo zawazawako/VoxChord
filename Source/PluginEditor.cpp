@@ -3,6 +3,7 @@
 namespace
 {
     constexpr auto showDebugSelfTestSummary = false;
+    constexpr auto showDebugPitchRuntimeDetails = false;
 
     juce::Colour backgroundColour()
     {
@@ -86,11 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
-        const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
-        const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
-        const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
-        auto text = juce::String ("Build: debug-runtime-quiet-001 | ");
+        auto text = juce::String ("Build: character-debug-compact-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -105,16 +102,38 @@ namespace
             juce::ignoreUnused (selfTestSummary);
         }
 
-        text += "RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
-             + " | Raw: " + rawText
-             + " | Corr: " + correctedText
-             + " | Disp: " + displayText
-             + " | RatioIn: " + correctionText
-             + " | Conf: " + juce::String (state.confidence, 2)
-             + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
-             + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode)
-             + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2)
-             + " | CharMode raw/safe: " + juce::String (state.characterModeRaw)
+        if constexpr (showDebugPitchRuntimeDetails)
+        {
+            const auto rawText = state.rawPitchHz > 0.0f ? juce::String (state.rawPitchHz, 1) + " Hz" : "--";
+            const auto correctedText = state.correctedPitchHz > 0.0f ? juce::String (state.correctedPitchHz, 1) + " Hz" : "--";
+            const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
+            const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
+
+            text += "RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
+                 + " | Raw: " + rawText
+                 + " | Corr: " + correctedText
+                 + " | Disp: " + displayText
+                 + " | RatioIn: " + correctionText
+                 + " | Conf: " + juce::String (state.confidence, 2)
+                 + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
+                 + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode)
+                 + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2)
+                 + " | ";
+        }
+        else
+        {
+            juce::ignoreUnused (state.inputRmsDb,
+                                state.rawPitchHz,
+                                state.correctedPitchHz,
+                                state.displayStablePitchHz,
+                                state.correctionInputPitchHz,
+                                state.confidence,
+                                state.voiced,
+                                state.harmonicCorrectionMode,
+                                state.ratioSmoothingCoefficient);
+        }
+
+        text += "CharMode raw/safe: " + juce::String (state.characterModeRaw)
              + "/" + juce::String (state.characterModeSanitized)
              + " | CharAmt raw/sm: " + juce::String (state.characterAmountRaw, 2)
              + "/" + juce::String (state.characterAmountSmoothed, 2)

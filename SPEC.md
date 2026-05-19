@@ -1,7 +1,17 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.29
+Project version: 0.1.30
+
+## 0.1.30 Update - Compact Character debug display
+
+- CMake project version: `0.1.30`.
+- Debug GUI pitch subtitle build string: `Build: character-debug-compact-001`.
+- Debug GUI pitch runtime details are hidden by default via `showDebugPitchRuntimeDetails = false` in `PluginEditor.cpp`.
+- Hidden-by-default pitch runtime fields include `RMS`, `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, and `RatioSmooth`.
+- Character diagnostics remain visible: `CharMode raw/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
+- Self-test summary display remains hidden by default via `showDebugSelfTestSummary = false`.
+- The pitch runtime detail code remains in place and can be restored by toggling `showDebugPitchRuntimeDetails`.
 
 ## 0.1.29 Update - Debug self-test quiet mode
 
@@ -223,7 +233,7 @@ Project version: 0.1.29
 
 ## Build Configuration
 
-- CMake project version: `0.1.29`
+- CMake project version: `0.1.30`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.29)
+project(VoxChord VERSION 0.1.30)
 
 add_subdirectory(../JUCE JUCE)
 
