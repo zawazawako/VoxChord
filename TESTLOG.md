@@ -1,5 +1,34 @@
 # VoxChord Test Log
 
+## 0.1.28 Character signal-path diagnostics
+
+Date: 2026-05-20
+
+Implementation status:
+
+- Added Debug GUI diagnostics for Character signal-path verification.
+- Debug subtitle now shows `CharMode raw/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
+- `CharAmt raw` comes from APVTS parameter ID `character`.
+- `CharAmt sm` is the processor-smoothed value passed to `SimpleChoirEngine`.
+- `CharMode raw` comes from APVTS parameter ID `characterMode`.
+- `CharMode safe` is the sanitized internal mode used by DSP.
+- `CharDelta rms/pk` measures the difference between pre-character and post-character harmony voice samples inside the wet harmony render path.
+- Character is currently specified to affect harmony voices only; it does not process Dry or Tuned Lead.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+Debug test recommendation:
+
+- Set `Dry/Wet = 100% Wet`.
+- Set `Lead Tune = Off`.
+- Set `Voice Count = 4` or `8`.
+- Set `Character Type = Vowel`.
+- Compare `Character Amount = 0%` and `100%`.
+- At `0%`, `CharAmt raw/sm` should approach `0.00/0.00`, and `CharDelta rms/pk` should approach zero.
+- At `100%`, `CharAmt raw/sm` should approach `1.00/1.00`, and `CharDelta rms/pk` should become non-zero while MIDI harmony voices are sounding.
+
 ## 0.1.27 Stronger Character coloration
 
 Date: 2026-05-19

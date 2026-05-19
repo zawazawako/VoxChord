@@ -18,9 +18,15 @@ struct PitchState
     float stablePitchHz = 0.0f;
     float harmonyPitchHz = 0.0f;
     float ratioSmoothingCoefficient = 0.0f;
+    float characterAmountRaw = 0.0f;
+    float characterAmountSmoothed = 0.0f;
+    float characterDeltaRms = 0.0f;
+    float characterDeltaPeak = 0.0f;
     float confidence = 0.0f;
     bool voiced = false;
     int harmonicCorrectionMode = 0;
+    int characterModeRaw = 0;
+    int characterModeSanitized = 0;
 };
 
 struct PitchShifterSelfTestModeSummary
@@ -58,7 +64,8 @@ public:
                  float tune,
                  float glide,
                  int characterMode,
-                 float characterAmount,
+                 float characterAmountRaw,
+                 float characterAmountSmoothed,
                  bool leadTuneEnabled) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
     PitchState getPitchState() const noexcept { return pitchState; }

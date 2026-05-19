@@ -174,10 +174,12 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     handleMidi (midiMessages);
     copyInputToDryBuffer (buffer);
     const auto inputPeak = calculatePeak (dryBuffer, dryBuffer.getNumChannels(), samples);
-    characterAmountSmoothed.setTargetValue (getCharacter());
+    const auto characterAmountRawValue = getCharacter();
+    characterAmountSmoothed.setTargetValue (characterAmountRawValue);
     const auto characterAmount = samples > 0
                                      ? characterAmountSmoothed.skip (samples)
                                      : characterAmountSmoothed.getCurrentValue();
+    const auto characterModeRawValue = getCharacterModeRaw();
     choirEngine.render (dryBuffer,
                          wetBuffer,
                          tunedLeadBuffer,
@@ -186,7 +188,8 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getSpread(),
                          getTune(),
                          getGlide(),
-                         getCharacterMode(),
+                         characterModeRawValue,
+                         characterAmountRawValue,
                          characterAmount,
                          getLeadTuneEnabled());
     const auto pitchState = choirEngine.getPitchState();
@@ -199,9 +202,15 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     stablePitchHz.store (pitchState.stablePitchHz, std::memory_order_relaxed);
     harmonyPitchHz.store (pitchState.harmonyPitchHz, std::memory_order_relaxed);
     ratioSmoothingCoefficient.store (pitchState.ratioSmoothingCoefficient, std::memory_order_relaxed);
+    characterAmountRaw.store (pitchState.characterAmountRaw, std::memory_order_relaxed);
+    characterAmountSmoothedValue.store (pitchState.characterAmountSmoothed, std::memory_order_relaxed);
+    characterDeltaRms.store (pitchState.characterDeltaRms, std::memory_order_relaxed);
+    characterDeltaPeak.store (pitchState.characterDeltaPeak, std::memory_order_relaxed);
     pitchConfidence.store (pitchState.confidence, std::memory_order_relaxed);
     pitchVoiced.store (pitchState.voiced, std::memory_order_relaxed);
     harmonicCorrectionMode.store (pitchState.harmonicCorrectionMode, std::memory_order_relaxed);
+    characterModeRaw.store (pitchState.characterModeRaw, std::memory_order_relaxed);
+    characterModeSanitized.store (pitchState.characterModeSanitized, std::memory_order_relaxed);
     mixDryWetToOutput (buffer);
 
     const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
@@ -283,9 +292,15 @@ voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
     state.stablePitchHz = stablePitchHz.load (std::memory_order_relaxed);
     state.harmonyPitchHz = harmonyPitchHz.load (std::memory_order_relaxed);
     state.ratioSmoothingCoefficient = ratioSmoothingCoefficient.load (std::memory_order_relaxed);
+    state.characterAmountRaw = characterAmountRaw.load (std::memory_order_relaxed);
+    state.characterAmountSmoothed = characterAmountSmoothedValue.load (std::memory_order_relaxed);
+    state.characterDeltaRms = characterDeltaRms.load (std::memory_order_relaxed);
+    state.characterDeltaPeak = characterDeltaPeak.load (std::memory_order_relaxed);
     state.confidence = pitchConfidence.load (std::memory_order_relaxed);
     state.voiced = pitchVoiced.load (std::memory_order_relaxed);
     state.harmonicCorrectionMode = harmonicCorrectionMode.load (std::memory_order_relaxed);
+    state.characterModeRaw = characterModeRaw.load (std::memory_order_relaxed);
+    state.characterModeSanitized = characterModeSanitized.load (std::memory_order_relaxed);
     return state;
 }
 
@@ -371,14 +386,17 @@ float VoxChordAudioProcessor::getCharacter() const noexcept
     return juce::jlimit (0.0f, 1.0f, characterParameter->load (std::memory_order_relaxed));
 }
 
-int VoxChordAudioProcessor::getCharacterMode() const noexcept
+int VoxChordAudioProcessor::getCharacterModeRaw() const noexcept
 {
     if (characterModeParameter == nullptr)
         return 0;
 
-    return juce::jlimit (0,
-                         4,
-                         juce::roundToInt (characterModeParameter->load (std::memory_order_relaxed)));
+    return juce::roundToInt (characterModeParameter->load (std::memory_order_relaxed));
+}
+
+int VoxChordAudioProcessor::getCharacterMode() const noexcept
+{
+    return juce::jlimit (0, 4, getCharacterModeRaw());
 }
 
 bool VoxChordAudioProcessor::getLeadTuneEnabled() const noexcept

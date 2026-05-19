@@ -625,7 +625,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                 float tune,
                                 float glide,
                                 int characterMode,
-                                float characterAmount,
+                                float characterAmountRaw,
+                                float characterAmountSmoothed,
                                 bool leadTuneEnabled) noexcept
 {
     wetOutput.clear();
@@ -644,7 +645,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto safeVoiceLimit = juce::jlimit (1, MidiVoiceState::maxVoices, voiceLimit);
     const auto safeGlide = juce::jlimit (0.0f, 1.0f, glide);
     const auto safeCharacterMode = sanitizeCharacterMode (characterMode);
-    const auto safeCharacterAmount = juce::jlimit (0.0f, 1.0f, characterAmount);
+    const auto safeCharacterAmountRaw = juce::jlimit (0.0f, 1.0f, characterAmountRaw);
+    const auto safeCharacterAmount = juce::jlimit (0.0f, 1.0f, characterAmountSmoothed);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
     const auto transitionRatioCoefficient = getNoteTransitionRatioCoefficient (currentSampleRate);
@@ -653,6 +655,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                : juce::jmin (transitionRatioCoefficient, glideCoefficient);
     pitchState = pitchDetector.processBlock (dryInput);
     pitchState.ratioSmoothingCoefficient = ratioSmoothingCoefficient;
+    pitchState.characterModeRaw = characterMode;
+    pitchState.characterModeSanitized = safeCharacterMode;
+    pitchState.characterAmountRaw = safeCharacterAmountRaw;
+    pitchState.characterAmountSmoothed = safeCharacterAmount;
+    pitchState.characterDeltaRms = 0.0f;
+    pitchState.characterDeltaPeak = 0.0f;
     const auto inputFrequencyHz = pitchState.correctionInputPitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
     const auto windowFrequencyHz = updateWindowPitchHz (inputFrequencyHz, samples);
@@ -756,6 +764,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     auto* right = outputChannels > 1 ? wetOutput.getWritePointer (1) : nullptr;
     auto* leadLeft = tunedLeadOutput.getWritePointer (0);
     auto* leadRight = leadOutputChannels > 1 ? tunedLeadOutput.getWritePointer (1) : nullptr;
+    auto characterDeltaSumSquares = 0.0f;
+    auto characterDeltaPeak = 0.0f;
+    auto characterDeltaCount = 0;
 
     for (auto sample = 0; sample < samples; ++sample)
     {
@@ -810,6 +821,10 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                          renderSlots[static_cast<size_t> (index)],
                                                          safeCharacterMode,
                                                          safeCharacterAmount);
+            const auto characterDelta = charactered - shifted;
+            characterDeltaSumSquares += characterDelta * characterDelta;
+            characterDeltaPeak = juce::jmax (characterDeltaPeak, std::abs (characterDelta));
+            ++characterDeltaCount;
             const auto enveloped = charactered * voice.envelopeGain;
 
             left[sample] += enveloped * (outputChannels > 1 ? voice.leftGain : voice.monoGain);
@@ -819,6 +834,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         }
 
         writeIndex = (writeIndex + 1) % delayBufferSize;
+    }
+
+    if (characterDeltaCount > 0)
+    {
+        pitchState.characterDeltaRms = std::sqrt (characterDeltaSumSquares / static_cast<float> (characterDeltaCount));
+        pitchState.characterDeltaPeak = characterDeltaPeak;
     }
 }
 

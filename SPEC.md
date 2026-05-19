@@ -1,7 +1,23 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-19
-Project version: 0.1.27
+Last updated: 2026-05-20
+Project version: 0.1.28
+
+## 0.1.28 Update - Character signal-path diagnostics
+
+- CMake project version: `0.1.28`.
+- Debug GUI pitch subtitle build string: `Build: character-diagnostics-001`.
+- Added Character diagnostics to `PitchState` and the Debug GUI subtitle.
+- Debug GUI now displays `CharMode raw/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
+- `characterMode raw` is the APVTS choice index read by `PluginProcessor`.
+- `characterMode sanitized` is the `SimpleChoirEngine::sanitizeCharacterMode()` result used by DSP.
+- `characterAmount raw` is the APVTS `character` parameter value used as Character Amount.
+- `characterAmount smoothed` is the processor-smoothed value passed to `SimpleChoirEngine`.
+- `characterDeltaRms` and `characterDeltaPeak` measure the per-block difference between the pre-character harmony voice sample and the post-`applyCharacterTone()` sample.
+- Character diagnostics are measured only on harmony voices; Character does not process the original Dry path or Tuned Lead path.
+- Character processing path is: GUI Amount slider -> APVTS `character` -> `PluginProcessor::getCharacter()` -> `characterAmountSmoothed` -> `SimpleChoirEngine::render()` -> `getCharacterPitchRatio()` / `getCharacterGain()` / `getCharacterDelayOffsetSamples()` / `applyCharacterTone()` -> wet harmony output.
+- GUI `Char Type` uses APVTS `characterMode`; visible item IDs map to internal modes `1=Warm`, `2=Bright`, `3=Vowel`, `4=Digital`.
+- `applyCharacterTone()` return value is multiplied by the voice envelope and then written to the wet harmony output.
 
 ## 0.1.27 Update - stronger Character coloration
 
@@ -197,7 +213,7 @@ Project version: 0.1.27
 
 ## Build Configuration
 
-- CMake project version: `0.1.27`
+- CMake project version: `0.1.28`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`

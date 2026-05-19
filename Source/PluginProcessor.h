@@ -93,6 +93,7 @@ private:
     float getTune() const noexcept;
     float getGlide() const noexcept;
     float getCharacter() const noexcept;
+    int getCharacterModeRaw() const noexcept;
     int getCharacterMode() const noexcept;
     bool getLeadTuneEnabled() const noexcept;
     InputSource getInputSource() const noexcept;
@@ -129,9 +130,15 @@ private:
     std::atomic<float> stablePitchHz { 0.0f };
     std::atomic<float> harmonyPitchHz { 0.0f };
     std::atomic<float> ratioSmoothingCoefficient { 0.0f };
+    std::atomic<float> characterAmountRaw { 0.0f };
+    std::atomic<float> characterAmountSmoothedValue { 0.0f };
+    std::atomic<float> characterDeltaRms { 0.0f };
+    std::atomic<float> characterDeltaPeak { 0.0f };
     std::atomic<float> pitchConfidence { 0.0f };
     std::atomic<bool> pitchVoiced { false };
     std::atomic<int> harmonicCorrectionMode { 0 };
+    std::atomic<int> characterModeRaw { 0 };
+    std::atomic<int> characterModeSanitized { 0 };
 
     std::atomic<float>* dryWetParameter = nullptr;
     std::atomic<float>* voiceCountParameter = nullptr;

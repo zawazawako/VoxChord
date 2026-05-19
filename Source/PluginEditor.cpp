@@ -89,7 +89,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return juce::String ("Build: character-strength-001 | ")
+        return juce::String ("Build: character-diagnostics-001 | ")
              + "Pitch Shifter SelfTest | "
              + formatPitchShifterSelfTestModeSummary ("Fixed", selfTestSummary.fixedWindow)
              + " | "
@@ -102,7 +102,13 @@ namespace
              + " | Conf: " + juce::String (state.confidence, 2)
              + " | Voiced: " + juce::String (state.voiced ? "yes" : "no")
              + " | Fix: " + harmonicCorrectionToString (state.harmonicCorrectionMode)
-             + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2);
+             + " | RatioSmooth: " + juce::String (state.ratioSmoothingCoefficient, 2)
+             + " | CharMode raw/safe: " + juce::String (state.characterModeRaw)
+             + "/" + juce::String (state.characterModeSanitized)
+             + " | CharAmt raw/sm: " + juce::String (state.characterAmountRaw, 2)
+             + "/" + juce::String (state.characterAmountSmoothed, 2)
+             + " | CharDelta rms/pk: " + juce::String (state.characterDeltaRms, 5)
+             + "/" + juce::String (state.characterDeltaPeak, 5);
 #else
         juce::ignoreUnused (state, selfTestSummary);
         return juce::String ("VoxChord v") + JucePlugin_VersionString;
