@@ -411,6 +411,48 @@ VoxChord の各バージョンで確認した動作を記録する。
 - ハーモニー生成が `stablePitchHz` に基づいて動くこと。
 - subtitle の `Build: pitch-yin-001` により新しいビルドであることを確認できること。
 
+## 0.1.19 phase 3Q input-synced pitch window prototype
+
+Date: 2026-05-19
+
+Target builds:
+
+- Debug Standalone: user verification pending
+- Debug VST3: user verification pending
+- Release Standalone: user verification pending
+- Release VST3: user verification pending
+
+Context:
+
+- Previous PitchShifterSelfTest results indicated that read speed, phaseDelta, delayStep, and phaseWrap behaved according to theory.
+- Spectral diagnostics showed that the dominant output peak could still shift away from the expected frequency.
+- Current hypothesis: the fixed-window delay shifter's non-input-synchronous crossfade/grain length may create sidebands or an effective spectral peak offset.
+
+Implemented:
+
+- Added an experimental input-F0-synced pitch window mode without empirical ratio correction.
+- Active window formula: `periodSamples = sampleRate / correctionInputPitchHz`.
+- Active window formula: `windowSamples = clamp(round(6.0 * periodSamples), 256, 4096)`.
+- Invalid or missing `correctionInputPitchHz` falls back to the existing fixed `18 ms` window.
+- `renderPitchShiftedSample()` now receives the active `windowSamples` explicitly and keeps the theoretical relation `phaseDelta = (1 - ratio) / windowSamples`.
+- Delay buffer allocation now reserves for the maximum 4096-sample window.
+- PitchShifterSelfTest now keeps fixed-window cases and adds input-synced comparison cases for `440/660/880 Hz * 0.5` and `440 Hz * 2.0`.
+- SelfTest DBG output now includes `windowMode`, active `pitchWindowSamples`, `fixedPitchWindowSamples`, `inputPeriodSamples`, and `inputSyncedWindowCycles`.
+- GUI debug build string updated to `Build: input-synced-window-001`.
+- CMake project version updated to `0.1.19`.
+
+Not changed:
+
+- No empirical ratio correction coefficient was added.
+- PitchDetector behavior was not changed.
+- The pitch shifter algorithm was not replaced.
+
+Verification pending:
+
+- User build of Debug/Release targets.
+- Compare DBG output for fixed vs input-synced window cases, especially ratio `0.5`.
+- Check whether the top spectral peak moves closer to expected frequencies for `220/330/440 Hz` expected outputs.
+
 ## 0.1.18 phase 3P pitch shifter spectral diagnostics
 
 日付: 2026-05-19

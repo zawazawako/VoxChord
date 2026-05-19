@@ -82,7 +82,7 @@ namespace
         const auto displayText = state.displayStablePitchHz > 0.0f ? juce::String (state.displayStablePitchHz, 1) + " Hz" : "--";
         const auto correctionText = state.correctionInputPitchHz > 0.0f ? juce::String (state.correctionInputPitchHz, 1) + " Hz" : "--";
 
-        return "Build: pitch-shifter-spectrum-001 | "
+        return "Build: input-synced-window-001 | "
              + formatPitchShifterSelfTestSummary (selfTestSummary)
              + " | RMS: " + juce::String (state.inputRmsDb, 1) + " dB"
              + " | Raw: " + rawText

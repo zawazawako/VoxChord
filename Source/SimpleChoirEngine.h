@@ -134,6 +134,7 @@ private:
     static float getCharacterPitchRatio (int slot, float character) noexcept;
     static float getCharacterGain (int slot, float character) noexcept;
     static float getCharacterDelayOffsetSamples (int slot, float character, double sampleRate) noexcept;
+    static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
     static float readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept;
     static float wrapPhase (float phase) noexcept;
     static float windowGain (float phase) noexcept;
@@ -142,11 +143,15 @@ private:
     float readDelayLine (float delaySamples) const noexcept;
     float renderPitchShiftedSample (VoicePitchState& voice,
                                     float glideCoefficient,
-                                    float delayOffsetSamples) noexcept;
+                                    float delayOffsetSamples,
+                                    int windowSamples) noexcept;
 
     static constexpr float minPitchRatio = 0.25f;
     static constexpr float maxPitchRatio = 8.0f;
     static constexpr float ratioSmoothingAlpha = 0.35f;
+    static constexpr float inputSyncedWindowCycles = 6.0f;
+    static constexpr int minPitchWindowSamples = 256;
+    static constexpr int maxPitchWindowSamples = 4096;
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     SimplePitchDetector pitchDetector;

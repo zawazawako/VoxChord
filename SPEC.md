@@ -1,7 +1,21 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-19
-Project version: 0.1.18
+Project version: 0.1.19
+
+## 0.1.19 Update - input-synced pitch window prototype
+
+- CMake project version: `0.1.19`.
+- GUI pitch debug build string: `Build: input-synced-window-001`.
+- `SimpleChoirEngine` now computes an experimental input-synced pitch shifter window length from the current ratio input pitch:
+- `periodSamples = sampleRate / correctionInputPitchHz`
+- `windowSamples = clamp(round(6.0 * periodSamples), 256, 4096)`
+- If `correctionInputPitchHz <= 0`, the window falls back to the existing fixed `18 ms` length clamped to `256-4096`.
+- `renderPitchShiftedSample()` now receives `windowSamples` explicitly; the ratio formula remains `phaseDelta = (1 - ratio) / windowSamples`.
+- The implementation does not add any empirical ratio correction.
+- The delay buffer allocation now reserves enough space for the maximum window length, not only the default fixed 18 ms window.
+- `PitchShifterSelfTest` now includes additional input-synced window cases for `440/660/880 Hz * 0.5` and `440 Hz * 2.0`, while keeping the fixed-window cases for comparison.
+- Self test DBG output now includes `windowMode`, active `pitchWindowSamples`, fixed `fixedPitchWindowSamples`, `inputPeriodSamples`, and `inputSyncedWindowCycles`.
 
 このファイルは `Source/` 以下のファイル構造と実装仕様を記録する。今後、ソースコードを編集した場合は、git commit とあわせてこの `SPEC.md` に変更内容を反映する。
 
@@ -42,7 +56,7 @@ Project version: 0.1.18
 - Input Source selector: Auto, Input 1, Input 2, Mix 1+2。
 - MIDI note indicator、voice slot 表示、last MIDI event、pitch debug、input/output meter、PANIC button を持つ。
 - Timer は `30 Hz`。
-- pitch debug subtitle の現在の build string は `Build: pitch-shifter-spectrum-001`。
+- pitch debug subtitle の現在の build string は `Build: input-synced-window-001`。
 - Debug builds show a pitch shifter self test summary in the GUI debug subtitle.
 - pitch debug は `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, `RatioSmooth` を表示する。
 
@@ -61,7 +75,7 @@ Project version: 0.1.18
 
 ## Build Configuration
 
-- CMake project version: `0.1.18`
+- CMake project version: `0.1.19`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -256,7 +270,13 @@ Pitch shifter self test:
 - `440 Hz * 0.5 -> 220 Hz`
 - `660 Hz * 0.5 -> 330 Hz`
 - `880 Hz * 0.5 -> 440 Hz`
+- Additional input-synced window prototype cases:
+- `440 Hz * 0.5 -> 220 Hz`
+- `660 Hz * 0.5 -> 330 Hz`
+- `880 Hz * 0.5 -> 440 Hz`
+- `440 Hz * 2.0 -> 880 Hz`
 - Debug output reports expected frequency, measured frequency, error cents, +/-10 cents result, `pitchWindowSamples`, `minimumDelaySamples`, and whether ratio smoothing/glide were disabled.
+- Debug output also reports `windowMode`, `fixedPitchWindowSamples`, `inputPeriodSamples`, and `inputSyncedWindowCycles`.
 - Debug output also reports actual ratio, actual/target ratio, `phaseDelta`, delay step per sample, and theoretical read speed.
 - Debug output also reports measured delay step A/B, measured read step A/B, phase wrap count A/B, and actual wrap interval samples A/B.
 - For selected cases, debug output reports spectral diagnostics: top 5 spectral peaks, expected frequency bin magnitude, measured frequency bin magnitude, and the peak/frequency source used for the measured result.
@@ -293,7 +313,10 @@ Pitch shifter:
 - Two phase windows per voice: `phaseA`, `phaseB`.
 - Window function: Hann-like `0.5 - 0.5*cos(2*pi*phase)`.
 - `pitchWindowSamples` is approximately `18 ms`, limited to `256-4096`.
+- The experimental active pitch window is input-synced when a valid `correctionInputPitchHz` is present: `clamp(round(6.0 * sampleRate / correctionInputPitchHz), 256, 4096)`.
+- If no valid pitch is available, the active pitch window falls back to the fixed `18 ms` value.
 - `minimumDelaySamples` is approximately `4 ms`, limited to `32-1024`.
+- No empirical ratio correction is applied.
 - No second auto-tune pitch shifter is present.
 
 Ratio smoothing:
@@ -349,7 +372,7 @@ Status/debug:
 - Last MIDI event.
 - Input and output meters.
 - Pitch debug subtitle currently includes:
-- `Build: pitch-shifter-spectrum-001`
+- `Build: input-synced-window-001`
 - `Pitch Shifter SelfTest: PASS/FAIL`
 - `RMS`
 - `Raw`
