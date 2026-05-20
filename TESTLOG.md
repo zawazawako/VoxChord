@@ -1,5 +1,30 @@
 # VoxChord Test Log
 
+## 0.1.31 Character Type internal mode mapping
+
+Date: 2026-05-20
+
+Implementation status:
+
+- Fixed Character Type GUI-to-DSP internal mode mapping.
+- Confirmed the root cause in JUCE: `ComboBoxParameterAttachment` maps by selected item index, not ComboBox item ID.
+- The previous 4-item GUI attached to a 5-choice APVTS parameter produced APVTS values `0`, `1`, `3`, and `4` for Warm, Bright, Vowel, and Digital.
+- Changed APVTS `characterMode` choices to the visible 4 choices only: Warm, Bright, Vowel, Digital.
+- Added centralized conversion function `voxchord::characterModeGuiIndexToInternalMode()`.
+- Internal DSP mapping is now `Warm -> 1`, `Bright -> 2`, `Vowel -> 3`, `Digital -> 4`.
+- Updated `SimpleChoirEngine::sanitizeCharacterMode()` to clamp internal modes to `1-4`.
+- Updated Debug build string to `Build: character-mode-map-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Debug Character mode display shows `CharMode internal/safe` as Warm `1/1`, Bright `2/2`, Vowel `3/3`, Digital `4/4`.
+- Warm at Amount `100%` produces non-zero `CharDelta` while MIDI harmony voices are sounding.
+- Bright enters the intended Bright tone path, `applyCharacterTone()` `case 2`.
+
 ## 0.1.30 Compact Character debug display
 
 Date: 2026-05-20

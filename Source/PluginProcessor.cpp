@@ -185,6 +185,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                      ? characterAmountSmoothed.skip (samples)
                                      : characterAmountSmoothed.getCurrentValue();
     const auto characterModeRawValue = getCharacterModeRaw();
+    const auto characterModeInternal = getCharacterMode();
     choirEngine.render (dryBuffer,
                          wetBuffer,
                          tunedLeadBuffer,
@@ -193,7 +194,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          getSpread(),
                          getTune(),
                          getGlide(),
-                         characterModeRawValue,
+                         characterModeInternal,
                          characterAmountRawValue,
                          characterAmount,
                          getLeadTuneEnabled());
@@ -401,7 +402,7 @@ int VoxChordAudioProcessor::getCharacterModeRaw() const noexcept
 
 int VoxChordAudioProcessor::getCharacterMode() const noexcept
 {
-    return juce::jlimit (0, 4, getCharacterModeRaw());
+    return voxchord::characterModeGuiIndexToInternalMode (getCharacterModeRaw());
 }
 
 bool VoxChordAudioProcessor::getLeadTuneEnabled() const noexcept

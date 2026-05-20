@@ -87,7 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: character-debug-compact-001 | ");
+        auto text = juce::String ("Build: character-mode-map-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -133,7 +133,7 @@ namespace
                                 state.ratioSmoothingCoefficient);
         }
 
-        text += "CharMode raw/safe: " + juce::String (state.characterModeRaw)
+        text += "CharMode internal/safe: " + juce::String (state.characterModeRaw)
              + "/" + juce::String (state.characterModeSanitized)
              + " | CharAmt raw/sm: " + juce::String (state.characterAmountRaw, 2)
              + "/" + juce::String (state.characterAmountSmoothed, 2)
@@ -245,10 +245,10 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     characterTypeLabel.setFont (juce::FontOptions { 14.0f, juce::Font::bold });
     addAndMakeVisible (characterTypeLabel);
 
-    characterModeBox.addItem ("Warm", 2);
-    characterModeBox.addItem ("Bright", 3);
-    characterModeBox.addItem ("Vowel", 4);
-    characterModeBox.addItem ("Digital", 5);
+    characterModeBox.addItem ("Warm", 1);
+    characterModeBox.addItem ("Bright", 2);
+    characterModeBox.addItem ("Vowel", 3);
+    characterModeBox.addItem ("Digital", 4);
     characterModeBox.setColour (juce::ComboBox::backgroundColourId, panelColour());
     characterModeBox.setColour (juce::ComboBox::textColourId, juce::Colours::white);
     characterModeBox.setColour (juce::ComboBox::outlineColourId, accentColour().withAlpha (0.55f));

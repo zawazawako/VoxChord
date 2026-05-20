@@ -19,6 +19,7 @@ namespace ParameterIDs
     inline constexpr auto leadTuneEnabled = "leadTuneEnabled";
 }
 
+int characterModeGuiIndexToInternalMode (int guiIndex) noexcept;
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 } // namespace voxchord

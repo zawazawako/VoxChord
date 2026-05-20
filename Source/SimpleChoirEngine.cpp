@@ -1356,7 +1356,7 @@ float SimpleChoirEngine::getEnvelopeCoefficient (float timeSeconds, double sampl
 
 int SimpleChoirEngine::sanitizeCharacterMode (int characterMode) noexcept
 {
-    return juce::jlimit (0, 4, characterMode);
+    return juce::jlimit (1, 4, characterMode);
 }
 
 float SimpleChoirEngine::getChromaticLeadPitchRatio (float inputFrequencyHz) noexcept

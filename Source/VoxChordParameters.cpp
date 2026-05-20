@@ -22,6 +22,20 @@ namespace
     }
 }
 
+int characterModeGuiIndexToInternalMode (int guiIndex) noexcept
+{
+    switch (guiIndex)
+    {
+        case 0:  return 1; // Warm
+        case 1:  return 2; // Bright
+        case 2:  return 3; // Vowel
+        case 3:  return 4; // Digital
+        default: break;
+    }
+
+    return juce::jlimit (1, 4, guiIndex + 1);
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 {
     using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
@@ -62,8 +76,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         ParameterID { ParameterIDs::characterMode, 1 },
         "Character",
-        juce::StringArray { "Clean", "Warm", "Bright", "Vowel", "Digital" },
-        1));
+        juce::StringArray { "Warm", "Bright", "Vowel", "Digital" },
+        0));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         ParameterID { ParameterIDs::spread, 1 },

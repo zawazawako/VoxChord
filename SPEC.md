@@ -1,7 +1,22 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.30
+Project version: 0.1.31
+
+## 0.1.31 Update - Character Type internal mode mapping
+
+- CMake project version: `0.1.31`.
+- Debug GUI pitch subtitle build string: `Build: character-mode-map-001`.
+- Fixed Character Type GUI-to-DSP mode mapping.
+- Root cause: JUCE `ComboBoxParameterAttachment` maps by selected item index, not ComboBox item ID. The GUI exposed 4 items while the APVTS `characterMode` choice previously had 5 items (`Clean`, `Warm`, `Bright`, `Vowel`, `Digital`), producing APVTS values `0`, `1`, `3`, and `4` for the visible GUI items.
+- APVTS `characterMode` now has only the visible GUI choices: `Warm`, `Bright`, `Vowel`, `Digital`.
+- GUI index to DSP internal mode conversion is centralized in `voxchord::characterModeGuiIndexToInternalMode()`.
+- Internal mode mapping is now `Warm -> 1`, `Bright -> 2`, `Vowel -> 3`, and `Digital -> 4`.
+- `SimpleChoirEngine::sanitizeCharacterMode()` now clamps internal Character modes to `1-4`.
+- Clean behavior remains available through Character Amount `0%`, not through a visible Character Type.
+- Debug Character mode display should now show internal modes `1/1`, `2/2`, `3/3`, and `4/4` for Warm, Bright, Vowel, and Digital respectively.
+- Warm at Amount `100%` should now produce non-zero `CharDelta` while harmony voices are rendering.
+- Bright now enters `applyCharacterTone()` `case 2`.
 
 ## 0.1.30 Update - Compact Character debug display
 
@@ -9,7 +24,7 @@ Project version: 0.1.30
 - Debug GUI pitch subtitle build string: `Build: character-debug-compact-001`.
 - Debug GUI pitch runtime details are hidden by default via `showDebugPitchRuntimeDetails = false` in `PluginEditor.cpp`.
 - Hidden-by-default pitch runtime fields include `RMS`, `Raw`, `Corr`, `Disp`, `RatioIn`, `Conf`, `Voiced`, `Fix`, and `RatioSmooth`.
-- Character diagnostics remain visible: `CharMode raw/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
+- Character diagnostics remain visible: `CharMode internal/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
 - Self-test summary display remains hidden by default via `showDebugSelfTestSummary = false`.
 - The pitch runtime detail code remains in place and can be restored by toggling `showDebugPitchRuntimeDetails`.
 
@@ -28,15 +43,15 @@ Project version: 0.1.30
 - CMake project version: `0.1.28`.
 - Debug GUI pitch subtitle build string: `Build: character-diagnostics-001`.
 - Added Character diagnostics to `PitchState` and the Debug GUI subtitle.
-- Debug GUI now displays `CharMode raw/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
-- `characterMode raw` is the APVTS choice index read by `PluginProcessor`.
+- Debug GUI now displays `CharMode internal/safe`, `CharAmt raw/sm`, and `CharDelta rms/pk`.
+- `characterMode raw` is now the DSP internal Character mode after `voxchord::characterModeGuiIndexToInternalMode()` conversion.
 - `characterMode sanitized` is the `SimpleChoirEngine::sanitizeCharacterMode()` result used by DSP.
 - `characterAmount raw` is the APVTS `character` parameter value used as Character Amount.
 - `characterAmount smoothed` is the processor-smoothed value passed to `SimpleChoirEngine`.
 - `characterDeltaRms` and `characterDeltaPeak` measure the per-block difference between the pre-character harmony voice sample and the post-`applyCharacterTone()` sample.
 - Character diagnostics are measured only on harmony voices; Character does not process the original Dry path or Tuned Lead path.
 - Character processing path is: GUI Amount slider -> APVTS `character` -> `PluginProcessor::getCharacter()` -> `characterAmountSmoothed` -> `SimpleChoirEngine::render()` -> `getCharacterPitchRatio()` / `getCharacterGain()` / `getCharacterDelayOffsetSamples()` / `applyCharacterTone()` -> wet harmony output.
-- GUI `Char Type` uses APVTS `characterMode`; visible item IDs map to internal modes `1=Warm`, `2=Bright`, `3=Vowel`, `4=Digital`.
+- GUI `Char Type` uses APVTS `characterMode`; conversion to DSP internal modes is centralized in `voxchord::characterModeGuiIndexToInternalMode()`.
 - `applyCharacterTone()` return value is multiplied by the voice envelope and then written to the wet harmony output.
 
 ## 0.1.27 Update - stronger Character coloration
@@ -233,7 +248,7 @@ Project version: 0.1.30
 
 ## Build Configuration
 
-- CMake project version: `0.1.30`
+- CMake project version: `0.1.31`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -312,11 +327,13 @@ Dry/wet and output:
 `characterMode`
 
 - Type: choice
-- Internal choices: `Clean`, `Warm`, `Bright`, `Vowel`, `Digital`
-- GUI-visible choices: `Warm`, `Bright`, `Vowel`, `Digital`
+- APVTS / GUI-visible choices: `Warm`, `Bright`, `Vowel`, `Digital`
+- APVTS GUI indexes: `0=Warm`, `1=Bright`, `2=Vowel`, `3=Digital`
+- DSP internal modes: `1=Warm`, `2=Bright`, `3=Vowel`, `4=Digital`
+- Conversion function: `voxchord::characterModeGuiIndexToInternalMode()`
 - Default: `Warm`
 - Controls lightweight per-voice tone shaping and small colored-mode detune/delay/gain offsets, scaled by `character`.
-- Internal `Clean` remains only for compatibility; normal Clean behavior is achieved with Amount `0%`.
+- Normal Clean behavior is achieved with Amount `0%`.
 
 `spread`
 
