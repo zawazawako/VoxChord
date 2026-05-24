@@ -212,6 +212,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     characterAmountSmoothedValue.store (pitchState.characterAmountSmoothed, std::memory_order_relaxed);
     characterDeltaRms.store (pitchState.characterDeltaRms, std::memory_order_relaxed);
     characterDeltaPeak.store (pitchState.characterDeltaPeak, std::memory_order_relaxed);
+    characterDeltaRatioDb.store (pitchState.characterDeltaRatioDb, std::memory_order_relaxed);
     pitchConfidence.store (pitchState.confidence, std::memory_order_relaxed);
     pitchVoiced.store (pitchState.voiced, std::memory_order_relaxed);
     harmonicCorrectionMode.store (pitchState.harmonicCorrectionMode, std::memory_order_relaxed);
@@ -302,6 +303,7 @@ voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
     state.characterAmountSmoothed = characterAmountSmoothedValue.load (std::memory_order_relaxed);
     state.characterDeltaRms = characterDeltaRms.load (std::memory_order_relaxed);
     state.characterDeltaPeak = characterDeltaPeak.load (std::memory_order_relaxed);
+    state.characterDeltaRatioDb = characterDeltaRatioDb.load (std::memory_order_relaxed);
     state.confidence = pitchConfidence.load (std::memory_order_relaxed);
     state.voiced = pitchVoiced.load (std::memory_order_relaxed);
     state.harmonicCorrectionMode = harmonicCorrectionMode.load (std::memory_order_relaxed);

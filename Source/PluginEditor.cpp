@@ -87,7 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: character-mode-map-001 | ");
+        auto text = juce::String ("Build: character-eq-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -137,8 +137,10 @@ namespace
              + "/" + juce::String (state.characterModeSanitized)
              + " | CharAmt raw/sm: " + juce::String (state.characterAmountRaw, 2)
              + "/" + juce::String (state.characterAmountSmoothed, 2)
-             + " | CharDelta rms/pk: " + juce::String (state.characterDeltaRms, 5)
-             + "/" + juce::String (state.characterDeltaPeak, 5);
+             + " | CharIn: " + juce::String (state.inputRmsDb, 1) + " dB"
+             + " | CharDelta rms/pk/rel: " + juce::String (state.characterDeltaRms, 5)
+             + "/" + juce::String (state.characterDeltaPeak, 5)
+             + "/" + juce::String (state.characterDeltaRatioDb, 1) + " dB";
 
         return text;
 #else

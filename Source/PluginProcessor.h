@@ -134,6 +134,7 @@ private:
     std::atomic<float> characterAmountSmoothedValue { 0.0f };
     std::atomic<float> characterDeltaRms { 0.0f };
     std::atomic<float> characterDeltaPeak { 0.0f };
+    std::atomic<float> characterDeltaRatioDb { -100.0f };
     std::atomic<float> pitchConfidence { 0.0f };
     std::atomic<bool> pitchVoiced { false };
     std::atomic<int> harmonicCorrectionMode { 0 };

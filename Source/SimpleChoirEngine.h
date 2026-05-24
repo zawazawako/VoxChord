@@ -22,6 +22,7 @@ struct PitchState
     float characterAmountSmoothed = 0.0f;
     float characterDeltaRms = 0.0f;
     float characterDeltaPeak = 0.0f;
+    float characterDeltaRatioDb = -100.0f;
     float confidence = 0.0f;
     bool voiced = false;
     int harmonicCorrectionMode = 0;
@@ -73,8 +74,43 @@ public:
 private:
     struct VoicePitchState
     {
+        struct CharacterBiquad
+        {
+            void reset() noexcept
+            {
+                z1 = 0.0f;
+                z2 = 0.0f;
+            }
+
+            void setIdentity() noexcept
+            {
+                b0 = 1.0f;
+                b1 = 0.0f;
+                b2 = 0.0f;
+                a1 = 0.0f;
+                a2 = 0.0f;
+            }
+
+            float process (float input) noexcept
+            {
+                const auto output = b0 * input + z1;
+                z1 = b1 * input - a1 * output + z2;
+                z2 = b2 * input - a2 * output;
+                return output;
+            }
+
+            float b0 = 1.0f;
+            float b1 = 0.0f;
+            float b2 = 0.0f;
+            float a1 = 0.0f;
+            float a2 = 0.0f;
+            float z1 = 0.0f;
+            float z2 = 0.0f;
+        };
+
         int lastMidiNote = -1;
         bool wasActive = false;
+        int lastCharacterMode = -1;
         float phaseA = 0.0f;
         float phaseB = 0.5f;
         float currentPitchRatio = 1.0f;
@@ -85,8 +121,9 @@ private:
         float rightGain = 0.0f;
         float monoGain = 0.0f;
         float delayOffsetSamples = 0.0f;
-        float toneLowState = 0.0f;
-        float toneMidState = 0.0f;
+        CharacterBiquad characterFilter1;
+        CharacterBiquad characterFilter2;
+        CharacterBiquad characterFilter3;
         int windowSamplesA = 1024;
         int windowSamplesB = 1024;
     };
@@ -164,7 +201,11 @@ private:
     static float getCharacterPitchRatio (int slot, int characterMode, float characterAmount) noexcept;
     static float getCharacterGain (int slot, int characterMode, float characterAmount) noexcept;
     static float getCharacterDelayOffsetSamples (int slot, int characterMode, float characterAmount, double sampleRate) noexcept;
+    static void configureCharacterTone (VoicePitchState& voice, int slot, int characterMode, float characterAmount, double sampleRate) noexcept;
     static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode, float characterAmount) noexcept;
+    static void setPeakingFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
+    static void setHighShelfFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
+    static float applySoftSaturation (float sample, float drive, float amount) noexcept;
     static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
     static int getLimitedPitchWindowSamples (int currentWindowSamples, int targetWindowSamples) noexcept;

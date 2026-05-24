@@ -661,6 +661,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     pitchState.characterAmountSmoothed = safeCharacterAmount;
     pitchState.characterDeltaRms = 0.0f;
     pitchState.characterDeltaPeak = 0.0f;
+    pitchState.characterDeltaRatioDb = -100.0f;
     const auto inputFrequencyHz = pitchState.correctionInputPitchHz;
     lastDetectedInputFrequencyHz = inputFrequencyHz;
     const auto windowFrequencyHz = updateWindowPitchHz (inputFrequencyHz, samples);
@@ -755,6 +756,11 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                                    safeCharacterMode,
                                                                    safeCharacterAmount,
                                                                    currentSampleRate);
+        configureCharacterTone (voice,
+                                slot,
+                                safeCharacterMode,
+                                safeCharacterAmount,
+                                currentSampleRate);
         renderSlots[static_cast<size_t> (renderCount++)] = slot;
         ++activeIndex;
     }
@@ -767,6 +773,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     auto characterDeltaSumSquares = 0.0f;
     auto characterDeltaPeak = 0.0f;
     auto characterDeltaCount = 0;
+    auto characterInputSumSquares = 0.0f;
+    auto characterInputCount = 0;
 
     for (auto sample = 0; sample < samples; ++sample)
     {
@@ -816,6 +824,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                            ratioSmoothingCoefficient,
                                                            voice.delayOffsetSamples,
                                                            activePitchWindowSamples);
+            characterInputSumSquares += shifted * shifted;
+            ++characterInputCount;
+
             const auto charactered = applyCharacterTone (voice,
                                                          shifted,
                                                          renderSlots[static_cast<size_t> (index)],
@@ -840,6 +851,13 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     {
         pitchState.characterDeltaRms = std::sqrt (characterDeltaSumSquares / static_cast<float> (characterDeltaCount));
         pitchState.characterDeltaPeak = characterDeltaPeak;
+
+        if (characterInputCount > 0)
+        {
+            const auto characterInputRms = std::sqrt (characterInputSumSquares / static_cast<float> (characterInputCount));
+            const auto relativeDelta = pitchState.characterDeltaRms / juce::jmax (characterInputRms, 0.000001f);
+            pitchState.characterDeltaRatioDb = juce::Decibels::gainToDecibels (relativeDelta, -100.0f);
+        }
     }
 }
 
@@ -1420,51 +1438,171 @@ float SimpleChoirEngine::getCharacterDelayOffsetSamples (int slot,
     return delayMs * 0.001f * static_cast<float> (juce::jmax (1.0, sampleRate));
 }
 
+void SimpleChoirEngine::configureCharacterTone (VoicePitchState& voice,
+                                                int slot,
+                                                int characterMode,
+                                                float characterAmount,
+                                                double sampleRate) noexcept
+{
+    static constexpr std::array<float, MidiVoiceState::maxVoices> vowelCenterHz {{
+        750.0f, 1050.0f, 1350.0f, 1700.0f, 2100.0f, 2500.0f, 950.0f, 1500.0f
+    }};
+    static constexpr std::array<float, MidiVoiceState::maxVoices> vowelGainDbBySlot {{
+        6.0f, -4.0f, 5.0f, -3.5f, 4.5f, -3.0f, 5.5f, -4.0f
+    }};
+
+    const auto mode = sanitizeCharacterMode (characterMode);
+    const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
+    const auto safeSlot = static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot));
+
+    if (voice.lastCharacterMode != mode)
+    {
+        voice.characterFilter1.reset();
+        voice.characterFilter2.reset();
+        voice.characterFilter3.reset();
+        voice.lastCharacterMode = mode;
+    }
+
+    voice.characterFilter1.setIdentity();
+    voice.characterFilter2.setIdentity();
+    voice.characterFilter3.setIdentity();
+
+    switch (mode)
+    {
+        case 1:
+            setHighShelfFilter (voice.characterFilter1, 4200.0f, -5.0f * amount, 0.7f, sampleRate);
+            setPeakingFilter (voice.characterFilter2, 350.0f, 2.5f * amount, 1.0f, sampleRate);
+            break;
+
+        case 2:
+            setHighShelfFilter (voice.characterFilter1, 5500.0f, 4.0f * amount, 0.7f, sampleRate);
+            setPeakingFilter (voice.characterFilter2, 3200.0f, 2.5f * amount, 1.2f, sampleRate);
+            setPeakingFilter (voice.characterFilter3, 350.0f, -1.0f * amount, 1.0f, sampleRate);
+            break;
+
+        case 3:
+            setPeakingFilter (voice.characterFilter1,
+                              vowelCenterHz[safeSlot],
+                              vowelGainDbBySlot[safeSlot] * amount,
+                              1.3f,
+                              sampleRate);
+            break;
+
+        case 4:
+            setHighShelfFilter (voice.characterFilter1, 4500.0f, 5.0f * amount, 0.7f, sampleRate);
+            setPeakingFilter (voice.characterFilter2, 2400.0f, 3.0f * amount, 1.2f, sampleRate);
+            break;
+
+        default:
+            break;
+    }
+}
+
 float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
                                              float sample,
                                              int slot,
                                              int characterMode,
                                              float characterAmount) noexcept
 {
-    static constexpr std::array<float, MidiVoiceState::maxVoices> vowelMidBySlot {{
-        0.30f, -0.22f, 0.18f, -0.16f, 0.24f, -0.20f, 0.14f, -0.12f
-    }};
+    juce::ignoreUnused (slot);
 
     const auto mode = sanitizeCharacterMode (characterMode);
     const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
-    const auto toneAmount = std::pow (amount, 1.2f);
 
-    const auto lowCoefficient = 0.025f;
-    const auto midCoefficient = 0.11f + 0.015f * static_cast<float> (slot % 3);
-    voice.toneLowState += (sample - voice.toneLowState) * lowCoefficient;
-    voice.toneMidState += (sample - voice.toneMidState) * midCoefficient;
+    if (amount <= 0.0001f)
+        return sample;
 
-    const auto high = sample - voice.toneLowState;
-    const auto mid = voice.toneMidState - voice.toneLowState;
-    auto coloured = sample;
+    auto coloured = voice.characterFilter1.process (sample);
+    coloured = voice.characterFilter2.process (coloured);
+    coloured = voice.characterFilter3.process (coloured);
 
-    switch (mode)
+    if (mode == 1)
+        coloured = applySoftSaturation (coloured, 1.0f + 0.3f * amount, 0.35f * amount);
+    else if (mode == 4)
+        coloured = applySoftSaturation (coloured, 1.0f + amount, 0.65f * amount);
+
+    return sample + (coloured - sample) * amount;
+}
+
+void SimpleChoirEngine::setPeakingFilter (VoicePitchState::CharacterBiquad& filter,
+                                          float frequencyHz,
+                                          float gainDb,
+                                          float q,
+                                          double sampleRate) noexcept
+{
+    if (sampleRate <= 1.0 || std::abs (gainDb) < 0.001f)
     {
-        case 1:
-            coloured = sample - high * 0.25f + voice.toneLowState * 0.08f;
-            break;
-
-        case 2:
-            coloured = sample + high * 0.22f;
-            break;
-
-        case 3:
-            coloured = sample + mid * vowelMidBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))];
-            break;
-
-        case 4:
-            coloured = sample + high * 0.25f + mid * 0.12f;
-            break;
-
-        default: break;
+        filter.setIdentity();
+        return;
     }
 
-    return sample + (coloured - sample) * toneAmount;
+    const auto safeFrequency = juce::jlimit (20.0f,
+                                             static_cast<float> (sampleRate * 0.45),
+                                             frequencyHz);
+    const auto safeQ = juce::jmax (0.1f, q);
+    const auto a = std::pow (10.0f, gainDb / 40.0f);
+    const auto omega = juce::MathConstants<float>::twoPi * safeFrequency / static_cast<float> (sampleRate);
+    const auto sinOmega = std::sin (omega);
+    const auto cosOmega = std::cos (omega);
+    const auto alpha = sinOmega / (2.0f * safeQ);
+    const auto b0 = 1.0f + alpha * a;
+    const auto b1 = -2.0f * cosOmega;
+    const auto b2 = 1.0f - alpha * a;
+    const auto a0 = 1.0f + alpha / a;
+    const auto a1 = -2.0f * cosOmega;
+    const auto a2 = 1.0f - alpha / a;
+
+    filter.b0 = b0 / a0;
+    filter.b1 = b1 / a0;
+    filter.b2 = b2 / a0;
+    filter.a1 = a1 / a0;
+    filter.a2 = a2 / a0;
+}
+
+void SimpleChoirEngine::setHighShelfFilter (VoicePitchState::CharacterBiquad& filter,
+                                            float frequencyHz,
+                                            float gainDb,
+                                            float q,
+                                            double sampleRate) noexcept
+{
+    if (sampleRate <= 1.0 || std::abs (gainDb) < 0.001f)
+    {
+        filter.setIdentity();
+        return;
+    }
+
+    const auto safeFrequency = juce::jlimit (20.0f,
+                                             static_cast<float> (sampleRate * 0.45),
+                                             frequencyHz);
+    const auto safeQ = juce::jmax (0.1f, q);
+    const auto a = std::pow (10.0f, gainDb / 40.0f);
+    const auto omega = juce::MathConstants<float>::twoPi * safeFrequency / static_cast<float> (sampleRate);
+    const auto sinOmega = std::sin (omega);
+    const auto cosOmega = std::cos (omega);
+    const auto beta = std::sqrt (a) / safeQ;
+    const auto twoSqrtAAlpha = beta * sinOmega;
+    const auto aPlusOne = a + 1.0f;
+    const auto aMinusOne = a - 1.0f;
+    const auto b0 = a * (aPlusOne + aMinusOne * cosOmega + twoSqrtAAlpha);
+    const auto b1 = -2.0f * a * (aMinusOne + aPlusOne * cosOmega);
+    const auto b2 = a * (aPlusOne + aMinusOne * cosOmega - twoSqrtAAlpha);
+    const auto a0 = aPlusOne - aMinusOne * cosOmega + twoSqrtAAlpha;
+    const auto a1 = 2.0f * (aMinusOne - aPlusOne * cosOmega);
+    const auto a2 = aPlusOne - aMinusOne * cosOmega - twoSqrtAAlpha;
+
+    filter.b0 = b0 / a0;
+    filter.b1 = b1 / a0;
+    filter.b2 = b2 / a0;
+    filter.a1 = a1 / a0;
+    filter.a2 = a2 / a0;
+}
+
+float SimpleChoirEngine::applySoftSaturation (float sample, float drive, float amount) noexcept
+{
+    const auto safeAmount = juce::jlimit (0.0f, 1.0f, amount);
+    const auto driven = sample * juce::jmax (1.0f, drive);
+    const auto clipped = driven / (1.0f + std::abs (driven));
+    return sample + (clipped - sample) * safeAmount;
 }
 
 int SimpleChoirEngine::getFixedPitchWindowSamples (double sampleRate) noexcept
@@ -1575,6 +1713,7 @@ void SimpleChoirEngine::resetVoice (VoicePitchState& voice) noexcept
 {
     voice.lastMidiNote = -1;
     voice.wasActive = false;
+    voice.lastCharacterMode = -1;
     voice.phaseA = 0.0f;
     voice.phaseB = 0.5f;
     voice.currentPitchRatio = 1.0f;
@@ -1585,8 +1724,12 @@ void SimpleChoirEngine::resetVoice (VoicePitchState& voice) noexcept
     voice.rightGain = 0.0f;
     voice.monoGain = 0.0f;
     voice.delayOffsetSamples = 0.0f;
-    voice.toneLowState = 0.0f;
-    voice.toneMidState = 0.0f;
+    voice.characterFilter1.setIdentity();
+    voice.characterFilter2.setIdentity();
+    voice.characterFilter3.setIdentity();
+    voice.characterFilter1.reset();
+    voice.characterFilter2.reset();
+    voice.characterFilter3.reset();
     voice.windowSamplesA = pitchWindowSamples;
     voice.windowSamplesB = pitchWindowSamples;
 }

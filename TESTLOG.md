@@ -1,5 +1,38 @@
 # VoxChord Test Log
 
+## 0.1.32 Character EQ redesign
+
+Date: 2026-05-25
+
+Implementation status:
+
+- Reworked Character DSP from one-pole high/mid difference shaping into lightweight per-voice biquad EQ.
+- Added reusable `CharacterBiquad` filter state to each harmony voice.
+- Warm: high-shelf cut, low-mid boost, and very light soft saturation.
+- Bright: high-shelf boost, presence boost, and low-mid cleanup.
+- Vowel: slot-dependent formant-ish peaking EQ with mixed boost/cut centers.
+- Digital: high/presence boost plus light soft saturation.
+- Character Amount still acts as a clean-to-character blend and remains smoothed over `20 ms`.
+- Character Type changes reset per-voice Character filter states.
+- Added Debug Character relative delta display as `CharDelta rms/pk/rel`, with `rel` in dB.
+- Did not change pitch ratio correction, pitch shifter design, input-synced window behavior, Voice 8, Tuned Lead, or the Character Type list.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Warm 100% sounds rounder/thicker and produces visible non-zero Character delta.
+- Bright 100% sounds clearer/forward without excessive harshness.
+- Vowel 100% gives a clear formant-ish voice-color change.
+- Digital 100% sounds harder/artificial without excessive pitch instability.
+- Amount 0% remains effectively Clean for all Character Types.
+- Amount 50% is a usable intermediate color.
+- Voice 8 + Character 100% does not break the output.
+- Tuned Lead + Character 100% does not break the output.
+- Character operation does not add obvious clicks.
+
 ## 0.1.31 Character Type internal mode mapping
 
 Date: 2026-05-20

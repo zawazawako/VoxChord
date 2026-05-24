@@ -1,7 +1,24 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.31
+Project version: 0.1.32
+
+## 0.1.32 Update - Character EQ redesign
+
+- CMake project version: `0.1.32`.
+- Debug GUI pitch subtitle build string: `Build: character-eq-001`.
+- Replaced the previous one-pole high/mid difference Character tone path with lightweight per-voice biquad EQ.
+- Each harmony voice now owns three reusable `CharacterBiquad` filter states in `SimpleChoirEngine::VoicePitchState`.
+- Character filter coefficients are configured once per render block for active voices, not per sample.
+- Character Type changes reset the per-voice Character filter states to reduce stale filter coloration.
+- Character Amount remains processor-smoothed over `20 ms` and still blends clean to processed tone with `clean + (charactered - clean) * amount`.
+- Warm uses high-shelf cut around `4200 Hz`, low-mid peaking boost around `350 Hz`, and very light soft saturation.
+- Bright uses high-shelf boost around `5500 Hz`, presence peaking boost around `3200 Hz`, and low-mid cleanup around `350 Hz`.
+- Vowel uses slot-dependent formant-ish peaking EQ centers: `750`, `1050`, `1350`, `1700`, `2100`, `2500`, `950`, and `1500 Hz`, with mixed boost/cut gains and `Q=1.3`.
+- Digital uses high-shelf boost around `4500 Hz`, presence peaking boost around `2400 Hz`, plus light soft saturation.
+- Pitch ratio correction, pitch shifter design, input-synced window behavior, Voice 8 support, Tuned Lead, and Character Type list were not changed.
+- Existing Character pitch detune, per-slot gain variation, and delay offset behavior are retained.
+- Debug Character diagnostics now include `CharIn` and `CharDelta rms/pk/rel`, where `rel` is `DeltaRatioDb`.
 
 ## 0.1.31 Update - Character Type internal mode mapping
 
@@ -248,7 +265,7 @@ Project version: 0.1.31
 
 ## Build Configuration
 
-- CMake project version: `0.1.31`
+- CMake project version: `0.1.32`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -402,6 +419,11 @@ Dry/wet and output:
 - `stablePitchHz`: compatibility alias for display stable pitch.
 - `harmonyPitchHz`: compatibility alias for correction input pitch.
 - `ratioSmoothingCoefficient`: current per-voice pitch ratio smoothing coefficient.
+- `characterAmountRaw`: APVTS Character Amount value.
+- `characterAmountSmoothed`: processor-smoothed Character Amount value.
+- `characterDeltaRms`: per-block RMS difference between clean shifted harmony voice and Character-processed voice.
+- `characterDeltaPeak`: per-block peak difference between clean shifted harmony voice and Character-processed voice.
+- `characterDeltaRatioDb`: `20 * log10(characterDeltaRms / characterInputRms)`, clamped through JUCE dB conversion.
 - `confidence`: pitch confidence, currently `1.0 - CMNDF value`.
 - `voiced`: voiced/unvoiced state after RMS/confidence filtering and hold handling.
 - `harmonicCorrectionMode`: `0` none, `2` raw/2, `3` raw/3, `-2` raw*2, `-3` raw*3.
@@ -569,9 +591,16 @@ Tune:
 
 Character:
 
-- Per-slot detune cents: `[-14, 10, -9, 18] * character`
-- Per-slot gain offset: `[-0.07, 0.05, -0.04, 0.06] * character`
-- Per-slot delay offset ms: `[0, 4, 8, 12] * character`
+- Character Amount `0%` is clean-equivalent for all Character Types.
+- Character Amount `100%` applies the selected Character Type at full strength.
+- Tone processing uses per-voice lightweight biquad EQ states.
+- Warm: high shelf cut around `4200 Hz`, low-mid peaking boost around `350 Hz`, plus very light soft saturation.
+- Bright: high shelf boost around `5500 Hz`, presence boost around `3200 Hz`, and low-mid cleanup around `350 Hz`.
+- Vowel: slot-dependent formant-ish peaking EQ using centers `750`, `1050`, `1350`, `1700`, `2100`, `2500`, `950`, `1500 Hz` and mixed boost/cut gains.
+- Digital: high shelf boost around `4500 Hz`, presence boost around `2400 Hz`, plus light soft saturation.
+- Per-slot pitch detune remains limited to Digital/Vowel Character color via `getCharacterPitchRatio()`.
+- Existing per-slot gain and delay variation remain lightweight and Amount-scaled.
+- Character DSP does not perform formant shifting, FFT/STFT processing, PSOLA, or pitch ratio correction.
 
 Spread:
 
@@ -602,7 +631,7 @@ Status/debug:
 - Last MIDI event.
 - Right-bottom horizontal bar meters for input and output.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-layout-001`
+- Debug: `Build: character-eq-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`
@@ -614,6 +643,10 @@ Status/debug:
 - `Voiced`
 - `Fix`
 - `RatioSmooth`
+- `CharMode internal/safe`
+- `CharAmt raw/sm`
+- `CharIn`
+- `CharDelta rms/pk/rel`
 
 ## Real-Time Safety Rules
 
