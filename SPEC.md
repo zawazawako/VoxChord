@@ -1,7 +1,25 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.32
+Project version: 0.1.33
+
+## 0.1.33 Update - GUI layout, Mono Out, and mini MIDI keyboard
+
+- CMake project version: `0.1.33`.
+- Debug GUI pitch subtitle build string: `Build: gui-mono-midi-001`.
+- Added APVTS bool parameter `monoOutputEnabled` (`Mono Out`, default `false`).
+- Mono Out is applied at the final output stage after Dry/Wet mix and Output gain using `0.5 * (left + right)`.
+- Mono Out switching is smoothed over approximately `12 ms` to reduce switching clicks.
+- Output meters now publish and display separate post-output-gain L/R peaks; when Mono Out is enabled, the displayed L/R values should match after the smoothing transition.
+- `LevelMeterState` now stores input peak plus output-left and output-right peak/clip flags.
+- GUI was reorganized into Header, Harmony, Input / Lead, Level / Output, Status, and bottom MIDI/status areas.
+- Character Type and Amount are visually grouped as a single Character control area.
+- Input Source remains on the main GUI inside the Input / Lead area.
+- Added a `Mono Out` toggle in the Level / Output area.
+- Replaced horizontal meter bars with vertical meter components.
+- Added a display-only mini MIDI keyboard covering C2-C6 (`MIDI 36-84`), highlighting active MIDI notes from the existing thread-safe snapshot.
+- The mini keyboard does not generate MIDI and does not change voice assignment.
+- Physical output channel selection, output 3/4 routing, keyboard click input, and variable keyboard ranges remain unimplemented.
 
 ## 0.1.32 Update - Character EQ redesign
 
@@ -265,7 +283,7 @@ Project version: 0.1.32
 
 ## Build Configuration
 
-- CMake project version: `0.1.32`
+- CMake project version: `0.1.33`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -396,6 +414,16 @@ Dry/wet and output:
 - Default: `false`
 - When enabled, the dry side is replaced by a chromatically tuned lead generated from `correctionInputPitchHz`.
 - When disabled, the dry side remains the original input.
+
+`monoOutputEnabled`
+
+- Type: bool
+- Default: `false`
+- GUI label: `Mono Out`
+- When enabled and stereo output is available, final left/right output is replaced by `0.5 * (left + right)` on both channels.
+- Mono Out is applied after Dry/Wet mix and Output gain.
+- Mono Out switching is smoothed over approximately `12 ms`.
+- This does not select physical output channels in VST3 or Standalone; host/device routing remains external.
 
 ## MIDI Voice Specification
 
@@ -619,19 +647,21 @@ Controls:
 
 - Voice Count
 - Glide
-- Character
+- Character Type and Amount grouped as Character
 - Spread
 - Dry/Wet
-- Right-top compact controls: Input Source, Input Gain, Output, PANIC button
+- Main utility controls: Input Source, Input Gain, Lead Tune, Output, Mono Out, PANIC button
 
 Status/debug:
 
 - MIDI notes and pitch summary.
+- Display-only mini MIDI keyboard for C2-C6.
 - Voice slots.
 - Last MIDI event.
-- Right-bottom horizontal bar meters for input and output.
+- Vertical input and output meters.
+- Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: character-eq-001`
+- Debug: `Build: gui-mono-midi-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

@@ -122,6 +122,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         "Lead Tune",
         false));
 
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        ParameterID { ParameterIDs::monoOutputEnabled, 1 },
+        "Mono Out",
+        false));
+
     return layout;
 }
 

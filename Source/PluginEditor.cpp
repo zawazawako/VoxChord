@@ -87,7 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: character-eq-001 | ");
+        auto text = juce::String ("Build: gui-mono-midi-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -158,47 +158,131 @@ namespace
     }
 }
 
-void VoxChordAudioProcessorEditor::MeterBar::setTitle (const juce::String& newTitle)
+void VoxChordAudioProcessorEditor::VerticalMeter::setTitle (const juce::String& newTitle)
 {
     title = newTitle;
     repaint();
 }
 
-void VoxChordAudioProcessorEditor::MeterBar::setLevel (float newPeak, bool isClipped)
+void VoxChordAudioProcessorEditor::VerticalMeter::setLevel (float newPeak, bool isClipped)
 {
     peak = juce::jlimit (0.0f, 1.5f, newPeak);
     clipped = isClipped;
     repaint();
 }
 
-void VoxChordAudioProcessorEditor::MeterBar::paint (juce::Graphics& g)
+void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
     const auto labelArea = bounds.removeFromTop (18.0f);
-    const auto meterArea = bounds.reduced (0.0f, 3.0f);
+    const auto meterArea = bounds.reduced (5.0f, 3.0f);
     const auto db = juce::Decibels::gainToDecibels (peak, -60.0f);
     const auto normalized = juce::jmap (juce::jlimit (-60.0f, 0.0f, db), -60.0f, 0.0f, 0.0f, 1.0f);
-    const auto fillWidth = meterArea.getWidth() * normalized;
+    const auto fillHeight = meterArea.getHeight() * normalized;
 
     g.setColour (juce::Colour::fromRGB (200, 211, 214));
     g.setFont (juce::FontOptions { 12.5f, juce::Font::bold });
-    g.drawFittedText (title + ": " + formatPeak (peak), labelArea.toNearestInt(), juce::Justification::centredLeft, 1);
+    g.drawFittedText (title, labelArea.toNearestInt(), juce::Justification::centred, 1);
 
     g.setColour (juce::Colour::fromRGB (20, 25, 29));
     g.fillRoundedRectangle (meterArea, 5.0f);
 
-    auto fill = meterArea.withWidth (fillWidth);
+    for (auto markDb : { 0.0f, -6.0f, -12.0f, -24.0f, -48.0f })
+    {
+        const auto y = juce::jmap (markDb, -60.0f, 0.0f, meterArea.getBottom(), meterArea.getY());
+        g.setColour (juce::Colour::fromRGB (68, 77, 82));
+        g.drawHorizontalLine (juce::roundToInt (y), meterArea.getX(), meterArea.getRight());
+    }
+
+    auto fill = meterArea.withY (meterArea.getBottom() - fillHeight).withHeight (fillHeight);
     g.setGradientFill (juce::ColourGradient (accentColour(),
                                              fill.getX(),
-                                             fill.getY(),
+                                             fill.getBottom(),
                                              clipped ? dangerColour() : juce::Colour::fromRGB (223, 234, 150),
-                                             fill.getRight(),
+                                             fill.getX(),
                                              fill.getY(),
                                              false));
     g.fillRoundedRectangle (fill, 5.0f);
 
     g.setColour (clipped ? dangerColour() : accentColour().withAlpha (0.65f));
     g.drawRoundedRectangle (meterArea, 5.0f, 1.2f);
+
+    g.setColour (juce::Colour::fromRGB (165, 176, 181));
+    g.setFont (juce::FontOptions { 10.5f });
+    g.drawFittedText (formatPeak (peak), bounds.removeFromBottom (15.0f).toNearestInt(), juce::Justification::centred, 1);
+}
+
+void VoxChordAudioProcessorEditor::MiniKeyboard::setActiveNotes (const voxchord::MidiVoiceState::NoteSnapshot& newNotes)
+{
+    notes = newNotes;
+    repaint();
+}
+
+bool VoxChordAudioProcessorEditor::MiniKeyboard::isBlackKey (int midiNote) noexcept
+{
+    const auto note = midiNote % 12;
+    return note == 1 || note == 3 || note == 6 || note == 8 || note == 10;
+}
+
+bool VoxChordAudioProcessorEditor::MiniKeyboard::isActive (int midiNote) const noexcept
+{
+    for (const auto note : notes)
+    {
+        if (note == midiNote)
+            return true;
+    }
+
+    return false;
+}
+
+void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
+{
+    auto bounds = getLocalBounds().reduced (8, 6).toFloat();
+    const auto keyCount = lastNote - firstNote + 1;
+    const auto keyWidth = bounds.getWidth() / static_cast<float> (keyCount);
+    const auto blackHeight = bounds.getHeight() * 0.58f;
+
+    g.setColour (juce::Colour::fromRGB (14, 18, 22));
+    g.fillRoundedRectangle (bounds, 6.0f);
+
+    for (auto note = firstNote; note <= lastNote; ++note)
+    {
+        if (isBlackKey (note))
+            continue;
+
+        const auto x = bounds.getX() + static_cast<float> (note - firstNote) * keyWidth;
+        auto key = juce::Rectangle<float> { x, bounds.getY(), keyWidth - 1.0f, bounds.getHeight() };
+        const auto active = isActive (note);
+        g.setColour (active ? accentColour() : juce::Colour::fromRGB (214, 222, 222));
+        g.fillRoundedRectangle (key.reduced (0.5f), 2.5f);
+        g.setColour (juce::Colour::fromRGB (38, 45, 49));
+        g.drawRoundedRectangle (key.reduced (0.5f), 2.5f, 0.8f);
+    }
+
+    for (auto note = firstNote; note <= lastNote; ++note)
+    {
+        if (! isBlackKey (note))
+            continue;
+
+        const auto x = bounds.getX() + static_cast<float> (note - firstNote) * keyWidth;
+        auto key = juce::Rectangle<float> { x - keyWidth * 0.32f, bounds.getY(), keyWidth * 0.64f, blackHeight };
+        const auto active = isActive (note);
+        g.setColour (active ? juce::Colour::fromRGB (223, 234, 150) : juce::Colour::fromRGB (31, 36, 39));
+        g.fillRoundedRectangle (key, 2.5f);
+        g.setColour (juce::Colour::fromRGB (8, 11, 13));
+        g.drawRoundedRectangle (key, 2.5f, 0.8f);
+    }
+
+    g.setColour (juce::Colour::fromRGB (165, 176, 181));
+    g.setFont (juce::FontOptions { 11.0f, juce::Font::bold });
+    for (auto octaveNote : { 36, 48, 60, 72, 84 })
+    {
+        const auto x = bounds.getX() + static_cast<float> (octaveNote - firstNote) * keyWidth;
+        g.drawFittedText (juce::MidiMessage::getMidiNoteName (octaveNote, true, true, 3),
+                          juce::Rectangle<int> { juce::roundToInt (x), getHeight() - 16, 36, 14 },
+                          juce::Justification::centredLeft,
+                          1);
+    }
 }
 
 VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcessor& p)
@@ -283,6 +367,13 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
                                                              voxchord::ParameterIDs::leadTuneEnabled,
                                                              leadTuneButton);
 
+    monoOutputButton.setColour (juce::ToggleButton::textColourId, juce::Colours::white);
+    monoOutputButton.setColour (juce::ToggleButton::tickColourId, accentColour());
+    addAndMakeVisible (monoOutputButton);
+    monoOutputAttachment = std::make_unique<ButtonAttachment> (state,
+                                                               voxchord::ParameterIDs::monoOutputEnabled,
+                                                               monoOutputButton);
+
     configureStatusLabel (midiNotesLabel, "MIDI: -- | Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
 
@@ -296,10 +387,22 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     configureStatusLabel (pitchDebugLabel, "Pitch: --", juce::Justification::centred);
     addAndMakeVisible (pitchDebugLabel);
 
+    configureStatusLabel (compactPitchLabel, "Pitch: --", juce::Justification::centredLeft);
+    addAndMakeVisible (compactPitchLabel);
+
+    configureStatusLabel (compactLastLabel, "Last: --", juce::Justification::centredLeft);
+    addAndMakeVisible (compactLastLabel);
+
+    configureStatusLabel (compactActiveLabel, "Active: 0 notes", juce::Justification::centredLeft);
+    addAndMakeVisible (compactActiveLabel);
+
     inputMeter.setTitle ("Input");
-    outputMeter.setTitle ("Output");
+    outputLeftMeter.setTitle ("Out L");
+    outputRightMeter.setTitle ("Out R");
     addAndMakeVisible (inputMeter);
-    addAndMakeVisible (outputMeter);
+    addAndMakeVisible (outputLeftMeter);
+    addAndMakeVisible (outputRightMeter);
+    addAndMakeVisible (miniKeyboard);
 
     panicButton.setColour (juce::TextButton::buttonColourId, juce::Colour::fromRGB (126, 39, 45));
     panicButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour::fromRGB (166, 52, 59));
@@ -311,7 +414,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (panicButton);
 
-    setSize (800, 470);
+    setSize (860, 540);
     startTimerHz (30);
 }
 
@@ -326,26 +429,36 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
 
     auto bounds = getLocalBounds().reduced (18);
     auto header = bounds.removeFromTop (72);
-    auto body = bounds.reduced (0, 8);
-    auto rightColumn = body.removeFromRight (236);
-    body.removeFromRight (14);
-    auto controls = body.removeFromTop (198);
-    auto status = body.reduced (0, 10);
-    auto rightTop = rightColumn.removeFromTop (244);
-    rightColumn.removeFromTop (14);
-    auto rightBottom = rightColumn;
+    bounds.removeFromTop (14);
+    auto bottom = bounds.removeFromBottom (142);
+    bounds.removeFromBottom (14);
+    auto rightColumn = bounds.removeFromRight (252);
+    bounds.removeFromRight (14);
+    auto harmony = bounds;
+    auto inputLead = rightColumn.removeFromTop (172);
+    rightColumn.removeFromTop (12);
+    auto output = rightColumn.removeFromTop (176);
+    rightColumn.removeFromTop (12);
+    auto status = rightColumn;
 
     g.setColour (panelColour());
     g.fillRoundedRectangle (header.toFloat(), 16.0f);
-    g.fillRoundedRectangle (controls.toFloat(), 18.0f);
-    g.fillRoundedRectangle (status.toFloat(), 16.0f);
-    g.fillRoundedRectangle (rightTop.toFloat(), 18.0f);
-    g.fillRoundedRectangle (rightBottom.toFloat(), 18.0f);
+    g.fillRoundedRectangle (harmony.toFloat(), 18.0f);
+    g.fillRoundedRectangle (inputLead.toFloat(), 18.0f);
+    g.fillRoundedRectangle (output.toFloat(), 18.0f);
+    g.fillRoundedRectangle (status.toFloat(), 18.0f);
+    g.fillRoundedRectangle (bottom.toFloat(), 18.0f);
 
     g.setColour (accentColour().withAlpha (0.55f));
-    g.drawRoundedRectangle (controls.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (rightTop.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (rightBottom.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (harmony.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (inputLead.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (output.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (bottom.toFloat(), 18.0f, 1.5f);
+
+    layoutSectionTitle (g, harmony, "Harmony");
+    layoutSectionTitle (g, inputLead, "Input / Lead");
+    layoutSectionTitle (g, output, "Level / Output");
+    layoutSectionTitle (g, status, "Status");
 }
 
 void VoxChordAudioProcessorEditor::resized()
@@ -358,50 +471,66 @@ void VoxChordAudioProcessorEditor::resized()
 
     bounds.removeFromTop (18);
 
-    auto rightColumn = bounds.removeFromRight (220);
+    auto bottom = bounds.removeFromBottom (126).reduced (12);
+    bounds.removeFromBottom (18);
+
+    auto rightColumn = bounds.removeFromRight (236);
     bounds.removeFromRight (18);
 
-    auto rightTop = rightColumn.removeFromTop (228).reduced (10);
-    auto inputRow = rightTop.removeFromTop (34);
+    auto inputLead = rightColumn.removeFromTop (156).reduced (12);
+    auto inputRow = inputLead.removeFromTop (34);
     inputSourceLabel.setBounds (inputRow.removeFromLeft (48));
     inputSourceBox.setBounds (inputRow);
-    rightTop.removeFromTop (8);
-    layoutCompactSlider (inputGainSlider, inputGainLabel, rightTop.removeFromTop (42));
-    rightTop.removeFromTop (6);
-    layoutCompactSlider (outputSlider, outputLabel, rightTop.removeFromTop (42));
-    rightTop.removeFromTop (8);
-    leadTuneButton.setBounds (rightTop.removeFromTop (26).reduced (18, 0));
-    rightTop.removeFromTop (8);
-    panicButton.setBounds (rightTop.removeFromTop (34).reduced (18, 0));
+    inputLead.removeFromTop (8);
+    layoutCompactSlider (inputGainSlider, inputGainLabel, inputLead.removeFromTop (42));
+    inputLead.removeFromTop (8);
+    leadTuneButton.setBounds (inputLead.removeFromTop (28).reduced (10, 0));
 
-    rightColumn.removeFromTop (28);
-    auto meterArea = rightColumn.reduced (10);
-    inputMeter.setBounds (meterArea.removeFromTop (54));
-    meterArea.removeFromTop (10);
-    outputMeter.setBounds (meterArea.removeFromTop (54));
+    rightColumn.removeFromTop (12);
+    auto output = rightColumn.removeFromTop (160).reduced (12);
+    layoutCompactSlider (outputSlider, outputLabel, output.removeFromTop (42));
+    output.removeFromTop (8);
+    monoOutputButton.setBounds (output.removeFromTop (28).reduced (10, 0));
+    output.removeFromTop (8);
+    auto meterRow = output;
+    inputMeter.setBounds (meterRow.removeFromLeft (62));
+    meterRow.removeFromLeft (10);
+    outputLeftMeter.setBounds (meterRow.removeFromLeft (62));
+    meterRow.removeFromLeft (10);
+    outputRightMeter.setBounds (meterRow.removeFromLeft (62));
 
-    auto controls = bounds.removeFromTop (190);
-    const auto knobWidth = controls.getWidth() / 6;
+    rightColumn.removeFromTop (12);
+    auto status = rightColumn.reduced (12);
+    compactPitchLabel.setBounds (status.removeFromTop (28));
+    compactLastLabel.setBounds (status.removeFromTop (28));
+    compactActiveLabel.setBounds (status.removeFromTop (28));
+    status.removeFromTop (8);
+    panicButton.setBounds (status.removeFromTop (36).reduced (12, 0));
 
-    layoutSlider (voiceCountSlider, voiceCountLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutSlider (glideSlider, glideLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutComboBox (characterModeBox, characterTypeLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutSlider (characterAmountSlider, characterLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutSlider (spreadSlider, spreadLabel, controls.removeFromLeft (knobWidth).reduced (5));
-    layoutSlider (dryWetSlider, dryWetLabel, controls.reduced (5));
+    auto harmony = bounds.reduced (12);
+    harmony.removeFromTop (22);
+    auto controlsTop = harmony.removeFromTop (168);
+    const auto knobWidth = controlsTop.getWidth() / 5;
 
-    bounds.removeFromTop (24);
+    layoutSlider (voiceCountSlider, voiceCountLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
+    layoutSlider (glideSlider, glideLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
 
-    auto status = bounds.removeFromTop (128);
-    auto topRow = status.removeFromTop (42);
-    midiNotesLabel.setBounds (topRow.reduced (6));
+    auto characterGroup = controlsTop.removeFromLeft (knobWidth).reduced (5);
+    characterTypeLabel.setBounds (characterGroup.removeFromTop (24));
+    characterModeBox.setBounds (characterGroup.removeFromTop (34).reduced (8, 0));
+    characterGroup.removeFromTop (8);
+    characterLabel.setBounds (characterGroup.removeFromTop (20));
+    characterAmountSlider.setBounds (characterGroup);
 
-    auto slotRow = status.removeFromTop (42);
-    voiceSlotsLabel.setBounds (slotRow.reduced (6));
+    layoutSlider (spreadSlider, spreadLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
+    layoutSlider (dryWetSlider, dryWetLabel, controlsTop.reduced (5));
 
-    auto eventRow = status.removeFromTop (42);
-    pitchDebugLabel.setBounds (eventRow.removeFromRight (170).reduced (6));
-    midiStatusLabel.setBounds (eventRow.reduced (6));
+    midiNotesLabel.setBounds (bottom.removeFromTop (26));
+    miniKeyboard.setBounds (bottom.removeFromTop (58));
+    auto debugRow = bottom.removeFromTop (34);
+    pitchDebugLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
+    midiStatusLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
+    voiceSlotsLabel.setBounds (debugRow.reduced (4));
 }
 
 void VoxChordAudioProcessorEditor::timerCallback()
@@ -473,6 +602,15 @@ void VoxChordAudioProcessorEditor::layoutCompactSlider (juce::Slider& slider,
     slider.setBounds (bounds);
 }
 
+void VoxChordAudioProcessorEditor::layoutSectionTitle (juce::Graphics& g,
+                                                       juce::Rectangle<int> bounds,
+                                                       const juce::String& title)
+{
+    g.setColour (juce::Colour::fromRGB (190, 205, 205));
+    g.setFont (juce::FontOptions { 13.0f, juce::Font::bold });
+    g.drawFittedText (title, bounds.reduced (14).removeFromTop (20), juce::Justification::centredLeft, 1);
+}
+
 void VoxChordAudioProcessorEditor::updateMidiState()
 {
     const auto notes = processorRef.getActiveMidiNotes();
@@ -480,6 +618,7 @@ void VoxChordAudioProcessorEditor::updateMidiState()
     auto text = juce::String ("MIDI: ");
     auto slots = juce::String ("Slots: ");
     auto anyNotes = false;
+    auto activeCount = 0;
 
     for (auto index = 0; index < voxchord::MidiVoiceState::maxVoices; ++index)
     {
@@ -510,6 +649,7 @@ void VoxChordAudioProcessorEditor::updateMidiState()
 
         const auto noteName = juce::MidiMessage::getMidiNoteName (note, true, true, 3);
         text += noteName;
+        ++activeCount;
 
         if (index > 0)
             slots += " | ";
@@ -525,22 +665,30 @@ void VoxChordAudioProcessorEditor::updateMidiState()
 
     midiNotesLabel.setText (text, juce::dontSendNotification);
     voiceSlotsLabel.setText (slots, juce::dontSendNotification);
+    miniKeyboard.setActiveNotes (notes);
+    compactActiveLabel.setText ("Active: " + juce::String (activeCount) + " notes", juce::dontSendNotification);
 
     const auto activity = processorRef.getMidiActivitySnapshot();
 
     if (activity.counter != lastSeenMidiActivityCounter)
     {
         lastSeenMidiActivityCounter = activity.counter;
-        midiStatusLabel.setText ("Last: " + midiActivityToString (activity.activity), juce::dontSendNotification);
+        const auto lastText = "Last: " + midiActivityToString (activity.activity);
+        midiStatusLabel.setText (lastText, juce::dontSendNotification);
+        compactLastLabel.setText (lastText, juce::dontSendNotification);
     }
 }
 
 void VoxChordAudioProcessorEditor::updateMeters()
 {
     const auto& meters = processorRef.getLevelMeterState();
+    const auto mono = processorRef.isMonoOutputEnabledForUi();
 
     inputMeter.setLevel (meters.getInputPeak(), meters.getInputClipped());
-    outputMeter.setLevel (meters.getOutputPeak(), meters.getOutputClipped());
+    outputLeftMeter.setTitle (mono ? "Mono" : "Out L");
+    outputRightMeter.setTitle (mono ? "Mono" : "Out R");
+    outputLeftMeter.setLevel (meters.getOutputLeftPeak(), meters.getOutputLeftClipped());
+    outputRightMeter.setLevel (meters.getOutputRightPeak(), meters.getOutputRightClipped());
 }
 
 void VoxChordAudioProcessorEditor::updatePitchDebug()
@@ -550,6 +698,7 @@ void VoxChordAudioProcessorEditor::updatePitchDebug()
     const auto pitchText = formatPitchDebug (pitchState.correctionInputPitchHz);
 
     pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
+    compactPitchLabel.setText (pitchText, juce::dontSendNotification);
     subtitleLabel.setText (formatDetailedPitchDebug (pitchState, pitchShifterSelfTestSummary),
                            juce::dontSendNotification);
 }

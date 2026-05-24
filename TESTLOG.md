@@ -1,5 +1,37 @@
 # VoxChord Test Log
 
+## 0.1.33 GUI layout, Mono Out, and mini MIDI keyboard
+
+Date: 2026-05-25
+
+Implementation status:
+
+- Reorganized the GUI into Header, Harmony, Input / Lead, Level / Output, Status, and bottom MIDI/status areas.
+- Grouped Character Type and Character Amount into one Character area.
+- Added `monoOutputEnabled` APVTS bool parameter with GUI label `Mono Out`.
+- Added final-stage Mono Out DSP: `0.5 * (left + right)` copied to L/R.
+- Smoothed Mono Out switching over approximately `12 ms`.
+- Expanded meter publishing to input peak plus output L/R peaks.
+- Replaced horizontal meters with vertical meters.
+- Added stereo output meter display for L/R; Mono Out displays matching L/R mono values after smoothing.
+- Added display-only C2-C6 mini MIDI keyboard highlighting active MIDI notes.
+- Kept Input Source on the main GUI.
+- Did not implement physical output channel selection, output 3/4 routing, keyboard click input, variable keyboard range, or Options-page device settings.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Output meter is fully visible.
+- Input and output meters are readable as vertical meters.
+- Mono Out Off preserves stereo output.
+- Mono Out On makes L/R the same mono signal without a large level jump.
+- Mono Out switching does not create an obvious click.
+- Mini keyboard highlights active MIDI notes from C2-C6.
+- Existing Voice 8, Tuned Lead, Character, Input Gain, and input-synced pitch shifting still behave as before.
+
 ## 0.1.32 Character EQ redesign
 
 Date: 2026-05-25

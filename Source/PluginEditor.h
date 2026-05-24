@@ -25,11 +25,12 @@ private:
     void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
     void layoutComboBox (juce::ComboBox& comboBox, juce::Label& label, juce::Rectangle<int> bounds);
     void layoutCompactSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
+    void layoutSectionTitle (juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title);
     void updateMidiState();
     void updateMeters();
     void updatePitchDebug();
 
-    class MeterBar final : public juce::Component
+    class VerticalMeter final : public juce::Component
     {
     public:
         void setTitle (const juce::String& newTitle);
@@ -40,6 +41,22 @@ private:
         juce::String title;
         float peak = 0.0f;
         bool clipped = false;
+    };
+
+    class MiniKeyboard final : public juce::Component
+    {
+    public:
+        void setActiveNotes (const voxchord::MidiVoiceState::NoteSnapshot& newNotes);
+        void paint (juce::Graphics& g) override;
+
+    private:
+        static constexpr int firstNote = 36;
+        static constexpr int lastNote = 84;
+
+        static bool isBlackKey (int midiNote) noexcept;
+        bool isActive (int midiNote) const noexcept;
+
+        voxchord::MidiVoiceState::NoteSnapshot notes {};
     };
 
     VoxChordAudioProcessor& processorRef;
@@ -67,12 +84,18 @@ private:
     juce::Label voiceSlotsLabel;
     juce::Label midiStatusLabel;
     juce::Label pitchDebugLabel;
-    MeterBar inputMeter;
-    MeterBar outputMeter;
+    juce::Label compactPitchLabel;
+    juce::Label compactLastLabel;
+    juce::Label compactActiveLabel;
+    VerticalMeter inputMeter;
+    VerticalMeter outputLeftMeter;
+    VerticalMeter outputRightMeter;
+    MiniKeyboard miniKeyboard;
     juce::Label inputSourceLabel;
     juce::ComboBox inputSourceBox;
     juce::ComboBox characterModeBox;
     juce::ToggleButton leadTuneButton { "Lead Tune" };
+    juce::ToggleButton monoOutputButton { "Mono Out" };
     juce::TextButton panicButton { "PANIC" };
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
@@ -85,6 +108,7 @@ private:
     std::unique_ptr<ComboBoxAttachment> inputSourceAttachment;
     std::unique_ptr<ComboBoxAttachment> characterModeAttachment;
     std::unique_ptr<ButtonAttachment> leadTuneAttachment;
+    std::unique_ptr<ButtonAttachment> monoOutputAttachment;
 
     uint32_t lastSeenMidiActivityCounter = 0;
 

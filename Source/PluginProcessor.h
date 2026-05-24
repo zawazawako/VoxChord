@@ -81,9 +81,11 @@ public:
     voxchord::PitchState getPitchState() const noexcept;
     voxchord::PitchShifterSelfTestSummary getPitchShifterSelfTestSummary() const noexcept;
     const voxchord::LevelMeterState& getLevelMeterState() const noexcept { return meters; }
+    bool isMonoOutputEnabledForUi() const noexcept;
 
 private:
     static float calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept;
+    static float calculateChannelPeak (const juce::AudioBuffer<float>& buffer, int channel, int samples) noexcept;
 
     int getVoiceLimit() const noexcept;
     float getDryWet() const noexcept;
@@ -96,6 +98,7 @@ private:
     int getCharacterModeRaw() const noexcept;
     int getCharacterMode() const noexcept;
     bool getLeadTuneEnabled() const noexcept;
+    bool getMonoOutputEnabled() const noexcept;
     InputSource getInputSource() const noexcept;
 
     void handleMidi (const juce::MidiBuffer& midiMessages) noexcept;
@@ -116,6 +119,7 @@ private:
     juce::SmoothedValue<float> characterAmountSmoothed { 0.0f };
     juce::SmoothedValue<float> inputGainSmoothed { 1.0f };
     juce::SmoothedValue<float> outputGainSmoothed { 1.0f };
+    juce::SmoothedValue<float> monoOutputSmoothed { 0.0f };
 
     std::array<std::atomic<int>, voxchord::MidiVoiceState::maxVoices> activeMidiNotes;
     std::atomic<int> lastMidiActivity { static_cast<int> (MidiActivity::none) };
@@ -152,6 +156,7 @@ private:
     std::atomic<float>* inputGainParameter = nullptr;
     std::atomic<float>* inputSourceParameter = nullptr;
     std::atomic<float>* leadTuneEnabledParameter = nullptr;
+    std::atomic<float>* monoOutputEnabledParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)
 };

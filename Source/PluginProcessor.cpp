@@ -39,6 +39,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     inputGainParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputGainDb);
     inputSourceParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputSource);
     leadTuneEnabledParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::leadTuneEnabled);
+    monoOutputEnabledParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::monoOutputEnabled);
 
     for (auto& note : activeMidiNotes)
         note.store (-1, std::memory_order_relaxed);
@@ -54,6 +55,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     jassert (inputGainParameter != nullptr);
     jassert (inputSourceParameter != nullptr);
     jassert (leadTuneEnabledParameter != nullptr);
+    jassert (monoOutputEnabledParameter != nullptr);
 
     #if JUCE_DEBUG
     if constexpr (enableDebugStartupSelfTests)
@@ -133,6 +135,8 @@ void VoxChordAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     inputGainSmoothed.setCurrentAndTargetValue (getInputGain());
     outputGainSmoothed.reset (sampleRate, 0.02);
     outputGainSmoothed.setCurrentAndTargetValue (getOutputGain());
+    monoOutputSmoothed.reset (sampleRate, 0.012);
+    monoOutputSmoothed.setCurrentAndTargetValue (getMonoOutputEnabled() ? 1.0f : 0.0f);
     publishMidiSnapshot();
     setLatencySamples (0);
 }
@@ -220,8 +224,9 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     characterModeSanitized.store (pitchState.characterModeSanitized, std::memory_order_relaxed);
     mixDryWetToOutput (buffer);
 
-    const auto outputPeak = calculatePeak (buffer, outputChannels, samples);
-    meters.publish (inputPeak, outputPeak);
+    const auto outputLeftPeak = calculateChannelPeak (buffer, 0, samples);
+    const auto outputRightPeak = outputChannels > 1 ? calculateChannelPeak (buffer, 1, samples) : outputLeftPeak;
+    meters.publish (inputPeak, outputLeftPeak, outputRightPeak);
 }
 
 bool VoxChordAudioProcessor::hasEditor() const
@@ -317,6 +322,11 @@ voxchord::PitchShifterSelfTestSummary VoxChordAudioProcessor::getPitchShifterSel
     return voxchord::SimpleChoirEngine::getPitchShifterSelfTestSummary();
 }
 
+bool VoxChordAudioProcessor::isMonoOutputEnabledForUi() const noexcept
+{
+    return getMonoOutputEnabled();
+}
+
 float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept
 {
     auto peak = 0.0f;
@@ -326,6 +336,14 @@ float VoxChordAudioProcessor::calculatePeak (const juce::AudioBuffer<float>& buf
         peak = juce::jmax (peak, buffer.getMagnitude (channel, 0, samples));
 
     return peak;
+}
+
+float VoxChordAudioProcessor::calculateChannelPeak (const juce::AudioBuffer<float>& buffer, int channel, int samples) noexcept
+{
+    if (channel < 0 || channel >= buffer.getNumChannels() || samples <= 0)
+        return 0.0f;
+
+    return buffer.getMagnitude (channel, 0, samples);
 }
 
 int VoxChordAudioProcessor::getVoiceLimit() const noexcept
@@ -413,6 +431,14 @@ bool VoxChordAudioProcessor::getLeadTuneEnabled() const noexcept
         return false;
 
     return leadTuneEnabledParameter->load (std::memory_order_relaxed) >= 0.5f;
+}
+
+bool VoxChordAudioProcessor::getMonoOutputEnabled() const noexcept
+{
+    if (monoOutputEnabledParameter == nullptr)
+        return false;
+
+    return monoOutputEnabledParameter->load (std::memory_order_relaxed) >= 0.5f;
 }
 
 VoxChordAudioProcessor::InputSource VoxChordAudioProcessor::getInputSource() const noexcept
@@ -536,6 +562,8 @@ void VoxChordAudioProcessor::mixDryWetToOutput (juce::AudioBuffer<float>& buffer
 
     dryWetSmoothed.setTargetValue (getDryWet());
     leadTuneDryMixSmoothed.setTargetValue (getLeadTuneEnabled() ? 1.0f : 0.0f);
+    outputGainSmoothed.setTargetValue (getOutputGain());
+    monoOutputSmoothed.setTargetValue (getMonoOutputEnabled() ? 1.0f : 0.0f);
 
     for (auto sample = 0; sample < samples; ++sample)
     {
@@ -547,23 +575,30 @@ void VoxChordAudioProcessor::mixDryWetToOutput (juce::AudioBuffer<float>& buffer
         const auto dryRight = dryBuffer.getSample (1, sample)
                             + (tunedLeadBuffer.getSample (1, sample) - dryBuffer.getSample (1, sample)) * leadTuneAmount;
 
-        if (outputChannels > 0)
-        {
-            buffer.setSample (0,
-                              sample,
-                              dryLeft * dryAmount + wetBuffer.getSample (0, sample) * wetAmount);
-        }
+        auto left = (dryLeft * dryAmount + wetBuffer.getSample (0, sample) * wetAmount)
+                  * outputGainSmoothed.getNextValue();
+        auto right = (dryRight * dryAmount + wetBuffer.getSample (1, sample) * wetAmount)
+                   * outputGainSmoothed.getCurrentValue();
 
         if (outputChannels > 1)
         {
-            buffer.setSample (1,
-                              sample,
-                              dryRight * dryAmount + wetBuffer.getSample (1, sample) * wetAmount);
+            const auto monoAmount = monoOutputSmoothed.getNextValue();
+            const auto mono = 0.5f * (left + right);
+            left += (mono - left) * monoAmount;
+            right += (mono - right) * monoAmount;
+        }
+
+        if (outputChannels > 0)
+            buffer.setSample (0, sample, left);
+
+        if (outputChannels > 1)
+            buffer.setSample (1, sample, right);
+        else
+        {
+            juce::ignoreUnused (right);
+            monoOutputSmoothed.skip (1);
         }
     }
-
-    outputGainSmoothed.setTargetValue (getOutputGain());
-    outputGainSmoothed.applyGain (buffer, samples);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
