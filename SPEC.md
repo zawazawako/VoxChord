@@ -1,7 +1,20 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.34
+Project version: 0.1.35
+
+## 0.1.35 Update - GUI responsibility and sizing correction
+
+- CMake project version: `0.1.35`.
+- Debug GUI pitch subtitle build string: `Build: gui-responsibility-fix-001`.
+- No DSP behavior was changed.
+- Header now focuses on logo/version, Input Gain, Output Gain, Input Source, Lead Tune, Mono Out, and a larger PANIC button.
+- Pitch, Last MIDI event, and active note count were removed from the HeaderControlsArea and moved into the MIDI panel.
+- MIDI panel status now shows `Pitch`, `Last`, and `Notes`.
+- Level panel is now meter-focused; Input Gain and Output controls were removed from it.
+- Input and Output meters were enlarged within the Level panel.
+- Character display remains grouped, with a wider Character sub-area and a larger Amount control than the previous layout.
+- The mini MIDI keyboard remains display-only; black-key drawing continues to use white-key-relative positioning.
 
 ## 0.1.34 Update - GUI layout correction
 
@@ -9,11 +22,12 @@ Project version: 0.1.34
 - Debug GUI pitch subtitle build string: `Build: gui-layout-fix-001`.
 - No DSP behavior was changed.
 - Header layout is now explicitly split into `LogoArea` and `HeaderControlsArea`.
-- HeaderControlsArea now contains Input Source, Lead Tune, Mono Out, PANIC, Pitch, Last, and Active note count.
+- HeaderControlsArea contains Input Gain, Output, Input Source, Lead Tune, Mono Out, and PANIC.
 - The previous right-column Input / Lead, Level / Output, and Status panel split was removed from the main layout.
 - Harmony now uses the wide main panel instead of being squeezed by a right column.
 - Bottom area is split into a wide MIDI panel and a right-side Level panel.
-- Input Gain, Output Gain, and Input/Output meters are grouped in the bottom-right Level panel.
+- Pitch, Last, and Notes are displayed in the MIDI panel.
+- Input/Output meters are grouped in the bottom-right Level panel.
 - Mini MIDI keyboard remains display-only and fixed to C2-C6.
 - Mini MIDI keyboard black keys are now drawn only for C#, D#, F#, G#, and A#, positioned relative to the white-key layout instead of equal semitone spacing.
 - Detailed Debug information remains present but is constrained to the lower MIDI/debug row so it does not cover the meters.
@@ -29,7 +43,8 @@ Project version: 0.1.34
 - `LevelMeterState` now stores input peak plus output-left and output-right peak/clip flags.
 - GUI is organized into Header, Harmony, MIDI, and Level areas.
 - Header is split into LogoArea and HeaderControlsArea.
-- HeaderControlsArea contains Lead Tune, Mono Out, PANIC, Pitch, Last, Active note count, and Input Source.
+- HeaderControlsArea contains Input Gain, Output, Input Source, Lead Tune, Mono Out, and PANIC.
+- Pitch, Last, and Notes are displayed in the MIDI area.
 - Character Type and Amount are visually grouped as a single Character control area.
 - Input Source remains on the main GUI inside the Input / Lead area.
 - Added a `Mono Out` toggle in the Level / Output area.
@@ -300,7 +315,7 @@ Project version: 0.1.34
 
 ## Build Configuration
 
-- CMake project version: `0.1.34`
+- CMake project version: `0.1.35`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -678,7 +693,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-layout-fix-001`
+- Debug: `Build: gui-responsibility-fix-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

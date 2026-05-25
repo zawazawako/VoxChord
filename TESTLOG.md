@@ -1,5 +1,35 @@
 # VoxChord Test Log
 
+## 0.1.35 GUI responsibility and sizing correction
+
+Date: 2026-05-25
+
+Implementation status:
+
+- Corrected GUI layout responsibilities without changing DSP behavior.
+- Removed Pitch, Last, and Active/Notes display from the header.
+- Moved Pitch, Last, and Notes into the MIDI panel.
+- Moved Input Gain and Output Gain from the Level panel into the header controls area.
+- Kept Input Source, Lead Tune, Mono Out, and PANIC in the header controls area.
+- Enlarged the PANIC button in the header.
+- Made the Level panel meter-focused and enlarged the vertical input/output meters.
+- Widened the Character sub-area and enlarged the Character Amount control.
+- Changed MIDI note count label to `Notes`.
+- Updated Debug build string to `Build: gui-responsibility-fix-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Header no longer duplicates Pitch / Last / Notes information.
+- MIDI panel clearly shows Pitch, Last, and Notes.
+- Header contains Input Gain, Output, Input Source, Lead Tune, Mono Out, and a larger PANIC button.
+- Level panel is meter-focused and meters are larger.
+- Character Amount is easier to operate than before.
+- Existing DSP behavior is unchanged.
+
 ## 0.1.34 GUI layout correction
 
 Date: 2026-05-25

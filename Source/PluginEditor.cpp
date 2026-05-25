@@ -87,7 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: gui-layout-fix-001 | ");
+        auto text = juce::String ("Build: gui-responsibility-fix-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -254,9 +254,9 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
     {
         auto whiteIndex = 0;
 
-        for (auto note = firstNote; note < midiNote; ++note)
+        for (auto note = MiniKeyboard::firstNote; note < midiNote; ++note)
         {
-            if (! isBlackKey (note))
+            if (! MiniKeyboard::isBlackKey (note))
                 ++whiteIndex;
         }
 
@@ -317,7 +317,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     titleLabel.setFont (juce::FontOptions { 34.0f, juce::Font::bold });
     addAndMakeVisible (titleLabel);
 
-    subtitleLabel.setText ("MIDI-controlled digital choir | C3 = MIDI 60", juce::dontSendNotification);
+    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString, juce::dontSendNotification);
     subtitleLabel.setJustificationType (juce::Justification::centredLeft);
     subtitleLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (165, 176, 181));
     subtitleLabel.setFont (juce::FontOptions { 15.0f });
@@ -414,7 +414,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     configureStatusLabel (compactLastLabel, "Last: --", juce::Justification::centredLeft);
     addAndMakeVisible (compactLastLabel);
 
-    configureStatusLabel (compactActiveLabel, "Active: 0 notes", juce::Justification::centredLeft);
+    configureStatusLabel (compactActiveLabel, "Notes: 0", juce::Justification::centredLeft);
     addAndMakeVisible (compactActiveLabel);
 
     inputMeter.setTitle ("Input");
@@ -449,7 +449,7 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (backgroundColour());
 
     auto bounds = getLocalBounds().reduced (18);
-    auto header = bounds.removeFromTop (72);
+    auto header = bounds.removeFromTop (82);
     bounds.removeFromTop (14);
     auto bottom = bounds.removeFromBottom (150);
     bounds.removeFromBottom (14);
@@ -478,24 +478,27 @@ void VoxChordAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced (26);
 
-    auto header = bounds.removeFromTop (56);
+    auto header = bounds.removeFromTop (70);
     auto logoArea = header.removeFromLeft (juce::jmax (270, header.getWidth() / 2));
     auto headerControls = header;
     titleLabel.setBounds (logoArea.removeFromTop (34));
     subtitleLabel.setBounds (logoArea);
 
-    auto headerTop = headerControls.removeFromTop (26);
-    auto inputRow = headerTop.removeFromLeft (180);
-    inputSourceLabel.setBounds (inputRow.removeFromLeft (44));
-    inputSourceBox.setBounds (inputRow.reduced (0, 1));
-    leadTuneButton.setBounds (headerTop.removeFromLeft (100).reduced (4, 0));
-    monoOutputButton.setBounds (headerTop.removeFromLeft (104).reduced (4, 0));
-    panicButton.setBounds (headerTop.removeFromRight (94).reduced (4, 0));
+    auto headerTop = headerControls.removeFromTop (40);
+    auto panicArea = headerTop.removeFromRight (118).reduced (6, 2);
+    panicButton.setBounds (panicArea);
+    auto outputHeaderArea = headerTop.removeFromRight (154).reduced (4, 0);
+    layoutCompactSlider (outputSlider, outputLabel, outputHeaderArea);
+    auto inputHeaderArea = headerTop.removeFromRight (154).reduced (4, 0);
+    layoutCompactSlider (inputGainSlider, inputGainLabel, inputHeaderArea);
 
     auto headerBottom = headerControls;
-    compactPitchLabel.setBounds (headerBottom.removeFromLeft (170).reduced (4, 0));
-    compactLastLabel.setBounds (headerBottom.removeFromLeft (170).reduced (4, 0));
-    compactActiveLabel.setBounds (headerBottom.removeFromLeft (142).reduced (4, 0));
+    headerBottom.removeFromTop (4);
+    auto inputRow = headerBottom.removeFromLeft (184);
+    inputSourceLabel.setBounds (inputRow.removeFromLeft (44));
+    inputSourceBox.setBounds (inputRow.reduced (0, 1));
+    leadTuneButton.setBounds (headerBottom.removeFromLeft (108).reduced (6, 0));
+    monoOutputButton.setBounds (headerBottom.removeFromLeft (112).reduced (6, 0));
 
     bounds.removeFromTop (18);
 
@@ -505,17 +508,18 @@ void VoxChordAudioProcessorEditor::resized()
     auto harmony = bounds.reduced (12);
     harmony.removeFromTop (22);
     auto controlsTop = harmony.removeFromTop (168);
-    const auto knobWidth = controlsTop.getWidth() / 5;
+    const auto characterWidth = juce::jlimit (178, 230, controlsTop.getWidth() / 4);
+    const auto knobWidth = (controlsTop.getWidth() - characterWidth) / 4;
 
     layoutSlider (voiceCountSlider, voiceCountLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (glideSlider, glideLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
 
-    auto characterGroup = controlsTop.removeFromLeft (knobWidth).reduced (5);
+    auto characterGroup = controlsTop.removeFromLeft (characterWidth).reduced (6);
     characterTypeLabel.setBounds (characterGroup.removeFromTop (24));
     characterModeBox.setBounds (characterGroup.removeFromTop (34).reduced (8, 0));
     characterGroup.removeFromTop (8);
     characterLabel.setBounds (characterGroup.removeFromTop (20));
-    characterAmountSlider.setBounds (characterGroup);
+    characterAmountSlider.setBounds (characterGroup.reduced (6, 0));
 
     layoutSlider (spreadSlider, spreadLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controlsTop.reduced (5));
@@ -525,21 +529,20 @@ void VoxChordAudioProcessorEditor::resized()
     auto midi = bottom.reduced (12);
 
     level.removeFromTop (22);
-    auto gainArea = level.removeFromTop (44);
-    layoutCompactSlider (inputGainSlider, inputGainLabel, gainArea.removeFromLeft (104));
-    gainArea.removeFromLeft (8);
-    layoutCompactSlider (outputSlider, outputLabel, gainArea);
-    level.removeFromTop (8);
     auto meterRow = level;
-    inputMeter.setBounds (meterRow.removeFromLeft (62));
+    inputMeter.setBounds (meterRow.removeFromLeft (66));
     meterRow.removeFromLeft (10);
-    outputLeftMeter.setBounds (meterRow.removeFromLeft (62));
+    outputLeftMeter.setBounds (meterRow.removeFromLeft (66));
     meterRow.removeFromLeft (10);
-    outputRightMeter.setBounds (meterRow.removeFromLeft (62));
+    outputRightMeter.setBounds (meterRow.removeFromLeft (66));
 
     midi.removeFromTop (22);
-    midiNotesLabel.setBounds (midi.removeFromTop (24));
-    miniKeyboard.setBounds (midi.removeFromTop (58));
+    auto midiStatusRow = midi.removeFromTop (26);
+    compactPitchLabel.setBounds (midiStatusRow.removeFromLeft (170).reduced (4, 0));
+    compactLastLabel.setBounds (midiStatusRow.removeFromLeft (170).reduced (4, 0));
+    compactActiveLabel.setBounds (midiStatusRow.removeFromLeft (132).reduced (4, 0));
+    midiNotesLabel.setBounds (midi.removeFromTop (22));
+    miniKeyboard.setBounds (midi.removeFromTop (54));
     auto debugRow = midi.removeFromTop (32);
     pitchDebugLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
     midiStatusLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
@@ -628,7 +631,7 @@ void VoxChordAudioProcessorEditor::updateMidiState()
 {
     const auto notes = processorRef.getActiveMidiNotes();
     const auto voiceLimit = processorRef.getCurrentVoiceLimit();
-    auto text = juce::String ("MIDI: ");
+    auto text = juce::String ("Notes: ");
     auto slots = juce::String ("Slots: ");
     auto anyNotes = false;
     auto activeCount = 0;
@@ -674,12 +677,10 @@ void VoxChordAudioProcessorEditor::updateMidiState()
     if (! anyNotes)
         text += "--";
 
-    text += " | " + formatPitchDebug (processorRef.getDetectedInputPitchHz());
-
     midiNotesLabel.setText (text, juce::dontSendNotification);
     voiceSlotsLabel.setText (slots, juce::dontSendNotification);
     miniKeyboard.setActiveNotes (notes);
-    compactActiveLabel.setText ("Active: " + juce::String (activeCount) + " notes", juce::dontSendNotification);
+    compactActiveLabel.setText ("Notes: " + juce::String (activeCount), juce::dontSendNotification);
 
     const auto activity = processorRef.getMidiActivitySnapshot();
 
