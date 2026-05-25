@@ -1,5 +1,9 @@
 #include "PluginEditor.h"
 
+#include <cerrno>
+#include <cmath>
+#include <cstdlib>
+
 namespace
 {
     constexpr auto showDebugSelfTestSummary = false;
@@ -87,7 +91,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: gui-responsibility-fix-001 | ");
+        auto text = juce::String ("Build: gui-final-controls-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -335,6 +339,30 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     characterAmountSlider.setNumDecimalPlacesToDisplay (0);
     inputGainSlider.setNumDecimalPlacesToDisplay (1);
     outputSlider.setNumDecimalPlacesToDisplay (1);
+    inputGainSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    outputSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    characterAmountSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+
+    configureEditableValueLabel (inputGainValueLabel);
+    inputGainValueLabel.onTextChange = [this]
+    {
+        commitEditableValueLabel (inputGainValueLabel, voxchord::ParameterIDs::inputGainDb, true);
+    };
+    addAndMakeVisible (inputGainValueLabel);
+
+    configureEditableValueLabel (outputValueLabel);
+    outputValueLabel.onTextChange = [this]
+    {
+        commitEditableValueLabel (outputValueLabel, voxchord::ParameterIDs::outputLevel, true);
+    };
+    addAndMakeVisible (outputValueLabel);
+
+    configureEditableValueLabel (characterAmountValueLabel);
+    characterAmountValueLabel.onTextChange = [this]
+    {
+        commitEditableValueLabel (characterAmountValueLabel, voxchord::ParameterIDs::character, false);
+    };
+    addAndMakeVisible (characterAmountValueLabel);
 
     voiceCountAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountSlider);
     glideAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::glide, glideSlider);
@@ -435,6 +463,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (panicButton);
 
+    updateEditableValueLabels();
     setSize (860, 540);
     startTimerHz (30);
 }
@@ -469,6 +498,15 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawRoundedRectangle (midi.toFloat(), 18.0f, 1.5f);
     g.drawRoundedRectangle (level.toFloat(), 18.0f, 1.5f);
 
+    if (! characterCardBounds.isEmpty())
+    {
+        auto characterCard = characterCardBounds.toFloat();
+        g.setColour (juce::Colour::fromRGB (21, 27, 31));
+        g.fillRoundedRectangle (characterCard, 10.0f);
+        g.setColour (accentColour().withAlpha (0.42f));
+        g.drawRoundedRectangle (characterCard, 10.0f, 1.2f);
+    }
+
     layoutSectionTitle (g, harmony, "Harmony");
     layoutSectionTitle (g, midi, "MIDI");
     layoutSectionTitle (g, level, "Level");
@@ -478,27 +516,34 @@ void VoxChordAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced (26);
 
-    auto header = bounds.removeFromTop (70);
-    auto logoArea = header.removeFromLeft (juce::jmax (270, header.getWidth() / 2));
-    auto headerControls = header;
-    titleLabel.setBounds (logoArea.removeFromTop (34));
+    auto header = bounds.removeFromTop (74);
+    auto logoArea = header.removeFromLeft (220).reduced (8, 4);
+    auto utilityArea = header.removeFromRight (250).reduced (8, 5);
+    auto gainArea = header.reduced (8, 4);
+
+    titleLabel.setBounds (logoArea.removeFromTop (36));
     subtitleLabel.setBounds (logoArea);
 
-    auto headerTop = headerControls.removeFromTop (40);
-    auto panicArea = headerTop.removeFromRight (118).reduced (6, 2);
-    panicButton.setBounds (panicArea);
-    auto outputHeaderArea = headerTop.removeFromRight (154).reduced (4, 0);
-    layoutCompactSlider (outputSlider, outputLabel, outputHeaderArea);
-    auto inputHeaderArea = headerTop.removeFromRight (154).reduced (4, 0);
-    layoutCompactSlider (inputGainSlider, inputGainLabel, inputHeaderArea);
+    auto gainRow = gainArea.removeFromTop (31);
+    inputGainLabel.setBounds (gainRow.removeFromLeft (82));
+    inputGainValueLabel.setBounds (gainRow.removeFromRight (76).reduced (2, 3));
+    inputGainSlider.setBounds (gainRow.reduced (4, 6));
 
-    auto headerBottom = headerControls;
-    headerBottom.removeFromTop (4);
-    auto inputRow = headerBottom.removeFromLeft (184);
-    inputSourceLabel.setBounds (inputRow.removeFromLeft (44));
+    gainArea.removeFromTop (4);
+    auto outputRow = gainArea.removeFromTop (31);
+    outputLabel.setBounds (outputRow.removeFromLeft (82));
+    outputValueLabel.setBounds (outputRow.removeFromRight (76).reduced (2, 3));
+    outputSlider.setBounds (outputRow.reduced (4, 6));
+
+    auto utilityTop = utilityArea.removeFromTop (30);
+    auto inputRow = utilityTop.removeFromLeft (132);
+    inputSourceLabel.setBounds (inputRow.removeFromLeft (42));
     inputSourceBox.setBounds (inputRow.reduced (0, 1));
-    leadTuneButton.setBounds (headerBottom.removeFromLeft (108).reduced (6, 0));
-    monoOutputButton.setBounds (headerBottom.removeFromLeft (112).reduced (6, 0));
+    leadTuneButton.setBounds (utilityTop.removeFromLeft (92).reduced (4, 1));
+
+    utilityArea.removeFromTop (4);
+    monoOutputButton.setBounds (utilityArea.removeFromLeft (108).reduced (4, 2));
+    panicButton.setBounds (utilityArea.reduced (4, 1));
 
     bounds.removeFromTop (18);
 
@@ -508,18 +553,21 @@ void VoxChordAudioProcessorEditor::resized()
     auto harmony = bounds.reduced (12);
     harmony.removeFromTop (22);
     auto controlsTop = harmony.removeFromTop (168);
-    const auto characterWidth = juce::jlimit (178, 230, controlsTop.getWidth() / 4);
+    const auto characterWidth = juce::jlimit (220, 280, controlsTop.getWidth() / 3);
     const auto knobWidth = (controlsTop.getWidth() - characterWidth) / 4;
 
     layoutSlider (voiceCountSlider, voiceCountLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (glideSlider, glideLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
 
-    auto characterGroup = controlsTop.removeFromLeft (characterWidth).reduced (6);
-    characterTypeLabel.setBounds (characterGroup.removeFromTop (24));
-    characterModeBox.setBounds (characterGroup.removeFromTop (34).reduced (8, 0));
-    characterGroup.removeFromTop (8);
-    characterLabel.setBounds (characterGroup.removeFromTop (20));
-    characterAmountSlider.setBounds (characterGroup.reduced (6, 0));
+    auto characterOuter = controlsTop.removeFromLeft (characterWidth).reduced (5, 0);
+    characterCardBounds = characterOuter;
+    auto characterGroup = characterOuter.reduced (14, 10);
+    characterTypeLabel.setBounds (characterGroup.removeFromTop (22));
+    characterModeBox.setBounds (characterGroup.removeFromTop (32));
+    characterGroup.removeFromTop (5);
+    characterLabel.setBounds (characterGroup.removeFromTop (18));
+    characterAmountValueLabel.setBounds (characterGroup.removeFromBottom (23).withSizeKeepingCentre (72, 23));
+    characterAmountSlider.setBounds (characterGroup.reduced (2, 0));
 
     layoutSlider (spreadSlider, spreadLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controlsTop.reduced (5));
@@ -554,6 +602,7 @@ void VoxChordAudioProcessorEditor::timerCallback()
     updateMidiState();
     updateMeters();
     updatePitchDebug();
+    updateEditableValueLabels();
 }
 
 void VoxChordAudioProcessorEditor::configureSlider (juce::Slider& slider,
@@ -625,6 +674,114 @@ void VoxChordAudioProcessorEditor::layoutSectionTitle (juce::Graphics& g,
     g.setColour (juce::Colour::fromRGB (190, 205, 205));
     g.setFont (juce::FontOptions { 13.0f, juce::Font::bold });
     g.drawFittedText (title, bounds.reduced (14).removeFromTop (20), juce::Justification::centredLeft, 1);
+}
+
+void VoxChordAudioProcessorEditor::configureEditableValueLabel (juce::Label& label)
+{
+    label.setEditable (true, true, false);
+    label.setJustificationType (juce::Justification::centred);
+    label.setColour (juce::Label::textColourId, juce::Colours::white);
+    label.setColour (juce::Label::backgroundColourId, juce::Colour::fromRGB (18, 23, 27));
+    label.setColour (juce::Label::outlineColourId, accentColour().withAlpha (0.45f));
+    label.setColour (juce::Label::textWhenEditingColourId, juce::Colours::white);
+    label.setColour (juce::Label::backgroundWhenEditingColourId, juce::Colour::fromRGB (18, 23, 27));
+    label.setFont (juce::FontOptions { 12.5f, juce::Font::bold });
+}
+
+void VoxChordAudioProcessorEditor::updateEditableValueLabels()
+{
+    if (inputGainValueLabel.isBeingEdited()
+        || outputValueLabel.isBeingEdited()
+        || characterAmountValueLabel.isBeingEdited())
+    {
+        return;
+    }
+
+    const juce::ScopedValueSetter<bool> updateGuard (isUpdatingEditableValueLabels, true);
+
+    updateEditableValueLabel (inputGainValueLabel, voxchord::ParameterIDs::inputGainDb, true);
+    updateEditableValueLabel (outputValueLabel, voxchord::ParameterIDs::outputLevel, true);
+    updateEditableValueLabel (characterAmountValueLabel, voxchord::ParameterIDs::character, false);
+}
+
+void VoxChordAudioProcessorEditor::updateEditableValueLabel (juce::Label& label,
+                                                             const juce::String& parameterId,
+                                                             bool isDecibels)
+{
+    label.setText (formatEditableValue (parameterId, isDecibels), juce::dontSendNotification);
+}
+
+void VoxChordAudioProcessorEditor::commitEditableValueLabel (juce::Label& label,
+                                                             const juce::String& parameterId,
+                                                             bool isDecibels)
+{
+    if (isUpdatingEditableValueLabels)
+        return;
+
+    float value = 0.0f;
+
+    if (! parseEditableValue (label.getText(), isDecibels, value))
+    {
+        updateEditableValueLabel (label, parameterId, isDecibels);
+        return;
+    }
+
+    auto& state = processorRef.getValueTreeState();
+
+    if (auto* parameter = state.getParameter (parameterId))
+    {
+        value = juce::jlimit (parameter->getNormalisableRange().start,
+                              parameter->getNormalisableRange().end,
+                              value);
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
+        parameter->endChangeGesture();
+    }
+
+    updateEditableValueLabel (label, parameterId, isDecibels);
+}
+
+juce::String VoxChordAudioProcessorEditor::formatEditableValue (const juce::String& parameterId,
+                                                                bool isDecibels) const
+{
+    if (auto* value = processorRef.getValueTreeState().getRawParameterValue (parameterId))
+        return isDecibels ? formatDecibelValue (value->load()) : formatPercentValue (value->load());
+
+    return isDecibels ? formatDecibelValue (0.0f) : formatPercentValue (0.0f);
+}
+
+bool VoxChordAudioProcessorEditor::parseEditableValue (const juce::String& text,
+                                                       bool isDecibels,
+                                                       float& value) const
+{
+    auto cleaned = text.trim().toLowerCase();
+    cleaned = cleaned.replace ("db", "");
+    cleaned = cleaned.replace ("%", "");
+    cleaned = cleaned.removeCharacters (" \t\r\n");
+
+    if (cleaned.isEmpty())
+        return false;
+
+    const auto raw = cleaned.toStdString();
+    char* end = nullptr;
+    errno = 0;
+    const auto parsed = std::strtof (raw.c_str(), &end);
+
+    if (end == raw.c_str() || *end != '\0' || errno == ERANGE || ! std::isfinite (parsed))
+        return false;
+
+    value = isDecibels ? parsed : parsed / 100.0f;
+    return true;
+}
+
+juce::String VoxChordAudioProcessorEditor::formatDecibelValue (float value)
+{
+    return juce::String (value > 0.0f ? "+" : "") + juce::String (value, 1) + " dB";
+}
+
+juce::String VoxChordAudioProcessorEditor::formatPercentValue (float value)
+{
+    return juce::String (juce::roundToInt (juce::jlimit (0.0f, 1.0f, value) * 100.0f)) + "%";
 }
 
 void VoxChordAudioProcessorEditor::updateMidiState()

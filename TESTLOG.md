@@ -1,5 +1,42 @@
 # VoxChord Test Log
 
+## 0.1.36 final GUI controls and direct numeric entry
+
+Date: 2026-05-25
+
+Implementation status:
+
+- Corrected GUI layout responsibilities without changing DSP behavior.
+- Split the header into `LogoArea`, `GainArea`, and `UtilityArea`.
+- Used the center header space as `GainArea` for larger horizontal `Input Gain` and `Output` sliders.
+- Added editable value labels for `Input Gain` and `Output`.
+- Placed `Input Source`, `Lead Tune`, `Mono Out`, and a large horizontal `PANIC` button in `UtilityArea`.
+- Displayed Character as a Harmony subcard that groups Character Type and Character Amount.
+- Enlarged the Character Amount control area and added an editable percent value label.
+- Direct numeric entry targets `Input Gain`, `Output`, and `Character Amount`.
+- dB input accepts numeric text with optional `dB`; percent input accepts numeric text with optional `%`.
+- Invalid numeric input reverts to the current APVTS value without changing the parameter.
+- Out-of-range numeric input is clamped through the existing APVTS parameter ranges.
+- Numeric edits write to the existing APVTS parameters; no parameter IDs were changed.
+- Updated Debug build string to `Build: gui-final-controls-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Header is visibly split into LogoArea / GainArea / UtilityArea.
+- VoxChord logo right-side center space is used by the larger Input Gain / Output controls.
+- Input Gain / Output values are readable and editable directly.
+- UtilityArea contains Input Source, Lead Tune, Mono Out, and a large PANIC button.
+- Character appears as one subcard containing Type and Amount.
+- Character Amount is easier to operate and editable directly.
+- Numeric invalid input does not change parameter values.
+- Numeric out-of-range input clamps safely.
+- Enter / Esc / focus lost do not break editing behavior.
+- Existing DSP behavior is unchanged.
+
 ## 0.1.35 GUI responsibility and sizing correction
 
 Date: 2026-05-25

@@ -1,7 +1,24 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-20
-Project version: 0.1.35
+Last updated: 2026-05-25
+Project version: 0.1.36
+
+## 0.1.36 Update - final GUI controls and direct numeric entry
+
+- CMake project version: `0.1.36`.
+- Debug GUI pitch subtitle build string: `Build: gui-final-controls-001`.
+- No DSP behavior was changed.
+- Header is now split into three explicit areas: `LogoArea`, `GainArea`, and `UtilityArea`.
+- `LogoArea` shows the VoxChord title and version/debug subtitle.
+- `GainArea` uses the center space to show larger horizontal `Input Gain` and `Output` sliders with editable value labels.
+- `UtilityArea` contains `Input Source`, `Lead Tune`, `Mono Out`, and a larger horizontal `PANIC` button.
+- `Character` is displayed as a subcard inside the Harmony panel, grouping Character Type and Amount as one visible function.
+- `Character Amount` uses a larger control area and an editable percent value label.
+- Direct numeric entry is supported for `Input Gain`, `Output`, and `Character Amount`.
+- dB entry accepts numeric text with optional `dB`; percentage entry accepts `0-100` text with optional `%` and maps to APVTS `0.0-1.0`.
+- Invalid numeric input is ignored and the display reverts to the current APVTS value.
+- Out-of-range numeric input is clamped by the existing APVTS parameter range.
+- Numeric edits write through the existing APVTS parameter IDs; no parameter IDs were changed.
 
 ## 0.1.35 Update - GUI responsibility and sizing correction
 
@@ -315,7 +332,7 @@ Project version: 0.1.35
 
 ## Build Configuration
 
-- CMake project version: `0.1.35`
+- CMake project version: `0.1.36`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -671,7 +688,7 @@ Spread:
 
 Window:
 
-- Size: `800 x 470`
+- Size: `860 x 540`
 - Timer: `30 Hz`
 - Dark, single-screen live-oriented UI.
 
@@ -682,7 +699,9 @@ Controls:
 - Character Type and Amount grouped as Character
 - Spread
 - Dry/Wet
-- Main utility controls: Input Source, Input Gain, Lead Tune, Output, Mono Out, PANIC button
+- Header utility controls: Input Source, Lead Tune, Mono Out, PANIC button
+- Header gain controls: larger Input Gain and Output sliders with editable dB value labels.
+- Character Amount has an editable percent value label inside the Character subcard.
 
 Status/debug:
 
@@ -693,7 +712,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-responsibility-fix-001`
+- Debug: `Build: gui-final-controls-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

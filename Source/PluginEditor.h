@@ -29,6 +29,14 @@ private:
     void updateMidiState();
     void updateMeters();
     void updatePitchDebug();
+    void configureEditableValueLabel (juce::Label& label);
+    void updateEditableValueLabels();
+    void updateEditableValueLabel (juce::Label& label, const juce::String& parameterId, bool isDecibels);
+    void commitEditableValueLabel (juce::Label& label, const juce::String& parameterId, bool isDecibels);
+    juce::String formatEditableValue (const juce::String& parameterId, bool isDecibels) const;
+    bool parseEditableValue (const juce::String& text, bool isDecibels, float& value) const;
+    static juce::String formatDecibelValue (float value);
+    static juce::String formatPercentValue (float value);
 
     class VerticalMeter final : public juce::Component
     {
@@ -77,6 +85,9 @@ private:
     juce::Label dryWetLabel;
     juce::Label inputGainLabel;
     juce::Label outputLabel;
+    juce::Label inputGainValueLabel;
+    juce::Label outputValueLabel;
+    juce::Label characterAmountValueLabel;
 
     juce::Label titleLabel;
     juce::Label subtitleLabel;
@@ -97,6 +108,7 @@ private:
     juce::ToggleButton leadTuneButton { "Lead Tune" };
     juce::ToggleButton monoOutputButton { "Mono Out" };
     juce::TextButton panicButton { "PANIC" };
+    juce::Rectangle<int> characterCardBounds;
 
     std::unique_ptr<SliderAttachment> voiceCountAttachment;
     std::unique_ptr<SliderAttachment> glideAttachment;
@@ -111,6 +123,7 @@ private:
     std::unique_ptr<ButtonAttachment> monoOutputAttachment;
 
     uint32_t lastSeenMidiActivityCounter = 0;
+    bool isUpdatingEditableValueLabels = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessorEditor)
 };
