@@ -1,5 +1,36 @@
 # VoxChord Test Log
 
+## 0.1.34 GUI layout correction
+
+Date: 2026-05-25
+
+Implementation status:
+
+- Corrected the GUI layout without changing DSP behavior.
+- Split the header into LogoArea and HeaderControlsArea.
+- Moved Input Source, Lead Tune, Mono Out, PANIC, Pitch, Last, and Active note count into the header controls area.
+- Removed the previous right-column Input / Lead, Level / Output, and Status panel split from the main layout.
+- Expanded Harmony to use the full main width.
+- Split the bottom area into a wide MIDI panel and a right-side Level panel.
+- Grouped Input Gain, Output Gain, and Input/Output meters in the Level panel.
+- Fixed Mini Keyboard black-key drawing so only C#, D#, F#, G#, and A# are drawn, positioned relative to white keys.
+- Updated Debug build string to `Build: gui-layout-fix-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- VoxChord logo right-side dead space is now used by controls/status.
+- Header shows Lead Tune, Mono Out, PANIC, Pitch, Last, and Active note count.
+- Harmony panel uses the horizontal space cleanly.
+- Input/Output labels no longer overlap nearby controls.
+- Input/Output meters are visible in the Level panel.
+- Mini Keyboard no longer shows incorrectly spaced black-key patterns.
+- Release UI remains readable.
+- Existing DSP behavior is unchanged.
+
 ## 0.1.33 GUI layout, Mono Out, and mini MIDI keyboard
 
 Date: 2026-05-25

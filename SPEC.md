@@ -1,7 +1,22 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-20
-Project version: 0.1.33
+Project version: 0.1.34
+
+## 0.1.34 Update - GUI layout correction
+
+- CMake project version: `0.1.34`.
+- Debug GUI pitch subtitle build string: `Build: gui-layout-fix-001`.
+- No DSP behavior was changed.
+- Header layout is now explicitly split into `LogoArea` and `HeaderControlsArea`.
+- HeaderControlsArea now contains Input Source, Lead Tune, Mono Out, PANIC, Pitch, Last, and Active note count.
+- The previous right-column Input / Lead, Level / Output, and Status panel split was removed from the main layout.
+- Harmony now uses the wide main panel instead of being squeezed by a right column.
+- Bottom area is split into a wide MIDI panel and a right-side Level panel.
+- Input Gain, Output Gain, and Input/Output meters are grouped in the bottom-right Level panel.
+- Mini MIDI keyboard remains display-only and fixed to C2-C6.
+- Mini MIDI keyboard black keys are now drawn only for C#, D#, F#, G#, and A#, positioned relative to the white-key layout instead of equal semitone spacing.
+- Detailed Debug information remains present but is constrained to the lower MIDI/debug row so it does not cover the meters.
 
 ## 0.1.33 Update - GUI layout, Mono Out, and mini MIDI keyboard
 
@@ -12,7 +27,9 @@ Project version: 0.1.33
 - Mono Out switching is smoothed over approximately `12 ms` to reduce switching clicks.
 - Output meters now publish and display separate post-output-gain L/R peaks; when Mono Out is enabled, the displayed L/R values should match after the smoothing transition.
 - `LevelMeterState` now stores input peak plus output-left and output-right peak/clip flags.
-- GUI was reorganized into Header, Harmony, Input / Lead, Level / Output, Status, and bottom MIDI/status areas.
+- GUI is organized into Header, Harmony, MIDI, and Level areas.
+- Header is split into LogoArea and HeaderControlsArea.
+- HeaderControlsArea contains Lead Tune, Mono Out, PANIC, Pitch, Last, Active note count, and Input Source.
 - Character Type and Amount are visually grouped as a single Character control area.
 - Input Source remains on the main GUI inside the Input / Lead area.
 - Added a `Mono Out` toggle in the Level / Output area.
@@ -283,7 +300,7 @@ Project version: 0.1.33
 
 ## Build Configuration
 
-- CMake project version: `0.1.33`
+- CMake project version: `0.1.34`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -658,10 +675,10 @@ Status/debug:
 - Display-only mini MIDI keyboard for C2-C6.
 - Voice slots.
 - Last MIDI event.
-- Vertical input and output meters.
+- Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-mono-midi-001`
+- Debug: `Build: gui-layout-fix-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

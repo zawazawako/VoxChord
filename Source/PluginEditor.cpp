@@ -87,7 +87,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: gui-mono-midi-001 | ");
+        auto text = juce::String ("Build: gui-layout-fix-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -238,9 +238,30 @@ bool VoxChordAudioProcessorEditor::MiniKeyboard::isActive (int midiNote) const n
 void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().reduced (8, 6).toFloat();
-    const auto keyCount = lastNote - firstNote + 1;
-    const auto keyWidth = bounds.getWidth() / static_cast<float> (keyCount);
+    auto whiteKeyCount = 0;
+
+    for (auto note = firstNote; note <= lastNote; ++note)
+    {
+        if (! isBlackKey (note))
+            ++whiteKeyCount;
+    }
+
+    const auto whiteKeyWidth = bounds.getWidth() / static_cast<float> (juce::jmax (1, whiteKeyCount));
     const auto blackHeight = bounds.getHeight() * 0.58f;
+    const auto blackWidth = whiteKeyWidth * 0.58f;
+
+    const auto whiteIndexForNote = [] (int midiNote)
+    {
+        auto whiteIndex = 0;
+
+        for (auto note = firstNote; note < midiNote; ++note)
+        {
+            if (! isBlackKey (note))
+                ++whiteIndex;
+        }
+
+        return whiteIndex;
+    };
 
     g.setColour (juce::Colour::fromRGB (14, 18, 22));
     g.fillRoundedRectangle (bounds, 6.0f);
@@ -250,8 +271,8 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
         if (isBlackKey (note))
             continue;
 
-        const auto x = bounds.getX() + static_cast<float> (note - firstNote) * keyWidth;
-        auto key = juce::Rectangle<float> { x, bounds.getY(), keyWidth - 1.0f, bounds.getHeight() };
+        const auto x = bounds.getX() + static_cast<float> (whiteIndexForNote (note)) * whiteKeyWidth;
+        auto key = juce::Rectangle<float> { x, bounds.getY(), whiteKeyWidth - 1.0f, bounds.getHeight() };
         const auto active = isActive (note);
         g.setColour (active ? accentColour() : juce::Colour::fromRGB (214, 222, 222));
         g.fillRoundedRectangle (key.reduced (0.5f), 2.5f);
@@ -264,8 +285,8 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
         if (! isBlackKey (note))
             continue;
 
-        const auto x = bounds.getX() + static_cast<float> (note - firstNote) * keyWidth;
-        auto key = juce::Rectangle<float> { x - keyWidth * 0.32f, bounds.getY(), keyWidth * 0.64f, blackHeight };
+        const auto x = bounds.getX() + static_cast<float> (whiteIndexForNote (note)) * whiteKeyWidth;
+        auto key = juce::Rectangle<float> { x - blackWidth * 0.5f, bounds.getY(), blackWidth, blackHeight };
         const auto active = isActive (note);
         g.setColour (active ? juce::Colour::fromRGB (223, 234, 150) : juce::Colour::fromRGB (31, 36, 39));
         g.fillRoundedRectangle (key, 2.5f);
@@ -277,7 +298,7 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions { 11.0f, juce::Font::bold });
     for (auto octaveNote : { 36, 48, 60, 72, 84 })
     {
-        const auto x = bounds.getX() + static_cast<float> (octaveNote - firstNote) * keyWidth;
+        const auto x = bounds.getX() + static_cast<float> (whiteIndexForNote (octaveNote)) * whiteKeyWidth;
         g.drawFittedText (juce::MidiMessage::getMidiNoteName (octaveNote, true, true, 3),
                           juce::Rectangle<int> { juce::roundToInt (x), getHeight() - 16, 36, 14 },
                           juce::Justification::centredLeft,
@@ -430,35 +451,27 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().reduced (18);
     auto header = bounds.removeFromTop (72);
     bounds.removeFromTop (14);
-    auto bottom = bounds.removeFromBottom (142);
+    auto bottom = bounds.removeFromBottom (150);
     bounds.removeFromBottom (14);
-    auto rightColumn = bounds.removeFromRight (252);
-    bounds.removeFromRight (14);
     auto harmony = bounds;
-    auto inputLead = rightColumn.removeFromTop (172);
-    rightColumn.removeFromTop (12);
-    auto output = rightColumn.removeFromTop (176);
-    rightColumn.removeFromTop (12);
-    auto status = rightColumn;
+    auto level = bottom.removeFromRight (246);
+    bottom.removeFromRight (14);
+    auto midi = bottom;
 
     g.setColour (panelColour());
     g.fillRoundedRectangle (header.toFloat(), 16.0f);
     g.fillRoundedRectangle (harmony.toFloat(), 18.0f);
-    g.fillRoundedRectangle (inputLead.toFloat(), 18.0f);
-    g.fillRoundedRectangle (output.toFloat(), 18.0f);
-    g.fillRoundedRectangle (status.toFloat(), 18.0f);
-    g.fillRoundedRectangle (bottom.toFloat(), 18.0f);
+    g.fillRoundedRectangle (midi.toFloat(), 18.0f);
+    g.fillRoundedRectangle (level.toFloat(), 18.0f);
 
     g.setColour (accentColour().withAlpha (0.55f));
     g.drawRoundedRectangle (harmony.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (inputLead.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (output.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (bottom.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (midi.toFloat(), 18.0f, 1.5f);
+    g.drawRoundedRectangle (level.toFloat(), 18.0f, 1.5f);
 
     layoutSectionTitle (g, harmony, "Harmony");
-    layoutSectionTitle (g, inputLead, "Input / Lead");
-    layoutSectionTitle (g, output, "Level / Output");
-    layoutSectionTitle (g, status, "Status");
+    layoutSectionTitle (g, midi, "MIDI");
+    layoutSectionTitle (g, level, "Level");
 }
 
 void VoxChordAudioProcessorEditor::resized()
@@ -466,46 +479,28 @@ void VoxChordAudioProcessorEditor::resized()
     auto bounds = getLocalBounds().reduced (26);
 
     auto header = bounds.removeFromTop (56);
-    titleLabel.setBounds (header.removeFromTop (34));
-    subtitleLabel.setBounds (header);
+    auto logoArea = header.removeFromLeft (juce::jmax (270, header.getWidth() / 2));
+    auto headerControls = header;
+    titleLabel.setBounds (logoArea.removeFromTop (34));
+    subtitleLabel.setBounds (logoArea);
+
+    auto headerTop = headerControls.removeFromTop (26);
+    auto inputRow = headerTop.removeFromLeft (180);
+    inputSourceLabel.setBounds (inputRow.removeFromLeft (44));
+    inputSourceBox.setBounds (inputRow.reduced (0, 1));
+    leadTuneButton.setBounds (headerTop.removeFromLeft (100).reduced (4, 0));
+    monoOutputButton.setBounds (headerTop.removeFromLeft (104).reduced (4, 0));
+    panicButton.setBounds (headerTop.removeFromRight (94).reduced (4, 0));
+
+    auto headerBottom = headerControls;
+    compactPitchLabel.setBounds (headerBottom.removeFromLeft (170).reduced (4, 0));
+    compactLastLabel.setBounds (headerBottom.removeFromLeft (170).reduced (4, 0));
+    compactActiveLabel.setBounds (headerBottom.removeFromLeft (142).reduced (4, 0));
 
     bounds.removeFromTop (18);
 
-    auto bottom = bounds.removeFromBottom (126).reduced (12);
+    auto bottom = bounds.removeFromBottom (134);
     bounds.removeFromBottom (18);
-
-    auto rightColumn = bounds.removeFromRight (236);
-    bounds.removeFromRight (18);
-
-    auto inputLead = rightColumn.removeFromTop (156).reduced (12);
-    auto inputRow = inputLead.removeFromTop (34);
-    inputSourceLabel.setBounds (inputRow.removeFromLeft (48));
-    inputSourceBox.setBounds (inputRow);
-    inputLead.removeFromTop (8);
-    layoutCompactSlider (inputGainSlider, inputGainLabel, inputLead.removeFromTop (42));
-    inputLead.removeFromTop (8);
-    leadTuneButton.setBounds (inputLead.removeFromTop (28).reduced (10, 0));
-
-    rightColumn.removeFromTop (12);
-    auto output = rightColumn.removeFromTop (160).reduced (12);
-    layoutCompactSlider (outputSlider, outputLabel, output.removeFromTop (42));
-    output.removeFromTop (8);
-    monoOutputButton.setBounds (output.removeFromTop (28).reduced (10, 0));
-    output.removeFromTop (8);
-    auto meterRow = output;
-    inputMeter.setBounds (meterRow.removeFromLeft (62));
-    meterRow.removeFromLeft (10);
-    outputLeftMeter.setBounds (meterRow.removeFromLeft (62));
-    meterRow.removeFromLeft (10);
-    outputRightMeter.setBounds (meterRow.removeFromLeft (62));
-
-    rightColumn.removeFromTop (12);
-    auto status = rightColumn.reduced (12);
-    compactPitchLabel.setBounds (status.removeFromTop (28));
-    compactLastLabel.setBounds (status.removeFromTop (28));
-    compactActiveLabel.setBounds (status.removeFromTop (28));
-    status.removeFromTop (8);
-    panicButton.setBounds (status.removeFromTop (36).reduced (12, 0));
 
     auto harmony = bounds.reduced (12);
     harmony.removeFromTop (22);
@@ -525,9 +520,27 @@ void VoxChordAudioProcessorEditor::resized()
     layoutSlider (spreadSlider, spreadLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutSlider (dryWetSlider, dryWetLabel, controlsTop.reduced (5));
 
-    midiNotesLabel.setBounds (bottom.removeFromTop (26));
-    miniKeyboard.setBounds (bottom.removeFromTop (58));
-    auto debugRow = bottom.removeFromTop (34);
+    auto level = bottom.removeFromRight (230).reduced (12);
+    bottom.removeFromRight (14);
+    auto midi = bottom.reduced (12);
+
+    level.removeFromTop (22);
+    auto gainArea = level.removeFromTop (44);
+    layoutCompactSlider (inputGainSlider, inputGainLabel, gainArea.removeFromLeft (104));
+    gainArea.removeFromLeft (8);
+    layoutCompactSlider (outputSlider, outputLabel, gainArea);
+    level.removeFromTop (8);
+    auto meterRow = level;
+    inputMeter.setBounds (meterRow.removeFromLeft (62));
+    meterRow.removeFromLeft (10);
+    outputLeftMeter.setBounds (meterRow.removeFromLeft (62));
+    meterRow.removeFromLeft (10);
+    outputRightMeter.setBounds (meterRow.removeFromLeft (62));
+
+    midi.removeFromTop (22);
+    midiNotesLabel.setBounds (midi.removeFromTop (24));
+    miniKeyboard.setBounds (midi.removeFromTop (58));
+    auto debugRow = midi.removeFromTop (32);
     pitchDebugLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
     midiStatusLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
     voiceSlotsLabel.setBounds (debugRow.reduced (4));
