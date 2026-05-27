@@ -1,5 +1,36 @@
 # VoxChord Test Log
 
+## 0.1.37 GUI micro layout adjustments
+
+Date: 2026-05-27
+
+Implementation status:
+
+- Applied GUI-only micro-adjustments from `directions/0527_1.md`.
+- Kept DSP behavior, APVTS parameter IDs, Character DSP, pitch shifter, Mono Out DSP, and mini keyboard behavior unchanged.
+- Rearranged the header utility controls so `Lead` and `Input Source` share the top row, while `Mono` and a wide `PANIC` button share the second row.
+- Shortened visible button labels from `Lead Tune` / `Mono Out` to `Lead` / `Mono` for compact live-layout readability.
+- Added a visible `Character` title inside the Character subcard.
+- Renamed the Character mode label from `Char Type` to `Type`.
+- Enlarged the Character subcard and Character Amount knob area.
+- Moved level meter dB values below the meter fill area and made the text slightly more readable.
+- Slightly increased non-logo GUI label and section title font sizes.
+- Updated Debug build string to `Build: gui-micro-layout-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Header upper-right shows `Lead` and `Input Source` naturally on the top row.
+- Header upper-right shows `Mono` and wide `PANIC` naturally on the second row.
+- `Input Source` dropdown remains visible and usable.
+- Character subcard clearly reads as `Character`, with `Type` and `Amount` labels.
+- Character Amount knob is visibly larger than before.
+- Input/Output meter dB values no longer overlap the meter fill.
+- Existing DSP behavior is unchanged.
+
 ## 0.1.36 final GUI controls and direct numeric entry
 
 Date: 2026-05-25

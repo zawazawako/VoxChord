@@ -1,7 +1,21 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-25
-Project version: 0.1.36
+Last updated: 2026-05-27
+Project version: 0.1.37
+
+## 0.1.37 Update - GUI micro layout adjustments
+
+- CMake project version: `0.1.37`.
+- Debug GUI pitch subtitle build string: `Build: gui-micro-layout-001`.
+- No DSP behavior, APVTS parameter IDs, Character DSP, pitch shifter, Mono Out DSP, or mini keyboard behavior was changed.
+- Header `UtilityArea` now arranges `Lead` and `Input Source` on the top row, with `Mono` and a wide `PANIC` button on the second row.
+- `Lead Tune` and `Mono Out` are shortened visually to `Lead` and `Mono` to preserve spacing in the compact live header.
+- `Input Source` remains visible in the upper-right utility area with a readable dropdown width.
+- The Harmony Character subcard now draws its own `Character` title.
+- Character mode is labeled `Type` instead of `Char Type`.
+- Character amount remains labeled `Amount`, and its knob/card area is enlarged for easier live control.
+- Level meter dB values are drawn below the meter fill area instead of over the meter, with slightly stronger text contrast.
+- Non-logo GUI labels and section titles were increased slightly for readability without changing layout responsibilities.
 
 ## 0.1.36 Update - final GUI controls and direct numeric entry
 
@@ -300,11 +314,18 @@ Project version: 0.1.36
 
 `Source/PluginEditor.h`, `Source/PluginEditor.cpp`
 
-- Current visible GUI groups the main performance controls on the left and input/output utilities on the right.
-- Visible main controls: Voice Count, Glide, Char Type, Amount, Spread, Dry/Wet.
+- Current visible GUI is organized into Header, Harmony, MIDI, and Level areas.
+- Header is split into `LogoArea`, `GainArea`, and `UtilityArea`.
+- `GainArea` contains horizontal `Input Gain` and `Output` sliders with direct editable numeric labels.
+- `UtilityArea` top row contains `Lead` and `Input Source`; second row contains `Mono` and a wide `PANIC` button.
+- Visible Harmony controls: Voice Count, Glide, Character subcard, Spread, Dry/Wet.
+- Character subcard contains a `Character` title, `Type` combo box, and larger `Amount` knob with editable percent value.
 - The Tune APVTS parameter remains but the unused Tune knob is hidden.
-- Right-top utility controls: Input Source, Input Gain, Output, Lead Tune, PANIC.
-- Right-bottom meters use custom horizontal bar components for input/output peaks.
+- Level area uses vertical input and output meters; dB values are drawn below the meter fill.
+- MIDI area displays pitch, last MIDI event, active note count, voice slots, and the display-only mini keyboard.
+- Timer runs at `30 Hz`.
+- Debug GUI subtitle build string is `Build: gui-micro-layout-001`.
+- Release build subtitle shows only `VoxChord v` plus the plugin version.
 
 - 1 画面のライブ向け GUI。
 - Main performance controls: Voice Count, Glide, Character, Spread, Dry/Wet。
@@ -332,7 +353,7 @@ Project version: 0.1.36
 
 ## Build Configuration
 
-- CMake project version: `0.1.36`
+- CMake project version: `0.1.37`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -712,7 +733,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-final-controls-001`
+- Debug: `Build: gui-micro-layout-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

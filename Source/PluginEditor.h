@@ -105,8 +105,8 @@ private:
     juce::Label inputSourceLabel;
     juce::ComboBox inputSourceBox;
     juce::ComboBox characterModeBox;
-    juce::ToggleButton leadTuneButton { "Lead Tune" };
-    juce::ToggleButton monoOutputButton { "Mono Out" };
+    juce::ToggleButton leadTuneButton { "Lead" };
+    juce::ToggleButton monoOutputButton { "Mono" };
     juce::TextButton panicButton { "PANIC" };
     juce::Rectangle<int> characterCardBounds;
 
