@@ -1,5 +1,27 @@
 # VoxChord Test Log
 
+## 0.1.39 GUI balance micro-adjustment
+
+Date: 2026-05-28
+
+Implementation status:
+
+- Centered the `Character` title within the Character subcard.
+- Centered the Level meter group horizontally inside the Level panel.
+- Kept `OutL` and `OutR` directly adjacent as a connected stereo pair.
+- Updated Debug build string to `Build: gui-balance-layout-001`.
+- No DSP behavior or APVTS parameter behavior was changed.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Character title appears at the top center of the Character area.
+- Output L/R meters sit slightly farther right than before.
+- Level area feels closer to left/right symmetric.
+
 ## 0.1.38 GUI entry and live layout refinement
 
 Date: 2026-05-28

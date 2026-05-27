@@ -1,7 +1,15 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-28
-Project version: 0.1.38
+Project version: 0.1.39
+
+## 0.1.39 Update - GUI balance micro-adjustment
+
+- CMake project version: `0.1.39`.
+- Debug GUI pitch subtitle build string: `Build: gui-balance-layout-001`.
+- No DSP behavior or APVTS parameter behavior was changed.
+- Character subcard title is now centered at the top of the Character area.
+- Level meter group is horizontally centered within the Level panel so the Input meter and connected `OutL` / `OutR` pair feel more left/right balanced.
 
 ## 0.1.38 Update - GUI entry and live layout refinement
 
@@ -340,7 +348,7 @@ Project version: 0.1.38
 - Level area uses vertical input and output meters; dB values are drawn below the meter fill.
 - MIDI area displays pitch, last MIDI event, active note names, voice slots, and the display-only mini keyboard.
 - Timer runs at `30 Hz`.
-- Debug GUI subtitle build string is `Build: gui-entry-layout-001`.
+- Debug GUI subtitle build string is `Build: gui-balance-layout-001`.
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
 
 - 1 画面のライブ向け GUI。
@@ -369,7 +377,7 @@ Project version: 0.1.38
 
 ## Build Configuration
 
-- CMake project version: `0.1.38`
+- CMake project version: `0.1.39`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -749,7 +757,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-entry-layout-001`
+- Debug: `Build: gui-balance-layout-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

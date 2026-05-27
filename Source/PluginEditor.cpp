@@ -91,7 +91,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: gui-entry-layout-001 | ");
+        auto text = juce::String ("Build: gui-balance-layout-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -539,7 +539,7 @@ void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
         auto titleArea = characterCardBounds.reduced (14, 8).removeFromTop (20);
         g.setColour (juce::Colour::fromRGB (220, 232, 231));
         g.setFont (juce::FontOptions { 15.0f, juce::Font::bold });
-        g.drawFittedText ("Character", titleArea, juce::Justification::centredLeft, 1);
+        g.drawFittedText ("Character", titleArea, juce::Justification::centred, 1);
     }
 
     layoutSectionTitle (g, harmony, "Harmony");
@@ -616,9 +616,14 @@ void VoxChordAudioProcessorEditor::resized()
 
     level.removeFromTop (22);
     auto meterRow = level;
-    inputMeter.setBounds (meterRow.removeFromLeft (54));
-    meterRow.removeFromLeft (18);
-    auto outputMeters = meterRow.removeFromLeft (112);
+    constexpr auto inputMeterWidth = 54;
+    constexpr auto meterGap = 18;
+    constexpr auto outputMeterPairWidth = 112;
+    const auto meterGroupWidth = inputMeterWidth + meterGap + outputMeterPairWidth;
+    meterRow.removeFromLeft (juce::jmax (0, (meterRow.getWidth() - meterGroupWidth) / 2));
+    inputMeter.setBounds (meterRow.removeFromLeft (inputMeterWidth));
+    meterRow.removeFromLeft (meterGap);
+    auto outputMeters = meterRow.removeFromLeft (outputMeterPairWidth);
     outputLeftMeter.setBounds (outputMeters.removeFromLeft (56));
     outputRightMeter.setBounds (outputMeters);
 
