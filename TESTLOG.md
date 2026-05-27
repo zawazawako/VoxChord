@@ -1,5 +1,40 @@
 # VoxChord Test Log
 
+## 0.1.38 GUI entry and live layout refinement
+
+Date: 2026-05-28
+
+Implementation status:
+
+- Applied GUI-only layout and direct-entry refinements.
+- Kept DSP behavior, APVTS parameter IDs, Character DSP, pitch shifter, Mono Out DSP, and mini keyboard behavior unchanged.
+- Changed header utility button labels from `Lead` / `Mono` to `Auto Tune` / `Mono Out`.
+- Shortened the right-side `Input Source` dropdown and `PANIC` button and aligned their right edges.
+- Added editable value labels for `Voices`, `Glide`, `Spread`, and `Dry/Wet`.
+- Kept editable value labels for `Input Gain`, `Output`, and `Amount`.
+- `Voices` direct entry is parsed as an integer; `Glide`, `Spread`, `Dry/Wet`, and `Amount` are parsed as percentages.
+- Reduced the Character `Type` dropdown height and increased the available `Amount` rotary area.
+- Hid the compact MIDI `Notes` count from the top MIDI status row.
+- Increased MIDI and Level panel height by reducing the Harmony panel height slightly.
+- Brought MIDI and Level panels closer horizontally so MIDI extends farther right and Level starts farther left.
+- Made Level meters narrower/taller and placed `OutL` / `OutR` directly adjacent.
+- Updated Debug build string to `Build: gui-entry-layout-001`.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Header shows `Auto Tune`, `Input Source`, `Mono Out`, and `PANIC` without overlap.
+- `Input Source` and `PANIC` are shorter and their right edges align.
+- `Voices`, `Glide`, `Spread`, and `Dry/Wet` accept direct numeric entry.
+- Character Amount knob is visibly larger than before.
+- MIDI top status row no longer shows the compact input-note count.
+- MIDI and Level panels feel taller and less cramped.
+- Level meters are narrower/taller, with `OutL` and `OutR` connected horizontally.
+- Existing DSP behavior is unchanged.
+
 ## 0.1.37 GUI micro layout adjustments
 
 Date: 2026-05-27

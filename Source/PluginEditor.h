@@ -22,7 +22,7 @@ private:
     void timerCallback() override;
     void configureSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
     void configureCompactSlider (juce::Slider& slider, juce::Label& label, const juce::String& text);
-    void layoutSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
+    void layoutEditableSlider (juce::Slider& slider, juce::Label& label, juce::Label& valueLabel, juce::Rectangle<int> bounds);
     void layoutComboBox (juce::ComboBox& comboBox, juce::Label& label, juce::Rectangle<int> bounds);
     void layoutCompactSlider (juce::Slider& slider, juce::Label& label, juce::Rectangle<int> bounds);
     void layoutSectionTitle (juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title);
@@ -31,12 +31,20 @@ private:
     void updatePitchDebug();
     void configureEditableValueLabel (juce::Label& label);
     void updateEditableValueLabels();
-    void updateEditableValueLabel (juce::Label& label, const juce::String& parameterId, bool isDecibels);
-    void commitEditableValueLabel (juce::Label& label, const juce::String& parameterId, bool isDecibels);
-    juce::String formatEditableValue (const juce::String& parameterId, bool isDecibels) const;
-    bool parseEditableValue (const juce::String& text, bool isDecibels, float& value) const;
+    enum class EditableValueFormat
+    {
+        decibels,
+        percent,
+        integer
+    };
+
+    void updateEditableValueLabel (juce::Label& label, const juce::String& parameterId, EditableValueFormat format);
+    void commitEditableValueLabel (juce::Label& label, const juce::String& parameterId, EditableValueFormat format);
+    juce::String formatEditableValue (const juce::String& parameterId, EditableValueFormat format) const;
+    bool parseEditableValue (const juce::String& text, EditableValueFormat format, float& value) const;
     static juce::String formatDecibelValue (float value);
     static juce::String formatPercentValue (float value);
+    static juce::String formatIntegerValue (float value);
 
     class VerticalMeter final : public juce::Component
     {
@@ -87,7 +95,11 @@ private:
     juce::Label outputLabel;
     juce::Label inputGainValueLabel;
     juce::Label outputValueLabel;
+    juce::Label voiceCountValueLabel;
+    juce::Label glideValueLabel;
     juce::Label characterAmountValueLabel;
+    juce::Label spreadValueLabel;
+    juce::Label dryWetValueLabel;
 
     juce::Label titleLabel;
     juce::Label subtitleLabel;
@@ -97,7 +109,6 @@ private:
     juce::Label pitchDebugLabel;
     juce::Label compactPitchLabel;
     juce::Label compactLastLabel;
-    juce::Label compactActiveLabel;
     VerticalMeter inputMeter;
     VerticalMeter outputLeftMeter;
     VerticalMeter outputRightMeter;
@@ -105,8 +116,8 @@ private:
     juce::Label inputSourceLabel;
     juce::ComboBox inputSourceBox;
     juce::ComboBox characterModeBox;
-    juce::ToggleButton leadTuneButton { "Lead" };
-    juce::ToggleButton monoOutputButton { "Mono" };
+    juce::ToggleButton leadTuneButton { "Auto Tune" };
+    juce::ToggleButton monoOutputButton { "Mono Out" };
     juce::TextButton panicButton { "PANIC" };
     juce::Rectangle<int> characterCardBounds;
 

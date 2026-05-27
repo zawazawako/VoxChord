@@ -1,7 +1,23 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-27
-Project version: 0.1.37
+Last updated: 2026-05-28
+Project version: 0.1.38
+
+## 0.1.38 Update - GUI entry and live layout refinement
+
+- CMake project version: `0.1.38`.
+- Debug GUI pitch subtitle build string: `Build: gui-entry-layout-001`.
+- No DSP behavior, APVTS parameter IDs, Character DSP, pitch shifter, Mono Out DSP, or mini keyboard behavior was changed.
+- Header utility labels now use `Auto Tune` and `Mono Out`.
+- Header utility right column keeps the `Input Source` dropdown and `PANIC` button short, with matching right edges.
+- Direct numeric entry labels are now available for `Voices`, `Glide`, `Amount`, `Spread`, and `Dry/Wet`; `Input Gain` and `Output` retain their dB entry labels.
+- `Voices` direct entry is parsed as an integer and clamped by the existing APVTS `voiceCount` range.
+- `Glide`, `Amount`, `Spread`, and `Dry/Wet` direct entry parse percentage text with optional `%`.
+- Character `Type` dropdown is made shorter vertically so the `Amount` rotary area can be larger.
+- The compact MIDI `Notes` count in the top-right MIDI status row is hidden.
+- Harmony height is reduced slightly so the MIDI and Level panels are taller.
+- MIDI and Level panels are brought closer together; the MIDI panel extends farther right and the Level panel starts farther left.
+- Level meters are narrower and taller; `OutL` and `OutR` are placed directly adjacent as a connected stereo pair.
 
 ## 0.1.37 Update - GUI micro layout adjustments
 
@@ -317,14 +333,14 @@ Project version: 0.1.37
 - Current visible GUI is organized into Header, Harmony, MIDI, and Level areas.
 - Header is split into `LogoArea`, `GainArea`, and `UtilityArea`.
 - `GainArea` contains horizontal `Input Gain` and `Output` sliders with direct editable numeric labels.
-- `UtilityArea` top row contains `Lead` and `Input Source`; second row contains `Mono` and a wide `PANIC` button.
-- Visible Harmony controls: Voice Count, Glide, Character subcard, Spread, Dry/Wet.
-- Character subcard contains a `Character` title, `Type` combo box, and larger `Amount` knob with editable percent value.
+- `UtilityArea` top row contains `Auto Tune` and a short right-aligned `Input Source`; second row contains `Mono Out` and a short right-aligned `PANIC` button.
+- Visible Harmony controls: Voices, Glide, Character subcard, Spread, Dry/Wet.
+- Character subcard contains a `Character` title, compact `Type` combo box, and larger `Amount` knob with editable percent value.
 - The Tune APVTS parameter remains but the unused Tune knob is hidden.
 - Level area uses vertical input and output meters; dB values are drawn below the meter fill.
-- MIDI area displays pitch, last MIDI event, active note count, voice slots, and the display-only mini keyboard.
+- MIDI area displays pitch, last MIDI event, active note names, voice slots, and the display-only mini keyboard.
 - Timer runs at `30 Hz`.
-- Debug GUI subtitle build string is `Build: gui-micro-layout-001`.
+- Debug GUI subtitle build string is `Build: gui-entry-layout-001`.
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
 
 - 1 画面のライブ向け GUI。
@@ -353,7 +369,7 @@ Project version: 0.1.37
 
 ## Build Configuration
 
-- CMake project version: `0.1.37`
+- CMake project version: `0.1.38`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -720,9 +736,9 @@ Controls:
 - Character Type and Amount grouped as Character
 - Spread
 - Dry/Wet
-- Header utility controls: Input Source, Lead Tune, Mono Out, PANIC button
+- Header utility controls: Auto Tune, Input Source, Mono Out, PANIC button.
 - Header gain controls: larger Input Gain and Output sliders with editable dB value labels.
-- Character Amount has an editable percent value label inside the Character subcard.
+- Voices, Glide, Character Amount, Spread, and Dry/Wet have editable value labels.
 
 Status/debug:
 
@@ -733,7 +749,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-micro-layout-001`
+- Debug: `Build: gui-entry-layout-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`
