@@ -1,5 +1,28 @@
 # VoxChord Test Log
 
+## 0.1.41 MIDI debug display focus
+
+Date: 2026-05-29
+
+Implementation status:
+
+- Removed the `Build:` build identifier from the Debug subtitle.
+- Debug subtitle now shows only `VoxChord v<version>`.
+- Temporarily hid Pitch, Last MIDI event, voice-slot, Character, and pitch-test debug text from the debug row.
+- Expanded the MIDI debug counter display to use the debug row width.
+- Kept the processBlock-level MIDI counter text visible as `MIDI In: blocks <n> | last <n> | total <n> | nonempty <n>`.
+- No MIDI processing, DSP behavior, APVTS parameter IDs, or plugin capability declarations were changed.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Debug subtitle no longer begins with `Build:`.
+- MIDI debug row clearly shows only the MIDI input counters.
+- Pitch/Character/self-test debug text no longer obscures the MIDI counters.
+
 ## 0.1.40 VST3 MIDI input diagnostics
 
 Date: 2026-05-29

@@ -1,7 +1,16 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-28
-Project version: 0.1.40
+Project version: 0.1.41
+
+## 0.1.41 Update - MIDI debug display focus
+
+- CMake project version: `0.1.41`.
+- Debug GUI subtitle no longer shows a `Build:` prefix or build identifier.
+- Debug subtitle now falls back to `VoxChord v<version>`.
+- Pitch, Last MIDI event, voice-slot, Character, and pitch-test debug text are temporarily hidden from the debug row.
+- The MIDI debug row is dedicated to the processBlock MIDI delivery counters: `MIDI In: blocks <n> | last <n> | total <n> | nonempty <n>`.
+- No MIDI processing, DSP behavior, APVTS parameter IDs, or plugin capability declarations were changed.
 
 ## 0.1.40 Update - VST3 MIDI input diagnostics
 
@@ -359,9 +368,10 @@ Project version: 0.1.40
 - Character subcard contains a `Character` title, compact `Type` combo box, and larger `Amount` knob with editable percent value.
 - The Tune APVTS parameter remains but the unused Tune knob is hidden.
 - Level area uses vertical input and output meters; dB values are drawn below the meter fill.
-- MIDI area displays pitch, last MIDI event, active note names, voice slots, and the display-only mini keyboard.
+- MIDI area displays active note names, the display-only mini keyboard, and the temporary MIDI input debug counters.
 - Timer runs at `30 Hz`.
-- Debug GUI subtitle build string is `Build: midi-input-debug-001`.
+- Debug GUI subtitle shows `VoxChord v<version>` without a `Build:` identifier.
+- Pitch, Last MIDI event, voice-slot, Character, and pitch-test debug text are temporarily hidden while diagnosing VST3 MIDI delivery.
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
 
 - 1 画面のライブ向け GUI。
@@ -390,7 +400,7 @@ Project version: 0.1.40
 
 ## Build Configuration
 
-- CMake project version: `0.1.40`
+- CMake project version: `0.1.41`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -770,7 +780,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: midi-input-debug-001`
+- Debug: `VoxChord v<version>`; MIDI delivery counters are shown in the MIDI debug row.
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

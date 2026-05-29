@@ -91,7 +91,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: midi-input-debug-001 | ");
+        auto text = juce::String();
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -137,16 +137,15 @@ namespace
                                 state.ratioSmoothingCoefficient);
         }
 
-        text += "CharMode internal/safe: " + juce::String (state.characterModeRaw)
-             + "/" + juce::String (state.characterModeSanitized)
-             + " | CharAmt raw/sm: " + juce::String (state.characterAmountRaw, 2)
-             + "/" + juce::String (state.characterAmountSmoothed, 2)
-             + " | CharIn: " + juce::String (state.inputRmsDb, 1) + " dB"
-             + " | CharDelta rms/pk/rel: " + juce::String (state.characterDeltaRms, 5)
-             + "/" + juce::String (state.characterDeltaPeak, 5)
-             + "/" + juce::String (state.characterDeltaRatioDb, 1) + " dB";
+        juce::ignoreUnused (state.characterModeRaw,
+                            state.characterModeSanitized,
+                            state.characterAmountRaw,
+                            state.characterAmountSmoothed,
+                            state.characterDeltaRms,
+                            state.characterDeltaPeak,
+                            state.characterDeltaRatioDb);
 
-        return text;
+        return text.isNotEmpty() ? text : juce::String ("VoxChord v") + JucePlugin_VersionString;
 #else
         juce::ignoreUnused (state, selfTestSummary);
         return juce::String ("VoxChord v") + JucePlugin_VersionString;
@@ -462,18 +461,22 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     configureStatusLabel (voiceSlotsLabel, "Slots: V1 -- | V2 -- | V3 -- | V4 -- | V5 off | V6 off | V7 off | V8 off",
                           juce::Justification::centredLeft);
     addAndMakeVisible (voiceSlotsLabel);
+    voiceSlotsLabel.setVisible (false);
 
     configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiStatusLabel);
 
     configureStatusLabel (pitchDebugLabel, "Pitch: --", juce::Justification::centred);
     addAndMakeVisible (pitchDebugLabel);
+    pitchDebugLabel.setVisible (false);
 
     configureStatusLabel (compactPitchLabel, "Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (compactPitchLabel);
+    compactPitchLabel.setVisible (false);
 
     configureStatusLabel (compactLastLabel, "Last: --", juce::Justification::centredLeft);
     addAndMakeVisible (compactLastLabel);
+    compactLastLabel.setVisible (false);
 
     inputMeter.setTitle ("Input");
     outputLeftMeter.setTitle ("OutL");
@@ -628,15 +631,11 @@ void VoxChordAudioProcessorEditor::resized()
     outputRightMeter.setBounds (outputMeters);
 
     midi.removeFromTop (22);
-    auto midiStatusRow = midi.removeFromTop (26);
-    compactPitchLabel.setBounds (midiStatusRow.removeFromLeft (170).reduced (4, 0));
-    compactLastLabel.setBounds (midiStatusRow.reduced (4, 0));
+    midi.removeFromTop (26);
     midiNotesLabel.setBounds (midi.removeFromTop (22));
     miniKeyboard.setBounds (midi.removeFromTop (54));
     auto debugRow = midi.removeFromTop (32);
-    pitchDebugLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
-    midiStatusLabel.setBounds (debugRow.removeFromRight (180).reduced (4));
-    voiceSlotsLabel.setBounds (debugRow.reduced (4));
+    midiStatusLabel.setBounds (debugRow.reduced (4));
 }
 
 void VoxChordAudioProcessorEditor::timerCallback()
@@ -954,12 +953,6 @@ void VoxChordAudioProcessorEditor::updateMeters()
 
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
-    const auto pitchState = processorRef.getPitchState();
-    const auto pitchShifterSelfTestSummary = processorRef.getPitchShifterSelfTestSummary();
-    const auto pitchText = formatPitchDebug (pitchState.correctionInputPitchHz);
-
-    pitchDebugLabel.setText (pitchText, juce::dontSendNotification);
-    compactPitchLabel.setText (pitchText, juce::dontSendNotification);
-    subtitleLabel.setText (formatDetailedPitchDebug (pitchState, pitchShifterSelfTestSummary),
+    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString,
                            juce::dontSendNotification);
 }
