@@ -1,7 +1,16 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-28
-Project version: 0.1.41
+Last updated: 2026-05-29
+Project version: 0.1.42
+
+## 0.1.42 Update - Debug plugin name split
+
+- CMake project version: `0.1.42`.
+- Debug builds now set JUCE plugin/product name to `VoxChord_dbg`.
+- Non-Debug builds keep the JUCE plugin/product name `VoxChord`.
+- The split is implemented via `JUCE_PLUGIN_NAME` and `JUCE_PRODUCT_NAME` target properties using a CMake `$<CONFIG:Debug>` generator expression.
+- This is intended to make Debug and Release VST3 builds distinguishable in hosts that show both builds.
+- Plugin code/manufacturer code, MIDI capability declarations, DSP behavior, and APVTS parameter IDs were not changed.
 
 ## 0.1.41 Update - MIDI debug display focus
 
@@ -400,7 +409,7 @@ Project version: 0.1.41
 
 ## Build Configuration
 
-- CMake project version: `0.1.41`
+- CMake project version: `0.1.42`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`

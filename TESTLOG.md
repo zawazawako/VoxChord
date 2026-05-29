@@ -1,5 +1,26 @@
 # VoxChord Test Log
 
+## 0.1.42 Debug plugin name split
+
+Date: 2026-05-29
+
+Implementation status:
+
+- Added CMake target property override so Debug builds use `VoxChord_dbg`.
+- Non-Debug builds continue to use `VoxChord`.
+- The override applies to `JUCE_PLUGIN_NAME` and `JUCE_PRODUCT_NAME`.
+- Plugin code/manufacturer code, MIDI capability declarations, DSP behavior, and APVTS parameter IDs were not changed.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- Debug VST3 appears as `VoxChord_dbg` in the host after rebuild/rescan.
+- Release VST3 still appears as `VoxChord`.
+- Existing MIDI debug counters remain visible in the Debug build.
+
 ## 0.1.41 MIDI debug display focus
 
 Date: 2026-05-29

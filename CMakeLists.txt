@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.41)
+project(VoxChord VERSION 0.1.42)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -16,6 +16,11 @@ juce_add_plugin(VoxChord
     PLUGIN_CODE VxC1
     FORMATS VST3 Standalone
     PRODUCT_NAME "VoxChord")
+
+set_target_properties(VoxChord
+    PROPERTIES
+        JUCE_PLUGIN_NAME "$<IF:$<CONFIG:Debug>,VoxChord_dbg,VoxChord>"
+        JUCE_PRODUCT_NAME "$<IF:$<CONFIG:Debug>,VoxChord_dbg,VoxChord>")
 
 target_sources(VoxChord
     PRIVATE
