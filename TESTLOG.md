@@ -1,5 +1,25 @@
 # VoxChord Test Log
 
+## 0.2.0 Beta initial fixed version
+
+Date: 2026-05-29
+
+Implementation status:
+
+- Fixed VoxChord project version at `0.2.0`.
+- Marked this revision as the first beta baseline.
+- Preserved the existing beta feature set and behavior; this update only changes version/release records.
+- Debug VST3 naming behavior from `0.1.43` remains unchanged: Debug reports `VoxChord_dbg`, Release reports `VoxChord`.
+
+Build status:
+
+- Not rebuilt after the version-freeze metadata update.
+- Previous Debug `ALL_BUILD` completed successfully before the version bump.
+
+User verification pending:
+
+- User rebuilds Debug/Release and confirms the GUI/version metadata shows `0.2.0`.
+
 ## 0.1.43 Debug plugin name split build fix
 
 Date: 2026-05-29

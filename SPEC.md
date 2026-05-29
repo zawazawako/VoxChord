@@ -1,7 +1,15 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-29
-Project version: 0.1.43
+Project version: 0.2.0
+
+## 0.2.0 Update - Beta initial fixed version
+
+- CMake project version fixed at `0.2.0`.
+- This version is designated as the first beta release of VoxChord.
+- The current VST3 and Standalone project structure, MIDI input support, APVTS parameters, live GUI, pitch/character DSP path, and Debug VST3 name split are preserved as the beta baseline.
+- No DSP, GUI layout, MIDI behavior, plugin IDs, manufacturer IDs, or APVTS parameter IDs were changed for this version-freeze update.
+- The previous Debug build-name fix remains active: Debug VST3 metadata reports `VoxChord_dbg`, while non-Debug builds report `VoxChord`.
 
 ## 0.1.43 Update - Debug plugin name split build fix
 
@@ -411,7 +419,7 @@ Project version: 0.1.43
 
 ## Build Configuration
 
-- CMake project version: `0.1.42`
+- CMake project version: `0.2.0`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
