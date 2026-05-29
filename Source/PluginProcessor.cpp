@@ -68,7 +68,11 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
 
 const juce::String VoxChordAudioProcessor::getName() const
 {
+#if VoxChord_DEBUG_PLUGIN_NAME
+    return "VoxChord_dbg";
+#else
     return JucePlugin_Name;
+#endif
 }
 
 bool VoxChordAudioProcessor::acceptsMidi() const

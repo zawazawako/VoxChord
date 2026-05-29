@@ -1,19 +1,25 @@
 # VoxChord Test Log
 
-## 0.1.42 Debug plugin name split
+## 0.1.43 Debug plugin name split build fix
 
 Date: 2026-05-29
 
 Implementation status:
 
-- Added CMake target property override so Debug builds use `VoxChord_dbg`.
+- Fixed the MSBuild path error caused by putting a generator expression into `JUCE_PRODUCT_NAME`.
+- Debug shared-code builds now define `VoxChord_DEBUG_PLUGIN_NAME=1`.
+- `VoxChordAudioProcessor::getName()` returns `VoxChord_dbg` when that Debug define is present.
+- Debug VST3 wrapper and VST3 manifest-helper builds force-include `Source/VoxChordDebugPluginName.h`.
+- `VoxChordDebugPluginName.h` undefines JUCE's default `JucePlugin_Name` and `JucePlugin_Desc` macros and redefines them as `VoxChord_dbg` for Debug VST3 wrapper/manifest compilation.
 - Non-Debug builds continue to use `VoxChord`.
-- The override applies to `JUCE_PLUGIN_NAME` and `JUCE_PRODUCT_NAME`.
+- VST3 artifact/output path remains `VoxChord.vst3`.
 - Plugin code/manufacturer code, MIDI capability declarations, DSP behavior, and APVTS parameter IDs were not changed.
 
 Build status:
 
-- Not built by agent. User will build Debug/Release.
+- Debug build completed successfully after the fix.
+- Verified `build/VoxChord_artefacts/Debug/VST3/VoxChord.vst3/Contents/Resources/moduleinfo.json` reports `Name: VoxChord_dbg`.
+- Remaining warnings are existing JUCE/Harfbuzz codepage warnings and one existing unused local warning; no build errors.
 
 User verification pending:
 

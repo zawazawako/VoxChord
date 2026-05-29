@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.1.42)
+project(VoxChord VERSION 0.1.43)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -17,11 +17,6 @@ juce_add_plugin(VoxChord
     FORMATS VST3 Standalone
     PRODUCT_NAME "VoxChord")
 
-set_target_properties(VoxChord
-    PROPERTIES
-        JUCE_PLUGIN_NAME "$<IF:$<CONFIG:Debug>,VoxChord_dbg,VoxChord>"
-        JUCE_PRODUCT_NAME "$<IF:$<CONFIG:Debug>,VoxChord_dbg,VoxChord>")
-
 target_sources(VoxChord
     PRIVATE
         Source/LevelMeterState.h
@@ -33,6 +28,7 @@ target_sources(VoxChord
         Source/PluginProcessor.h
         Source/SimpleChoirEngine.cpp
         Source/SimpleChoirEngine.h
+        Source/VoxChordDebugPluginName.h
         Source/VoxChordParameters.cpp
         Source/VoxChordParameters.h)
 
@@ -41,7 +37,20 @@ target_compile_definitions(VoxChord
         JUCE_ASIO=1
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
-        JUCE_VST3_CAN_REPLACE_VST2=0)
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        $<$<CONFIG:Debug>:VoxChord_DEBUG_PLUGIN_NAME=1>)
+
+if(TARGET VoxChord_VST3)
+    target_compile_options(VoxChord_VST3
+        PRIVATE
+            $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/FI${CMAKE_CURRENT_SOURCE_DIR}/Source/VoxChordDebugPluginName.h>)
+endif()
+
+if(TARGET VoxChord_vst3_helper)
+    target_compile_options(VoxChord_vst3_helper
+        PRIVATE
+            $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/FI${CMAKE_CURRENT_SOURCE_DIR}/Source/VoxChordDebugPluginName.h>)
+endif()
 
 target_link_libraries(VoxChord
     PRIVATE
