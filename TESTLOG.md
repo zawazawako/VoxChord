@@ -1,5 +1,33 @@
 # VoxChord Test Log
 
+## 0.1.40 VST3 MIDI input diagnostics
+
+Date: 2026-05-29
+
+Implementation status:
+
+- Confirmed `CMakeLists.txt` has `NEEDS_MIDI_INPUT TRUE`.
+- Confirmed `VoxChordAudioProcessor::acceptsMidi()` returns `true`.
+- Existing generated Visual Studio project artifacts also show `JucePlugin_WantsMidiInput=1` and `JucePlugin_VSTNumMidiInputs=16`; those artifacts are from an older configured version and will refresh on the user's next CMake/build step.
+- Confirmed MIDI handling runs before audio input copy, pitch detection, voiced/unvoiced checks, and choir rendering.
+- Confirmed Standalone/VST3 branching is not used for MIDI handling; wrapper branching is only used for audio input source selection.
+- Added processBlock-level MIDI counters independent of Note On/Off interpretation.
+- Added GUI MIDI debug text: `MIDI In: blocks <n> | last <n> | total <n> | nonempty <n>`.
+- Updated Debug build string to `Build: midi-input-debug-001`.
+- No DSP pitch-shift behavior, Character behavior, APVTS parameter IDs, or MIDI voice allocation behavior was changed.
+
+Build status:
+
+- Not built by agent. User will build Debug/Release.
+
+User verification pending:
+
+- In VST3, `blocks` increments while the plugin is being processed.
+- In VST3, `last` becomes greater than `0` on blocks where Waveform sends MIDI events.
+- In VST3, `total` and `nonempty` increment when MIDI is delivered to `processBlock()`.
+- If `blocks` increments but `total` remains `0`, the plugin is processing audio but MIDI is not reaching VoxChord from the host route.
+- If `total` increments but note indicators do not change, the issue is inside VoxChord MIDI interpretation/GUI reflection.
+
 ## 0.1.39 GUI balance micro-adjustment
 
 Date: 2026-05-28

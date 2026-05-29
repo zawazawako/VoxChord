@@ -168,6 +168,16 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
 
+    const auto midiEventCount = midiMessages.getNumEvents();
+    midiProcessBlockCounter.fetch_add (1, std::memory_order_relaxed);
+    midiLastBlockEventCount.store (midiEventCount, std::memory_order_relaxed);
+
+    if (midiEventCount > 0)
+    {
+        midiNonEmptyBlockCounter.fetch_add (1, std::memory_order_relaxed);
+        midiTotalEventCounter.fetch_add (static_cast<uint32_t> (midiEventCount), std::memory_order_relaxed);
+    }
+
     const auto samples = buffer.getNumSamples();
     const auto inputChannels = getTotalNumInputChannels();
     const auto outputChannels = getTotalNumOutputChannels();
@@ -280,6 +290,16 @@ VoxChordAudioProcessor::MidiActivitySnapshot VoxChordAudioProcessor::getMidiActi
     return {
         static_cast<MidiActivity> (lastMidiActivity.load (std::memory_order_relaxed)),
         midiActivityCounter.load (std::memory_order_relaxed)
+    };
+}
+
+VoxChordAudioProcessor::MidiInputDebugSnapshot VoxChordAudioProcessor::getMidiInputDebugSnapshot() const noexcept
+{
+    return {
+        midiProcessBlockCounter.load (std::memory_order_relaxed),
+        midiNonEmptyBlockCounter.load (std::memory_order_relaxed),
+        midiTotalEventCounter.load (std::memory_order_relaxed),
+        midiLastBlockEventCount.load (std::memory_order_relaxed)
     };
 }
 

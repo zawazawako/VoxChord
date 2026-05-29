@@ -30,6 +30,14 @@ public:
         uint32_t counter = 0;
     };
 
+    struct MidiInputDebugSnapshot
+    {
+        uint32_t processBlockCounter = 0;
+        uint32_t nonEmptyBlockCounter = 0;
+        uint32_t totalEventCounter = 0;
+        int lastBlockEventCount = 0;
+    };
+
     enum class InputSource
     {
         autoDetect = 0,
@@ -76,6 +84,7 @@ public:
 
     voxchord::MidiVoiceState::NoteSnapshot getActiveMidiNotes() const noexcept;
     MidiActivitySnapshot getMidiActivitySnapshot() const noexcept;
+    MidiInputDebugSnapshot getMidiInputDebugSnapshot() const noexcept;
     int getCurrentVoiceLimit() const noexcept;
     float getDetectedInputPitchHz() const noexcept;
     voxchord::PitchState getPitchState() const noexcept;
@@ -124,6 +133,10 @@ private:
     std::array<std::atomic<int>, voxchord::MidiVoiceState::maxVoices> activeMidiNotes;
     std::atomic<int> lastMidiActivity { static_cast<int> (MidiActivity::none) };
     std::atomic<uint32_t> midiActivityCounter { 0 };
+    std::atomic<uint32_t> midiProcessBlockCounter { 0 };
+    std::atomic<uint32_t> midiNonEmptyBlockCounter { 0 };
+    std::atomic<uint32_t> midiTotalEventCounter { 0 };
+    std::atomic<int> midiLastBlockEventCount { 0 };
     std::atomic<bool> panicRequested { false };
     std::atomic<float> detectedInputPitchHz { 0.0f };
     std::atomic<float> inputRmsDb { -100.0f };

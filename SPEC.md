@@ -1,7 +1,20 @@
 # VoxChord Source Specification
 
 Last updated: 2026-05-28
-Project version: 0.1.39
+Project version: 0.1.40
+
+## 0.1.40 Update - VST3 MIDI input diagnostics
+
+- CMake project version: `0.1.40`.
+- Debug GUI pitch subtitle build string: `Build: midi-input-debug-001`.
+- `juce_add_plugin` continues to set `NEEDS_MIDI_INPUT TRUE`.
+- `VoxChordAudioProcessor::acceptsMidi()` returns `true`; `producesMidi()` and `isMidiEffect()` remain `false`.
+- MIDI handling still runs at the start of `processBlock()` before audio input copy, pitch detection, voiced/unvoiced checks, or choir rendering.
+- Standalone/VST3 branching remains limited to audio input source selection; MIDI processing uses the same `handleMidi()` path for all wrappers.
+- Added `MidiInputDebugSnapshot` with process block count, non-empty MIDI block count, total MIDI event count, and last block MIDI event count.
+- `processBlock()` updates the MIDI input debug counters directly from `midiMessages.getNumEvents()` before note-specific handling.
+- GUI MIDI debug row now shows `MIDI In: blocks <n> | last <n> | total <n> | nonempty <n>` so VST3 host delivery can be distinguished from internal note handling.
+- No DSP pitch-shift behavior, Character behavior, APVTS parameter IDs, or MIDI voice allocation behavior was changed.
 
 ## 0.1.39 Update - GUI balance micro-adjustment
 
@@ -348,7 +361,7 @@ Project version: 0.1.39
 - Level area uses vertical input and output meters; dB values are drawn below the meter fill.
 - MIDI area displays pitch, last MIDI event, active note names, voice slots, and the display-only mini keyboard.
 - Timer runs at `30 Hz`.
-- Debug GUI subtitle build string is `Build: gui-balance-layout-001`.
+- Debug GUI subtitle build string is `Build: midi-input-debug-001`.
 - Release build subtitle shows only `VoxChord v` plus the plugin version.
 
 - 1 画面のライブ向け GUI。
@@ -377,7 +390,7 @@ Project version: 0.1.39
 
 ## Build Configuration
 
-- CMake project version: `0.1.39`
+- CMake project version: `0.1.40`
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -757,7 +770,7 @@ Status/debug:
 - Vertical input and output meters in the Level area.
 - Output meter displays stereo L/R post-output peaks; with Mono Out enabled, both channels display the mono result.
 - Pitch debug subtitle currently includes:
-- Debug: `Build: gui-balance-layout-001`
+- Debug: `Build: midi-input-debug-001`
 - Release: `VoxChord v<version>`
 - Pitch shifter self-test summary is hidden by default; re-enable `showDebugSelfTestSummary` to show `Pitch Shifter SelfTest: PASS/FAIL`.
 - `RMS`

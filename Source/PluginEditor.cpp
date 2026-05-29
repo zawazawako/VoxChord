@@ -91,7 +91,7 @@ namespace
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
 #if JUCE_DEBUG
-        auto text = juce::String ("Build: gui-balance-layout-001 | ");
+        auto text = juce::String ("Build: midi-input-debug-001 | ");
 
         if constexpr (showDebugSelfTestSummary)
         {
@@ -919,13 +919,23 @@ void VoxChordAudioProcessorEditor::updateMidiState()
     voiceSlotsLabel.setText (slots, juce::dontSendNotification);
     miniKeyboard.setActiveNotes (notes);
 
+    const auto midiInputDebug = processorRef.getMidiInputDebugSnapshot();
+    midiStatusLabel.setText ("MIDI In: blocks "
+                                 + juce::String (midiInputDebug.processBlockCounter)
+                                 + " | last "
+                                 + juce::String (midiInputDebug.lastBlockEventCount)
+                                 + " | total "
+                                 + juce::String (midiInputDebug.totalEventCounter)
+                                 + " | nonempty "
+                                 + juce::String (midiInputDebug.nonEmptyBlockCounter),
+                             juce::dontSendNotification);
+
     const auto activity = processorRef.getMidiActivitySnapshot();
 
     if (activity.counter != lastSeenMidiActivityCounter)
     {
         lastSeenMidiActivityCounter = activity.counter;
         const auto lastText = "Last: " + midiActivityToString (activity.activity);
-        midiStatusLabel.setText (lastText, juce::dontSendNotification);
         compactLastLabel.setText (lastText, juce::dontSendNotification);
     }
 }
