@@ -91,3 +91,7 @@ Debug VST3 builds are intended to identify as `VoxChord_dbg`, while Release buil
 - The pitch shifter is designed for low latency, not offline/studio-grade transparency.
 - No internal reverb, delay, preset browser, chord detection, scale engine, or AI voice conversion is implemented.
 - Standalone device settings persistence is not implemented as a VoxChord-specific feature yet.
+
+## Demo
+
+Preview demo video: https://youtu.be/ppXFUsPrM2E
