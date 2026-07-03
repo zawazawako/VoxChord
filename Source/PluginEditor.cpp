@@ -87,6 +87,27 @@ namespace
              + " | Meas: " + juce::String (summary.worstMeasuredHz, 2) + " Hz";
     }
 
+#if JUCE_DEBUG
+    juce::String formatD1LowPitchDiagnostics (const voxchord::PitchState& state)
+    {
+        const auto noteName = state.representativeVoiceMidiNote >= 0
+                                  ? juce::MidiMessage::getMidiNoteName (state.representativeVoiceMidiNote, true, true, 3)
+                                  : juce::String ("--");
+        const auto windowPitchText = state.windowPitchHz > 0.0f ? juce::String (state.windowPitchHz, 1) + "Hz" : juce::String ("--");
+        const auto wetHzText = state.wetZeroCrossingHz > 0.0f ? juce::String (state.wetZeroCrossingHz, 1) + "Hz" : juce::String ("--");
+
+        return "D1 | Note: " + noteName
+             + " | Win: " + windowPitchText
+             + " | Grain: " + juce::String (state.representativeGrainWindowSamples) + "smp"
+             + " | Ratio: " + juce::String (state.representativePitchRatioRaw, 3)
+             + "->" + juce::String (state.representativePitchRatioClamped, 3)
+             + " | Per/Win: " + juce::String (state.outputPeriodToWindowRatio, 2)
+             + " | Clamp#: " + juce::String (state.ratioClampHitCount)
+             + " | WetHz: " + wetHzText
+             + " (" + juce::String (state.wetZeroCrossingCentsDeviation, 0) + "c)";
+    }
+#endif
+
     juce::String formatDetailedPitchDebug (const voxchord::PitchState& state,
                                            const voxchord::PitchShifterSelfTestSummary& selfTestSummary)
     {
@@ -464,11 +485,17 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     voiceSlotsLabel.setVisible (false);
 
     configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
+    midiStatusLabel.setFont (juce::FontOptions (12.0f));
     addAndMakeVisible (midiStatusLabel);
 
-    configureStatusLabel (pitchDebugLabel, "Pitch: --", juce::Justification::centred);
+    configureStatusLabel (pitchDebugLabel, "D1: --", juce::Justification::centredLeft);
+    pitchDebugLabel.setFont (juce::FontOptions (12.0f));
     addAndMakeVisible (pitchDebugLabel);
+#if JUCE_DEBUG
+    pitchDebugLabel.setVisible (true);
+#else
     pitchDebugLabel.setVisible (false);
+#endif
 
     configureStatusLabel (compactPitchLabel, "Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (compactPitchLabel);
@@ -635,7 +662,8 @@ void VoxChordAudioProcessorEditor::resized()
     midiNotesLabel.setBounds (midi.removeFromTop (22));
     miniKeyboard.setBounds (midi.removeFromTop (54));
     auto debugRow = midi.removeFromTop (32);
-    midiStatusLabel.setBounds (debugRow.reduced (4));
+    midiStatusLabel.setBounds (debugRow.removeFromTop (16).reduced (4, 1));
+    pitchDebugLabel.setBounds (debugRow.reduced (4, 1));
 }
 
 void VoxChordAudioProcessorEditor::timerCallback()
@@ -953,6 +981,12 @@ void VoxChordAudioProcessorEditor::updateMeters()
 
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
+#if JUCE_DEBUG
+    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString + " | Build: d1-lowpitch-diag-001",
+                           juce::dontSendNotification);
+    pitchDebugLabel.setText (formatD1LowPitchDiagnostics (processorRef.getPitchState()), juce::dontSendNotification);
+#else
     subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString,
                            juce::dontSendNotification);
+#endif
 }

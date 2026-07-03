@@ -1,5 +1,37 @@
 # VoxChord Test Log
 
+## 0.3.0 D1 low-pitch instability diagnostics
+
+Date: 2026-07-03
+
+Implementation status:
+
+- Started the `dev-0.3` branch iteration (see `directions/PLAN-0.3.md`); bumped project VERSION to `0.3.0`.
+- Extended the Debug pitch-detector self-test (`SimpleChoirEngine::runPitchDetectorSelfTest`) with a second pass covering `50 / 60 / 65 / 70 / 80 / 90 / 100 / 110 / 130 Hz`, run with harmonic correction enabled so activation (`raw/2`, `raw/3`, `raw*2`, `raw*3`, or `none`) is visible per frequency. The original 12-frequency, correction-OFF pass is unchanged.
+- Added shifter/window diagnostics to `PitchState`: `windowPitchHz`, the representative (lowest-target active) voice's MIDI note, its current grain window length in samples (`representativeGrainWindowSamples`), its pitch ratio before and after clamping (`representativePitchRatioRaw` / `representativePitchRatioClamped`), and `outputPeriodToWindowRatio = (sampleRate / targetHz) / windowLengthSamples`.
+- Added a cumulative `ratioClampHitCount` (atomic on `SimpleChoirEngine`, counts how often a voice's unclamped input-to-target pitch ratio would fall outside `0.25-8.0`). Resets to 0 on Panic (`VoxChordAudioProcessor::processBlock`'s panic branch now calls `choirEngine.resetRatioClampHitCount()`) and on engine `reset()`.
+- Added a lightweight positive-going zero-crossing frequency estimator (`updateWetZeroCrossing`) applied to the representative voice's post-Character wet sample each block, exposed as `wetZeroCrossingHz` plus `wetZeroCrossingCentsDeviation` against that voice's MIDI target frequency. Allocation-free; intended to be accurate for the sine-wave self test, not for real vocal input.
+- All new diagnostic fields flow through the existing PitchState -> per-field atomic -> `getPitchState()` publishing pattern already used for the other pitch/character diagnostics (no new synchronization primitives beyond the one new atomic counter).
+- GUI: split the existing 32px MIDI debug row into two 16px lines. Line 1 keeps the existing MIDI counters unchanged; line 2 is the previously-unused `pitchDebugLabel`, now shown only in Debug builds (`#if JUCE_DEBUG`) with the new diagnostics (`D1 | Note: ... | Win: ... | Grain: ...smp | Ratio: raw->clamped | Per/Win: ... | Clamp#: ... | WetHz: ... (Nc)`). Both labels' font reduced to 12pt to fit the tighter row height.
+- Debug subtitle now appends `| Build: d1-lowpitch-diag-001` (Debug builds only); Release subtitle is unchanged (`VoxChord v<version>`).
+- Explicitly did not change: pitch detection, harmonic correction logic, grain-window computation, pitch-ratio clamping behavior, or any other DSP path. All new computations are read-only observations recorded alongside the existing (unmodified) logic.
+
+Known discrepancy found during this work (not fixed, flagging for D3):
+
+- `SimplePitchDetector::minFrequencyHz` in code is `80.0f`, not the `70 Hz` nominal floor stated in SPEC.md / AGENTS.md. This means the low-frequency self-test's 70 Hz case (and anything below it) is already below the coded detection floor, which should be accounted for when reading the self-test results.
+
+Build status:
+
+- Not built by agent. User will build.
+
+User verification pending:
+
+1. Low-frequency self-test: enable `enableDebugStartupSelfTests` in `PluginProcessor.cpp` (or otherwise trigger `SimpleChoirEngine::runPitchDetectorSelfTest()`), run a Debug build, and report the `SelfTest(low) ... Hz -> Raw / Corrected / Stable / Confidence / HarmonicCorrection` lines for all 9 low frequencies from the debugger output window.
+2. Sine wave + low MIDI: feed a 440 Hz (or similar) sine wave into a Debug build/Standalone, play MIDI notes A4, A3, A2, A1 in turn, and report the second debug line's `Ratio`, `Per/Win`, and `WetHz (Nc)` values plus perceived pitch stability at each note.
+3. Real vocal + low MIDI: sing/hum into the same Debug build with descending MIDI notes and report where instability begins along with the same debug-line values at that point.
+4. Confirm the Debug subtitle shows `VoxChord v0.3.0 | Build: d1-lowpitch-diag-001` and the new second debug line is visible without visually clipping or overlapping the MIDI counter line above it.
+5. Confirm Release build subtitle is unchanged and the second debug line is not shown/does not take up space in Release.
+
 ## 0.2.0 Beta initial fixed version
 
 Date: 2026-05-29

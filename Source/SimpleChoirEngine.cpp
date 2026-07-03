@@ -22,6 +22,20 @@ namespace
         return summary;
     }
 
+    juce::String describeHarmonicCorrectionMode (int mode)
+    {
+        switch (mode)
+        {
+            case 2:  return "raw/2";
+            case 3:  return "raw/3";
+            case -2: return "raw*2";
+            case -3: return "raw*3";
+            default: break;
+        }
+
+        return "none";
+    }
+
     float centsError (float measuredHz, float expectedHz)
     {
         if (measuredHz <= 0.0f || expectedHz <= 0.0f)
@@ -254,6 +268,13 @@ void SimpleChoirEngine::reset() noexcept
     windowPitchHz = 0.0f;
     pitchState = {};
 
+    ratioClampHitCounter.store (0, std::memory_order_relaxed);
+    wetZeroCrossingTrackedSlot = -1;
+    wetZeroCrossingLocalSampleIndex = 0.0;
+    wetZeroCrossingLastCrossingSampleIndex = -1.0;
+    wetZeroCrossingPreviousSample = 0.0f;
+    wetZeroCrossingEstimatedHz = 0.0f;
+
     for (auto& voice : voiceStates)
         resetVoice (voice);
 
@@ -311,6 +332,51 @@ void SimpleChoirEngine::runPitchDetectorSelfTest()
              + ", Corrected: " + formatSelfTestPitch (result.correctedPitchHz)
              + ", Stable: " + formatSelfTestPitch (result.displayStablePitchHz)
              + ", Confidence: " + juce::String (result.confidence, 2));
+    }
+
+    // D1 low-pitch diagnostics: extend coverage below the nominal 70 Hz detection
+    // floor and run with harmonic correction ON so its activation is observable
+    // (see directions/0703_1.md, item 1).
+    constexpr std::array<float, 9> lowFrequencyTestFrequencies {{
+        50.0f, 60.0f, 65.0f, 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 130.0f
+    }};
+
+    DBG ("VoxChord PitchDetector SelfTest (low-freq extension): range 50-130 Hz, harmonic correction ON");
+
+    for (const auto frequencyHz : lowFrequencyTestFrequencies)
+    {
+        detector.reset();
+        detector.setHarmonicCorrectionEnabled (true);
+
+        auto phase = 0.0;
+        PitchState result;
+
+        for (auto processed = 0; processed < testSamples; processed += blockSize)
+        {
+            const auto samplesThisBlock = juce::jmin (blockSize, testSamples - processed);
+            block.clear();
+
+            for (auto sample = 0; sample < samplesThisBlock; ++sample)
+            {
+                block.setSample (0,
+                                 sample,
+                                 0.35f * std::sin (static_cast<float> (phase)));
+
+                phase += juce::MathConstants<double>::twoPi * static_cast<double> (frequencyHz) / testSampleRate;
+
+                if (phase >= juce::MathConstants<double>::twoPi)
+                    phase -= juce::MathConstants<double>::twoPi;
+            }
+
+            result = detector.processBlock (block);
+        }
+
+        DBG (juce::String ("SelfTest(low) ") + juce::String (frequencyHz, 2) + " Hz -> Raw: "
+             + formatSelfTestPitch (result.rawPitchHz)
+             + ", Corrected: " + formatSelfTestPitch (result.correctedPitchHz)
+             + ", Stable: " + formatSelfTestPitch (result.displayStablePitchHz)
+             + ", Confidence: " + juce::String (result.confidence, 2)
+             + ", HarmonicCorrection: " + describeHarmonicCorrectionMode (result.harmonicCorrectionMode));
     }
 }
 
@@ -648,6 +714,34 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto safeCharacterAmountRaw = juce::jlimit (0.0f, 1.0f, characterAmountRaw);
     const auto safeCharacterAmount = juce::jlimit (0.0f, 1.0f, characterAmountSmoothed);
     const auto activeCount = countActiveVoices (activeNotes, safeVoiceLimit);
+
+    // D1 low-pitch diagnostics: track the lowest-target active voice (see directions/0703_1.md, item 2/3).
+    auto representativeSlot = -1;
+    auto representativeMidiNote = -1;
+
+    for (auto slot = 0; slot < safeVoiceLimit; ++slot)
+    {
+        const auto note = activeNotes[static_cast<size_t> (slot)];
+
+        if (note < 0)
+            continue;
+
+        if (representativeMidiNote < 0 || note < representativeMidiNote)
+        {
+            representativeMidiNote = note;
+            representativeSlot = slot;
+        }
+    }
+
+    if (representativeSlot != wetZeroCrossingTrackedSlot)
+    {
+        wetZeroCrossingTrackedSlot = representativeSlot;
+        wetZeroCrossingLocalSampleIndex = 0.0;
+        wetZeroCrossingLastCrossingSampleIndex = -1.0;
+        wetZeroCrossingPreviousSample = 0.0f;
+        wetZeroCrossingEstimatedHz = 0.0f;
+    }
+
     const auto glideCoefficient = getGlideCoefficient (safeGlide, currentSampleRate);
     const auto transitionRatioCoefficient = getNoteTransitionRatioCoefficient (currentSampleRate);
     const auto ratioSmoothingCoefficient = safeGlide <= 0.001f
@@ -721,6 +815,20 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                maxPitchRatio,
                                                getPitchRatioForNote (midiNote, inputFrequencyHz)
                                                    * getCharacterPitchRatio (slot, safeCharacterMode, safeCharacterAmount));
+
+        // D1 low-pitch diagnostics only: does not feed back into targetRatio above.
+        const auto diagnosticTargetFrequency = static_cast<float> (juce::MidiMessage::getMidiNoteInHertz (midiNote));
+        const auto diagnosticRawRatio = inputFrequencyHz > 0.0f ? diagnosticTargetFrequency / inputFrequencyHz : 1.0f;
+
+        if (diagnosticRawRatio < minPitchRatio || diagnosticRawRatio > maxPitchRatio)
+            ratioClampHitCounter.fetch_add (1, std::memory_order_relaxed);
+
+        if (slot == representativeSlot)
+        {
+            pitchState.representativeVoiceMidiNote = midiNote;
+            pitchState.representativePitchRatioRaw = diagnosticRawRatio;
+            pitchState.representativePitchRatioClamped = targetRatio;
+        }
 
         const auto wasAlreadyActive = voice.wasActive;
 
@@ -836,6 +944,10 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             characterDeltaSumSquares += characterDelta * characterDelta;
             characterDeltaPeak = juce::jmax (characterDeltaPeak, std::abs (characterDelta));
             ++characterDeltaCount;
+
+            if (renderSlots[static_cast<size_t> (index)] == representativeSlot)
+                updateWetZeroCrossing (charactered);
+
             const auto enveloped = charactered * voice.envelopeGain;
 
             left[sample] += enveloped * (outputChannels > 1 ? voice.leftGain : voice.monoGain);
@@ -845,6 +957,37 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         }
 
         writeIndex = (writeIndex + 1) % delayBufferSize;
+    }
+
+    // D1 low-pitch diagnostics: publish shifter internal state and wet-output
+    // frequency estimate for the representative (lowest-target) active voice
+    // (see directions/0703_1.md, item 2/3).
+    pitchState.windowPitchHz = windowPitchHz;
+    pitchState.ratioClampHitCount = ratioClampHitCounter.load (std::memory_order_relaxed);
+
+    if (representativeSlot >= 0)
+    {
+        const auto& representativeVoice = voiceStates[static_cast<size_t> (representativeSlot)];
+        const auto representativeTargetHz = static_cast<float> (juce::MidiMessage::getMidiNoteInHertz (representativeMidiNote));
+
+        pitchState.representativeGrainWindowSamples = representativeVoice.windowSamplesA;
+        pitchState.outputPeriodToWindowRatio = (representativeTargetHz > 0.0f && representativeVoice.windowSamplesA > 0)
+            ? (static_cast<float> (currentSampleRate) / representativeTargetHz) / static_cast<float> (representativeVoice.windowSamplesA)
+            : 0.0f;
+        pitchState.wetZeroCrossingHz = wetZeroCrossingEstimatedHz;
+        pitchState.wetZeroCrossingCentsDeviation = (wetZeroCrossingEstimatedHz > 0.0f && representativeTargetHz > 0.0f)
+            ? 1200.0f * std::log2 (wetZeroCrossingEstimatedHz / representativeTargetHz)
+            : 0.0f;
+    }
+    else
+    {
+        pitchState.representativeVoiceMidiNote = -1;
+        pitchState.representativeGrainWindowSamples = 0;
+        pitchState.representativePitchRatioRaw = 0.0f;
+        pitchState.representativePitchRatioClamped = 0.0f;
+        pitchState.outputPeriodToWindowRatio = 0.0f;
+        pitchState.wetZeroCrossingHz = 0.0f;
+        pitchState.wetZeroCrossingCentsDeviation = 0.0f;
     }
 
     if (characterDeltaCount > 0)
@@ -1678,6 +1821,40 @@ float SimpleChoirEngine::updateWindowPitchHz (float correctionInputPitchHz, int 
                                         correctionInputPitchHz,
                                         getWindowPitchSmoothingCoefficient (samples, currentSampleRate));
     return windowPitchHz;
+}
+
+void SimpleChoirEngine::updateWetZeroCrossing (float sampleValue) noexcept
+{
+    // D1 low-pitch diagnostics: lightweight positive-going zero-crossing frequency
+    // estimator for the representative voice's wet output (see directions/0703_1.md,
+    // item 3). Only accurate for the sine-wave self test; real vocal input is noisy
+    // by nature here, which is expected.
+    const auto previous = wetZeroCrossingPreviousSample;
+    wetZeroCrossingPreviousSample = sampleValue;
+
+    if (previous < 0.0f && sampleValue >= 0.0f)
+    {
+        const auto denominator = sampleValue - previous;
+        const auto fraction = std::abs (denominator) > 0.0000001f ? (-previous) / denominator : 0.0f;
+        const auto crossingIndex = wetZeroCrossingLocalSampleIndex + static_cast<double> (fraction);
+
+        if (wetZeroCrossingLastCrossingSampleIndex >= 0.0)
+        {
+            const auto periodSamples = crossingIndex - wetZeroCrossingLastCrossingSampleIndex;
+
+            if (periodSamples > 0.0)
+            {
+                const auto instantaneousHz = static_cast<float> (currentSampleRate / periodSamples);
+                wetZeroCrossingEstimatedHz = wetZeroCrossingEstimatedHz <= 0.0f
+                                                 ? instantaneousHz
+                                                 : smoothFrequencyLog (wetZeroCrossingEstimatedHz, instantaneousHz, 0.35f);
+            }
+        }
+
+        wetZeroCrossingLastCrossingSampleIndex = crossingIndex;
+    }
+
+    wetZeroCrossingLocalSampleIndex += 1.0;
 }
 
 float SimpleChoirEngine::readMonoInput (const juce::AudioBuffer<float>& input, int sample) noexcept

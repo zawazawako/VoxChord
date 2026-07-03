@@ -158,6 +158,17 @@ private:
     std::atomic<int> characterModeRaw { 0 };
     std::atomic<int> characterModeSanitized { 0 };
 
+    // D1 low-pitch diagnostics (observation only, see directions/0703_1.md)
+    std::atomic<float> windowPitchHz { 0.0f };
+    std::atomic<int> representativeVoiceMidiNote { -1 };
+    std::atomic<int> representativeGrainWindowSamples { 0 };
+    std::atomic<float> representativePitchRatioRaw { 0.0f };
+    std::atomic<float> representativePitchRatioClamped { 0.0f };
+    std::atomic<float> outputPeriodToWindowRatio { 0.0f };
+    std::atomic<uint32_t> ratioClampHitCount { 0 };
+    std::atomic<float> wetZeroCrossingHz { 0.0f };
+    std::atomic<float> wetZeroCrossingCentsDeviation { 0.0f };
+
     std::atomic<float>* dryWetParameter = nullptr;
     std::atomic<float>* voiceCountParameter = nullptr;
     std::atomic<float>* tuneParameter = nullptr;

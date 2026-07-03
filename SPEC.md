@@ -1,10 +1,10 @@
 # VoxChord Source Specification
 
-Last updated: 2026-05-29
-Project version: 0.2.0
-Status: Beta initial fixed version
+Last updated: 2026-07-03
+Project version: 0.3.0
+Status: 0.3 experimental (dev-0.3 branch, low-pitch instability diagnostics)
 
-This document describes the current VoxChord 0.2.0 implementation only.
+This document describes the current VoxChord 0.3.0 implementation on `dev-0.3`. The `main` branch remains frozen at 0.2.0.
 
 Documentation split:
 
@@ -251,6 +251,16 @@ Compatibility aliases:
 - `stablePitchHz`: display stable pitch alias.
 - `harmonyPitchHz`: correction input pitch alias.
 
+D1 low-pitch diagnostics (observation only, does not affect DSP behavior):
+
+- `windowPitchHz`: smoothed pitch used for grain/window length calculation.
+- `representativeVoiceMidiNote`: MIDI note of the lowest-target active voice, or `-1` if none.
+- `representativeGrainWindowSamples`: that voice's current grain window length in samples.
+- `representativePitchRatioRaw` / `representativePitchRatioClamped`: that voice's target-to-input pitch ratio before and after the `0.25-8.0` clamp.
+- `outputPeriodToWindowRatio`: `(sampleRate / targetHz) / grainWindowSamples` for the representative voice; values approaching or exceeding `1.0` indicate the output period no longer fits inside the grain window.
+- `ratioClampHitCount`: cumulative count of active-voice pitch ratios that would fall outside `0.25-8.0` before clamping. Resets on Panic and on engine reset.
+- `wetZeroCrossingHz` / `wetZeroCrossingCentsDeviation`: lightweight zero-crossing frequency estimate of the representative voice's wet output and its cents deviation from that voice's MIDI target. Accurate for the sine-wave self test; not reliable for real vocal input.
+
 Character diagnostics:
 
 - `characterAmountRaw`: APVTS Character Amount value.
@@ -264,12 +274,13 @@ Character diagnostics:
 - Algorithm: YIN-style difference function with CMNDF.
 - Frame length: `2048 samples`.
 - Hop size: `512 samples`.
-- Intended detection range: approximately `70-900 Hz`.
+- Intended detection range: approximately `70-900 Hz`. Note: the coded `minFrequencyHz` constant is actually `80 Hz`, not `70 Hz`; this discrepancy is unresolved as of 0.3.0 and affects interpretation of low-frequency self-test results near 70-80 Hz.
 - Uses RMS and confidence checks for voiced/unvoiced decisions.
 - Low-RMS or low-confidence input becomes invalid rather than blindly reusing raw pitch.
 - A short hold is used to keep display and ratio input stable through brief dropouts.
 - Harmonic correction can test likely octave/fifth-family candidates such as raw/2, raw/3, raw*2, and raw*3.
 - Corrected pitch enters smoothing/median-style stabilization before being exposed for display and harmony ratio use.
+- Debug self-test (`runPitchDetectorSelfTest`) runs two passes: the original 12-frequency pass (80-880 Hz) with harmonic correction OFF, and a low-frequency pass (`50/60/65/70/80/90/100/110/130 Hz`) with harmonic correction ON to observe correction activation near the detection floor.
 
 ## Harmony DSP
 
@@ -382,10 +393,11 @@ Level:
 
 Debug display:
 
-- Debug subtitle uses `VoxChord v<version>`.
+- Debug subtitle uses `VoxChord v<version> | Build: <diagnostic-build-id>` when a diagnostic build identifier is set (currently `d1-lowpitch-diag-001`).
 - Release subtitle uses `VoxChord v<version>`.
 - Pitch self-test summary and detailed pitch runtime fields are hidden by default.
 - Character and pitch diagnostic code remains available for future debugging.
+- The MIDI debug row is split into two lines in Debug builds: the existing MIDI counters, and a second line (`pitchDebugLabel`, Debug-only) showing the D1 low-pitch diagnostics (representative voice note, window pitch, grain window length, pitch ratio raw/clamped, output-period-to-window ratio, ratio clamp hit count, and wet zero-crossing frequency/cents deviation). The second line is not shown in Release builds.
 
 ## Real-Time Safety Rules
 

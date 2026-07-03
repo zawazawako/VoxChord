@@ -190,6 +190,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     if (panicRequested.exchange (false, std::memory_order_acq_rel))
     {
         midiVoices.reset();
+        choirEngine.resetRatioClampHitCount();
         publishMidiActivity (MidiActivity::panic);
         publishMidiSnapshot();
     }
@@ -236,6 +237,15 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     harmonicCorrectionMode.store (pitchState.harmonicCorrectionMode, std::memory_order_relaxed);
     characterModeRaw.store (pitchState.characterModeRaw, std::memory_order_relaxed);
     characterModeSanitized.store (pitchState.characterModeSanitized, std::memory_order_relaxed);
+    windowPitchHz.store (pitchState.windowPitchHz, std::memory_order_relaxed);
+    representativeVoiceMidiNote.store (pitchState.representativeVoiceMidiNote, std::memory_order_relaxed);
+    representativeGrainWindowSamples.store (pitchState.representativeGrainWindowSamples, std::memory_order_relaxed);
+    representativePitchRatioRaw.store (pitchState.representativePitchRatioRaw, std::memory_order_relaxed);
+    representativePitchRatioClamped.store (pitchState.representativePitchRatioClamped, std::memory_order_relaxed);
+    outputPeriodToWindowRatio.store (pitchState.outputPeriodToWindowRatio, std::memory_order_relaxed);
+    ratioClampHitCount.store (pitchState.ratioClampHitCount, std::memory_order_relaxed);
+    wetZeroCrossingHz.store (pitchState.wetZeroCrossingHz, std::memory_order_relaxed);
+    wetZeroCrossingCentsDeviation.store (pitchState.wetZeroCrossingCentsDeviation, std::memory_order_relaxed);
     mixDryWetToOutput (buffer);
 
     const auto outputLeftPeak = calculateChannelPeak (buffer, 0, samples);
@@ -338,6 +348,15 @@ voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
     state.harmonicCorrectionMode = harmonicCorrectionMode.load (std::memory_order_relaxed);
     state.characterModeRaw = characterModeRaw.load (std::memory_order_relaxed);
     state.characterModeSanitized = characterModeSanitized.load (std::memory_order_relaxed);
+    state.windowPitchHz = windowPitchHz.load (std::memory_order_relaxed);
+    state.representativeVoiceMidiNote = representativeVoiceMidiNote.load (std::memory_order_relaxed);
+    state.representativeGrainWindowSamples = representativeGrainWindowSamples.load (std::memory_order_relaxed);
+    state.representativePitchRatioRaw = representativePitchRatioRaw.load (std::memory_order_relaxed);
+    state.representativePitchRatioClamped = representativePitchRatioClamped.load (std::memory_order_relaxed);
+    state.outputPeriodToWindowRatio = outputPeriodToWindowRatio.load (std::memory_order_relaxed);
+    state.ratioClampHitCount = ratioClampHitCount.load (std::memory_order_relaxed);
+    state.wetZeroCrossingHz = wetZeroCrossingHz.load (std::memory_order_relaxed);
+    state.wetZeroCrossingCentsDeviation = wetZeroCrossingCentsDeviation.load (std::memory_order_relaxed);
     return state;
 }
 

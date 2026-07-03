@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <atomic>
+#include <cstdint>
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -28,6 +30,17 @@ struct PitchState
     int harmonicCorrectionMode = 0;
     int characterModeRaw = 0;
     int characterModeSanitized = 0;
+
+    // D1 low-pitch diagnostics (observation only, see directions/0703_1.md)
+    float windowPitchHz = 0.0f;
+    int representativeVoiceMidiNote = -1;
+    int representativeGrainWindowSamples = 0;
+    float representativePitchRatioRaw = 0.0f;
+    float representativePitchRatioClamped = 0.0f;
+    float outputPeriodToWindowRatio = 0.0f;
+    uint32_t ratioClampHitCount = 0;
+    float wetZeroCrossingHz = 0.0f;
+    float wetZeroCrossingCentsDeviation = 0.0f;
 };
 
 struct PitchShifterSelfTestModeSummary
@@ -70,6 +83,7 @@ public:
                  bool leadTuneEnabled) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
     PitchState getPitchState() const noexcept { return pitchState; }
+    void resetRatioClampHitCount() noexcept { ratioClampHitCounter.store (0, std::memory_order_relaxed); }
 
 private:
     struct VoicePitchState
@@ -216,6 +230,7 @@ private:
     static float windowGain (float phase) noexcept;
 
     float updateWindowPitchHz (float correctionInputPitchHz, int samples) noexcept;
+    void updateWetZeroCrossing (float sampleValue) noexcept;
     void resetVoice (VoicePitchState& voice) noexcept;
     float readDelayLine (float delaySamples) const noexcept;
     float renderPitchShiftedSample (VoicePitchState& voice,
@@ -249,6 +264,14 @@ private:
     float lastDetectedInputFrequencyHz = 0.0f;
     float windowPitchHz = 0.0f;
     PitchState pitchState;
+
+    // D1 low-pitch diagnostics state (observation only, see directions/0703_1.md)
+    std::atomic<uint32_t> ratioClampHitCounter { 0 };
+    int wetZeroCrossingTrackedSlot = -1;
+    double wetZeroCrossingLocalSampleIndex = 0.0;
+    double wetZeroCrossingLastCrossingSampleIndex = -1.0;
+    float wetZeroCrossingPreviousSample = 0.0f;
+    float wetZeroCrossingEstimatedHz = 0.0f;
 
     int delayBufferSize = 0;
     int writeIndex = 0;
