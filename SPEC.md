@@ -1,10 +1,10 @@
 # VoxChord Source Specification
 
-Last updated: 2026-07-03
-Project version: 0.3.0
+Last updated: 2026-07-08
+Project version: 0.3.1
 Status: 0.3 experimental (dev-0.3 branch, low-pitch instability diagnostics)
 
-This document describes the current VoxChord 0.3.0 implementation on `dev-0.3`. The `main` branch remains frozen at 0.2.0.
+This document describes the current VoxChord 0.3.1 implementation on `dev-0.3`. The `main` branch remains frozen at 0.2.0.
 
 Documentation split:
 
@@ -23,8 +23,9 @@ Documentation split:
 
 ## Build Configuration
 
-- CMake project version: `0.2.0`
+- CMake project version: `0.3.1`
 - Main target: `VoxChord`
+- Diagnostic tooling target (Debug/test only, no plugin/DSP impact): `VoxChordOfflineTest` (console app; sources `tests/OfflineDiagnosticsMain.cpp` + `Source/SimpleChoirEngine.cpp` + `Source/MidiVoiceState.cpp`, links `juce::juce_audio_basics`). Drives `SimpleChoirEngine::render()` headlessly with a steady sine + a held MIDI note and prints the D1 diagnostics per target note.
 - Plugin formats: `VST3`, `Standalone`
 - JUCE path: `../JUCE`
 - Linked JUCE module: `juce::juce_audio_utils`
@@ -393,11 +394,11 @@ Level:
 
 Debug display:
 
-- Debug subtitle uses `VoxChord v<version> | Build: <diagnostic-build-id>` when a diagnostic build identifier is set (currently `d1-lowpitch-diag-001`).
+- Debug subtitle uses `VoxChord v<version> | Build: <diagnostic-build-id>` when a diagnostic build identifier is set (currently `d1-lowpitch-diag-002`).
 - Release subtitle uses `VoxChord v<version>`.
 - Pitch self-test summary and detailed pitch runtime fields are hidden by default.
 - Character and pitch diagnostic code remains available for future debugging.
-- The MIDI debug row is split into two lines in Debug builds: the existing MIDI counters, and a second line (`pitchDebugLabel`, Debug-only) showing the D1 low-pitch diagnostics (representative voice note, window pitch, grain window length, pitch ratio raw/clamped, output-period-to-window ratio, ratio clamp hit count, and wet zero-crossing frequency/cents deviation). The second line is not shown in Release builds.
+- D1 low-pitch diagnostics (`pitchDebugLabel`, Debug-only) are shown in the band above the mini keyboard in the MIDI area, at a legible font. The readout front-loads the key shifter indicators — pitch ratio raw/clamped, output-period-to-window ratio (Per/Win), and wet zero-crossing frequency/cents deviation — followed by representative voice note, grain window length, and ratio clamp hit count. In Release builds this band is empty (the readout is not shown and takes no MIDI counters space).
 
 ## Real-Time Safety Rules
 

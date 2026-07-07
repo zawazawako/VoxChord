@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.3.0)
+project(VoxChord VERSION 0.3.1)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -58,4 +58,31 @@ target_link_libraries(VoxChord
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags)
+
+# ---------------------------------------------------------------------------
+# Offline D1 diagnostics harness (tooling only, no DSP/plugin impact).
+# Drives SimpleChoirEngine::render() headlessly to print low-pitch diagnostics
+# for a sine input + descending MIDI notes (see directions/0703_1.md exp #2).
+# ---------------------------------------------------------------------------
+juce_add_console_app(VoxChordOfflineTest
+    PRODUCT_NAME "VoxChordOfflineTest")
+
+target_sources(VoxChordOfflineTest
+    PRIVATE
+        tests/OfflineDiagnosticsMain.cpp
+        Source/SimpleChoirEngine.cpp
+        Source/MidiVoiceState.cpp)
+
+target_compile_definitions(VoxChordOfflineTest
+    PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1)
+
+target_link_libraries(VoxChordOfflineTest
+    PRIVATE
+        juce::juce_audio_basics
+    PUBLIC
+        juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)

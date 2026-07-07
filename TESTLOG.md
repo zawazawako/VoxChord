@@ -1,5 +1,38 @@
 # VoxChord Test Log
 
+## 0.3.1 D1 diagnostics: offline harness + readable readout
+
+Date: 2026-07-08
+
+Scope: D1 follow-up. Adds an agent-runnable offline harness so the sine + low-MIDI experiment (exp #2) no longer needs a DAW, and relocates the on-screen D1 readout to a legible position. No DSP, parameter, or Release-audio behavior change. Build id `d1-lowpitch-diag-002`; project VERSION `0.3.0` -> `0.3.1`.
+
+Implementation status:
+
+- New CMake console-app target `VoxChordOfflineTest` (`tests/OfflineDiagnosticsMain.cpp` + `Source/SimpleChoirEngine.cpp` + `Source/MidiVoiceState.cpp`, links `juce::juce_audio_basics`). It drives `SimpleChoirEngine::render()` headlessly with a steady 440 Hz sine + one held MIDI note (A5/A4/A3/A2/A0 by MIDI 81/69/57/45/33) at 44.1 kHz / block 512, settles 2 s, then prints the D1 `PitchState` per note. Tooling only; does not touch the plugin build output or any DSP path.
+- GUI (Debug only): moved `pitchDebugLabel` out of the cramped 16 px bottom slot (where it was illegible) into the empty band above the mini keyboard, font 12 -> 13.5 bold. Readout reformatted to front-load Ratio (raw->clamped) / Per/Win / Wet Hz (cents), then Note / Grain / Clamp#. Release layout unchanged (band stays empty).
+- `SimpleChoirEngine` / detection / shifter / clamp logic unchanged; harness and readout are read-only observers.
+
+Agent build + offline result (this iteration):
+
+- Built Debug and Release (VS 18 2026 generator, x64) — both succeeded, all artifacts produced. Debug VST3 metadata still `VoxChord_dbg`.
+- `VoxChordOfflineTest.exe` output (input sine 440 Hz fixed; target = held MIDI note):
+  - MIDI 81 (880 Hz): ratio 2.000->2.000, Per/Win 0.08, clamp# 0, wetHz 879.5 (-1 c)
+  - MIDI 69 (440 Hz): ratio 1.000->1.000, Per/Win 0.17, clamp# 0, wetHz 440.0 (0 c)
+  - MIDI 57 (220 Hz): ratio 0.500->0.500, Per/Win 0.33, clamp# 0, wetHz 219.8 (-2 c)
+  - MIDI 45 (110 Hz): ratio 0.250->0.250, Per/Win 0.67, clamp# 172, wetHz 109.8 (-4 c)
+  - MIDI 33 (55 Hz): ratio **0.125->0.250 (clamped)**, Per/Win 1.33, clamp# 172, wetHz 109.8 (**+1196 c**, ~1 octave high)
+
+Preliminary reading (sine case only):
+
+- With a fixed 440 Hz input, detection is rock-steady (detIn 440.0) at every target, so for the *low-MIDI-note* scenario the failure is **shifter-side, specifically the ratio clamp**: below ratio 0.25 (targets >2 octaves under the input, e.g. 440->55) the output is clamped and lands ~an octave high. Downward shifts within 0.25..1.0 track to within a few cents. Per/Win climbs monotonically as the target drops (0.08 -> 1.33) and passes 0.67 exactly where the clamp starts biting.
+- Caveat: this isolates the shifter (input pitch is trivial to detect). It does **not** exercise low-*input*-pitch detection instability — that is still experiment #3 (real low voice) and remains user-verified.
+
+User verification pending:
+
+1. Confirm the Debug D1 readout is now legible in the band above the mini keyboard (Ratio / Per/Win / Wet visible without clipping), and subtitle shows `Build: d1-lowpitch-diag-002`.
+2. Confirm Release GUI is unchanged (no readout, no reserved space) and Release still identifies as `VoxChord`.
+3. Real voice + low MIDI (exp #3): sing/hum into the Debug build with descending notes; report where instability begins and the readout values there — to confirm whether real-world low-pitch trouble is the same shifter clamp or adds a detection component.
+
 ## 0.3.0 D1 low-pitch instability diagnostics
 
 Date: 2026-07-03
