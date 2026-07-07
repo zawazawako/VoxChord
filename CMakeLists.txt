@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.3.1)
+project(VoxChord VERSION 0.3.2)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -81,6 +81,33 @@ target_compile_definitions(VoxChordOfflineTest
         JUCE_STANDALONE_APPLICATION=1)
 
 target_link_libraries(VoxChordOfflineTest
+    PRIVATE
+        juce::juce_audio_basics
+    PUBLIC
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+
+# ---------------------------------------------------------------------------
+# D3 experiment (branch exp/d3-psola): windowed shifter vs TD-PSOLA offline A/B
+# comparison harness (tooling only, no DSP/plugin impact).
+# ---------------------------------------------------------------------------
+juce_add_console_app(VoxChordShifterCompare
+    PRODUCT_NAME "VoxChordShifterCompare")
+
+target_sources(VoxChordShifterCompare
+    PRIVATE
+        tests/ShifterComparisonMain.cpp
+        Source/PsolaShifter.cpp
+        Source/SimpleChoirEngine.cpp
+        Source/MidiVoiceState.cpp)
+
+target_compile_definitions(VoxChordShifterCompare
+    PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1)
+
+target_link_libraries(VoxChordShifterCompare
     PRIVATE
         juce::juce_audio_basics
     PUBLIC

@@ -1,5 +1,36 @@
 # VoxChord Test Log
 
+## 0.3.2 D3 experiment: TD-PSOLA shifter + offline A/B comparison (branch exp/d3-psola)
+
+Date: 2026-07-08
+
+Scope: Experimental branch `exp/d3-psola` (off `dev-0.3`). Implements a standalone TD-PSOLA pitch shifter and an offline harness that A/B-compares it against the current windowed dual-tap shifter on quantitative metrics (pitch accuracy/stability, SNR, AM depth, HNR, formant preservation, latency, CPU). **Plugin DSP, parameters, and GUI are unchanged** — `SimpleChoirEngine` is untouched and `PsolaShifter` is not yet wired into the plugin. Project VERSION `0.3.1` -> `0.3.2`.
+
+Implementation status:
+
+- New `Source/PsolaShifter.h/.cpp`: streaming, mono, single-voice TD-PSOLA (analysis marks pitch-synchronous with positive-peak refinement; synthesis marks at outputPeriod spacing; Hann grains OLA'd with window-sum normalization). Allocation-free / lock-free after `prepare()` (realtime-rules compliant), but consumed only by the test harness for now. Constant latency fixed at prepare time: ~2*grainHalfWidth + period + search margin (= ~3.3 input periods in the canonical 1-period-grain mode).
+- New CMake console-app target `VoxChordShifterCompare` (`tests/ShifterComparisonMain.cpp`). Drives `SimpleChoirEngine::render()` (1 voice, character off) and two `PsolaShifter` configs from the *same* input and the *same* detected pitch (`getLastDetectedInputFrequencyHz()` feeds PSOLA). Inputs: sines 440/220/110 Hz and a synthetic vowel (impulse train through 700/1200/2600 Hz resonators) at 146.83/293.66 Hz; targets at semitone offsets +12..-36. Latency is measured on dedicated 3 Hz-AM runs by cross-correlating RMS envelopes (waveform cross-correlation is period-ambiguous).
+- Both Debug and Release build clean (agent-built); Debug plugin artifacts still produced and unchanged.
+
+Key measured results (Release, 44.1 kHz, block 512; full log in the report):
+
+- **Low-MIDI failure fixed shifter-side**: at ratio 0.125 (440 Hz -> MIDI 33) the engine lands +1197 c (~1 octave high, the D1 ratio clamp); PSOLA lands 55.00 Hz, -0.0 c, sd 0.2 c. PSOLA stays pitch-accurate down to ratio 1/8 with no clamp.
+- **Vowel (voice-like) input, the relevant case**: PSOLA beats the engine on every quality metric at shifted notes — AM depth 0.6-2.7% vs 28-30% (engine grain warble), HNR 20-26 dB vs 2-12 dB (147 Hz vowel), pitch sd <=0.2 c vs up to 1.2 c. Dominant spectral peak stays near the input formant (preserved) while the engine scales it by the ratio (chipmunk/monster effect).
+- **Sine input caveat**: PSOLA "fails" sines at ratio 2.0 (near-silence + AM) and scores poor sine-fit SNR on downshifts. This is expected spectral-envelope preservation (a sine has no energy at the shifted comb), not a bug; the engine wins all sine SNR comparisons. Sine metrics must not be read as voice quality.
+- **Grain-width experiment**: widening grains beyond 1 input period (tried caps 16x, then 2x) re-introduces the source periodicity — at ratio ~0.5 the "quality" config outputs the *input* pitch (+1200 c). Canonical 1-period grains (`grainCap = 1`) are correct at all ratios; adopt that as the PSOLA default.
+- **Latency (measured, envelope xcorr)**: engine 9-23 ms depending on input pitch (window-synced taps). PSOLA canonical mode: 10.9 ms @440 Hz input, 20.3 @220, 25.4 @147, 39.2 @110 (≈3.3 input periods; per-run adaptive provisioning). A live worst-case provisioning at the 80 Hz detection floor computes to ~42 ms — above the ~20 ms budget in PLAN-0.3; needs either adaptive latency, a tighter mark-finalization scheme, or a higher min-F0 assumption. This is the main open trade-off for the D3 gate.
+- **CPU (Release, per second of audio)**: engine 55.9 ms (1 note) / 62.5 ms (4 notes) — YIN detection dominates; PSOLA 1.2-2.2 ms per voice, i.e. per-voice cost comparable to the windowed shifter's marginal cost (~2.2 ms) and negligible next to detection.
+
+Build status:
+
+- Debug and Release built by agent (VS 18 2026 generator, x64): `VoxChordShifterCompare` both configs, plugin VST3/Standalone Debug rebuilt to confirm no impact. Only pre-existing warnings.
+
+User verification pending:
+
+1. Decide the D3 gate direction from these numbers (PSOLA adoption path vs windowed-engine improvements), especially the latency trade-off above.
+2. Optional: run `build/VoxChordShifterCompare_artefacts/Release/VoxChordShifterCompare.exe` to reproduce the tables.
+3. No listening check possible yet (PSOLA is not in the plugin); wiring an A/B switch into the engine is the natural next iteration on this branch.
+
 ## 0.3.1 D1 diagnostics: offline harness + readable readout
 
 Date: 2026-07-08
