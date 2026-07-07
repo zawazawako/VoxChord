@@ -23,8 +23,12 @@
 //    cap >= 1/minRatio gives the quality mode (no gaps, more latency + smear).
 //
 // Latency is constant per prepare() configuration:
-//    latency = 2*Hmax + searchHalfMax + PinMax + margin
+//    latency = 2*Hmax + margin (margin = 64 samples)
 // so worst-case values must be chosen up front (minInputF0Hz, minPitchRatio).
+// This is the theoretical floor for symmetric one-period grains: the peak
+// search lookahead is folded into the grain's extraction wait, and synthesis
+// marks use the nearest already-extractable analysis mark instead of waiting
+// for the nearest one (directions/0708_1.md).
 
 namespace voxchord
 {

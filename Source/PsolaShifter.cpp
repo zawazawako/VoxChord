@@ -41,8 +41,7 @@ void PsolaShifter::prepare (double sampleRate,
 
     maxGrainHalfWidth = static_cast<int> (std::ceil (widest));
     searchHalfMax = static_cast<int> (std::ceil (maxPeriodSamples * 0.25));
-    latencySamples = 2 * maxGrainHalfWidth + searchHalfMax
-                   + static_cast<int> (std::ceil (maxPeriodSamples)) + 64;
+    latencySamples = 2 * maxGrainHalfWidth + 64;
 
     inputRing.assign (ringSize, 0.0f);
     olaRing.assign (ringSize, 0.0f);
@@ -91,9 +90,12 @@ int PsolaShifter::currentGrainHalfWidth() const noexcept
 void PsolaShifter::finalizeAnalysisMarksUpTo() noexcept
 {
     const auto searchHalf = std::clamp (static_cast<int> (inputPeriodSamples * 0.25), 2, searchHalfMax);
-    const auto halfWidth = currentGrainHalfWidth();
 
-    while (writePos > static_cast<std::int64_t> (std::llround (nextMarkGuess)) + searchHalf + halfWidth + 1)
+    // A finalized mark only guarantees the peak-search context; whether the
+    // grain around it is fully written is checked at placement time instead
+    // (directions/0708_1.md item 1: folds the search lookahead into the
+    // grain's own extraction wait).
+    while (writePos > static_cast<std::int64_t> (std::llround (nextMarkGuess)) + searchHalf + 1)
     {
         const auto guess = static_cast<std::int64_t> (std::llround (nextMarkGuess));
         auto best = guess;
@@ -160,22 +162,36 @@ void PsolaShifter::placeReadyGrains() noexcept
     if (storedMarkCount == 0)
         return;
 
-    const auto latest = storedMarks[storedMarkCount - 1];
-
-    if (nextSynthMark < 0.0)
-        nextSynthMark = static_cast<double> (latest);
-
-    const auto periodOut = std::max (2.0, inputPeriodSamples / static_cast<double> (currentRatio));
     const auto halfWidth = currentGrainHalfWidth();
 
-    while (nextSynthMark <= static_cast<double> (latest))
+    // A mark is placeable once its whole grain is inside the written input
+    // (mark + halfWidth < writePos). Synthesis marks no longer wait for the
+    // nearest mark to become placeable; they use the nearest *placeable* one,
+    // which may be up to ~one period older than the synthesis position
+    // (directions/0708_1.md item 2: removes the finalization-granularity wait).
+    auto placeableCount = storedMarkCount;
+
+    while (placeableCount > 0 && storedMarks[placeableCount - 1] + halfWidth >= writePos)
+        --placeableCount;
+
+    if (placeableCount == 0)
+        return;
+
+    const auto newestPlaceable = storedMarks[placeableCount - 1];
+
+    if (nextSynthMark < 0.0)
+        nextSynthMark = static_cast<double> (newestPlaceable);
+
+    const auto periodOut = std::max (2.0, inputPeriodSamples / static_cast<double> (currentRatio));
+
+    while (nextSynthMark <= static_cast<double> (newestPlaceable) + inputPeriodSamples)
     {
         const auto synthesisMark = static_cast<std::int64_t> (std::llround (nextSynthMark));
 
         auto nearest = storedMarks[0];
         auto nearestDistance = absDistance (nearest, synthesisMark);
 
-        for (auto i = 1; i < storedMarkCount; ++i)
+        for (auto i = 1; i < placeableCount; ++i)
         {
             const auto distance = absDistance (storedMarks[i], synthesisMark);
 

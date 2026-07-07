@@ -1,5 +1,35 @@
 # VoxChord Test Log
 
+## 0.3.3 D3: PSOLA tight-pipeline scheduling (directions/0708_1, plan A)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Implements directions/0708_1.md plan A: `PsolaShifter` scheduling reworked so the constant latency drops from `2H + search + P + 64` to `2H + 64` (at the 110 Hz floor: 31.0 ms -> 19.6 ms configured). Windows, grains and mark refinement are unchanged; plugin DSP untouched (PsolaShifter still harness-only). VERSION `0.3.2` -> `0.3.3`.
+
+Implementation status (all in `Source/PsolaShifter.cpp/.h`):
+
+1. Mark finalization now waits only for the peak-search context (`writePos > guess + searchHalf + 1`); grain extractability is checked at placement.
+2. `placeReadyGrains()` uses "placeable" marks (`mark + halfWidth < writePos`); synthesis marks place while `nextSynthMark <= newestPlaceable + P`, choosing the nearest *placeable* mark.
+3. `latencySamples = 2 * maxGrainHalfWidth + 64`; header latency comment updated.
+
+Harness re-run vs the 0.3.2 acceptance criteria (Release, agent-built and run):
+
+- Configured latency: all runs shortened as designed (sine110 38.5 -> 24.2 ms with the harness's 0.8*f0 headroom; vowel147 29.2 -> 18.5 ms). Plugin-provisioning formula at exactly the 110 Hz floor: 866 samples = **19.6 ms** (target <= ~20 ms met on paper — but see finding below).
+- Measured latency (sine unison, envelope xcorr): 7.3 / 10.9 / 24.7 ms vs configured 7.2 / 12.8 / 24.2 ms -> within +/-2 ms. Vowel-run latency measurements proved unreliable (+/-4 ms; one reading below the configured buffer delay, which is physically impossible), so sine runs are the reference.
+- Quality: vowel HNR within +/-1 dB of 0.3.2, AM within +/-1 pt, f0 error/sd within +/-0.3 c, deep-downshift runs (55 Hz) still exact. Only regression: sine 440 unison SNR 30.7 -> 27.2 dB (sine-only metric; vowel HNR stable).
+- CPU numbers this run were ~4x higher across the board (engine 220 ms/s vs 56 in 0.3.2) — background machine load during the bench; relative ratios (PSOLA per voice ~1/30 of engine incl. detection) unchanged.
+
+**Structural finding (confirmed by code trace, motivates plan A'):** the eager placement rule makes every synthesis mark use content from ~one input period behind its position at ratio 1.0 (the nearest *placeable* mark is always the previous one). Buffer latency dropped by ~1.25P, but ~1P of *content age* was introduced, so true transient latency (syllable attacks) is ~3P + 64 ~= 27 ms at the 110 Hz floor — the real gain over 0.3.2 is only ~0.25P. Steady tones are unaffected (periodic content is self-similar), which is why sine measurements match the configured value while quality metrics stayed flat. Deriving further: with pitch-synchronous marks the mark-phase quantization adds an unavoidable ~P/2 term, so the true floor of symmetric one-period-grain PSOLA is ~2.5P (~23 ms at 110 Hz), not 2P as 0708_1 assumed. Reaching a true <= 20 ms therefore needs asymmetric grains (plan B) or a higher min-F0 assumption (plan C) on top of a corrected scheduler (plan A': per-grain wait for the nearest extractable mark, L = 2H + P/2 + 64, zero mean content age).
+
+Build status:
+
+- Release `VoxChordShifterCompare` built and run by agent; no new warnings.
+
+User verification pending:
+
+1. Decide the follow-up: accept ~23 ms true latency with plan A' (quality intact), or add plan B (asymmetric grains, ~20 ms, quality to be re-measured), or plan C (raise the min-F0 floor). Draft direction to be proposed.
+2. No listening check possible yet (PsolaShifter still not wired into the plugin).
+
 ## 0.3.2 D3 experiment: TD-PSOLA shifter + offline A/B comparison (branch exp/d3-psola)
 
 Date: 2026-07-08
