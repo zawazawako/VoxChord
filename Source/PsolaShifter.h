@@ -23,12 +23,13 @@
 //    cap >= 1/minRatio gives the quality mode (no gaps, more latency + smear).
 //
 // Latency is constant per prepare() configuration:
-//    latency = 2*Hmax + margin (margin = 64 samples)
+//    latency = 2*Hmax + Pmax/2 + margin (margin = 64 samples)
 // so worst-case values must be chosen up front (minInputF0Hz, minPitchRatio).
-// This is the theoretical floor for symmetric one-period grains: the peak
-// search lookahead is folded into the grain's extraction wait, and synthesis
-// marks use the nearest already-extractable analysis mark instead of waiting
-// for the nearest one (directions/0708_1.md).
+// This is the true floor for symmetric one-period grains: the peak search
+// lookahead is folded into the grain's extraction wait, and the Pmax/2 term
+// pays for mark-phase quantization so every synthesis mark can use a mark
+// within half a period of its position (content age averages zero; unison is
+// exact reconstruction). See directions/0708_1.md and 0708_2.md.
 
 namespace voxchord
 {

@@ -1,5 +1,33 @@
 # VoxChord Test Log
 
+## 0.3.4 D3: PSOLA placement bound P/2 fix (directions/0708_2, plan A')
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Implements directions/0708_2.md plan A': placement loop bound `newestPlaceable + P` -> `newestPlaceable + P/2` and `latencySamples = 2H + ceil(Pmax/2) + 64`, removing the ~1-period content age introduced in 0.3.3. Buffer latency rises (110 Hz floor: 19.6 -> 24.2 ms) but the *true transient* latency falls (~27 -> ~24 ms) and unison returns to (near-)exact reconstruction. Plugin DSP untouched. VERSION `0.3.3` -> `0.3.4`.
+
+Changes: `Source/PsolaShifter.cpp` (2 spots) + header latency comment. Release harness rebuilt and rerun by agent.
+
+Acceptance criteria vs directions/0708_2:
+
+- sine440 unison SNR: 27.2 -> **29.0/29.1 dB**. Improved as predicted but ~1 dB short of the >=30 dB bar (0.3.2 was 30.7; sine110 similarly 45.5 vs 47.0). Residual gap attributed to integer-sample mark placement (sub-sample mark refinement would be a separate quality item, unrelated to latency). Partially met.
+- Measured latency (sine unison, psolaLL): 8.7/16.0/30.5 ms vs configured 8.6/15.7/29.9 ms -> within +/-2 ms. Met. (Vowel-run latency readings remain +/-4 ms noise, as in 0.3.3.)
+- Vowel quality at 0.3.2 levels: HNR within +/-0.3 dB, AM within +/-0.2 pt, f0/sd within +/-0.1 c across both vowels. Met.
+- Deep downshift: 55 Hz run still -0.0 c / sd 0.2 c. Met.
+- 110 Hz floor plugin provisioning: 2*401 + 201 + 64 = 1067 samples = **24.2 ms** configured = true transient latency (content age ~0). Confirmed by formula and by the harness's 88 Hz-headroom run (29.9 ms configured, 30.5 measured).
+- CPU back at 0.3.2 levels (engine 58.4/66.5 ms/s incl. detection; PSOLA 1.2-2.0 ms/s per voice), confirming the 0.3.3 CPU spike was background load.
+
+Where this leaves the D3 latency ledger (110 Hz floor, true transient latency): 0.3.2 = ~31 ms -> 0.3.4 = **~24 ms** with quality intact. Reaching ~20 ms still requires plan B (asymmetric grains, ~20 ms, quality re-check) or plan C (min-F0 floor 135 Hz). Engine's own measured latency is 9-23 ms depending on input pitch, so PSOLA at 24 ms costs roughly one 110 Hz period over the engine's low-pitch case.
+
+Build status:
+
+- Release `VoxChordShifterCompare` built and run by agent; no new warnings.
+
+User verification pending:
+
+1. Judge whether ~24 ms wet-path latency (110 Hz floor) is acceptable for live use, or whether plan B/C should be pursued before plugin integration. Recommendation: wire PsolaShifter into the plugin behind an A/B switch next (PLAN-0.3 gate 2 is a listening decision and cannot proceed offline).
+2. No listening check possible yet (PsolaShifter still harness-only).
+
 ## 0.3.3 D3: PSOLA tight-pipeline scheduling (directions/0708_1, plan A)
 
 Date: 2026-07-08

@@ -41,7 +41,8 @@ void PsolaShifter::prepare (double sampleRate,
 
     maxGrainHalfWidth = static_cast<int> (std::ceil (widest));
     searchHalfMax = static_cast<int> (std::ceil (maxPeriodSamples * 0.25));
-    latencySamples = 2 * maxGrainHalfWidth + 64;
+    latencySamples = 2 * maxGrainHalfWidth
+                   + static_cast<int> (std::ceil (maxPeriodSamples * 0.5)) + 64;
 
     inputRing.assign (ringSize, 0.0f);
     olaRing.assign (ringSize, 0.0f);
@@ -184,7 +185,10 @@ void PsolaShifter::placeReadyGrains() noexcept
 
     const auto periodOut = std::max (2.0, inputPeriodSamples / static_cast<double> (currentRatio));
 
-    while (nextSynthMark <= static_cast<double> (newestPlaceable) + inputPeriodSamples)
+    // Bound P/2 (not P): guarantees a placeable mark within half a period of
+    // every synthesis position, so grain content age averages zero and unison
+    // reduces to exact reconstruction (directions/0708_2.md item 1).
+    while (nextSynthMark <= static_cast<double> (newestPlaceable) + inputPeriodSamples * 0.5)
     {
         const auto synthesisMark = static_cast<std::int64_t> (std::llround (nextSynthMark));
 
