@@ -1,5 +1,39 @@
 # VoxChord Test Log
 
+## 0.3.8 D5-lite: Character mode distinctiveness (directions/0708_6)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Per user request ("make the 4 Characters' identities stand out"), each mode was re-tuned around a clear signature within the existing framework (3 biquads + saturation + per-slot detune/gain/delay, blended by amount). Two cheap new primitives: per-slot formant-sweep LFOs (block-rate, Vowel) and a per-voice sample-hold decimator (Digital). Applies in both Classic and PSOLA modes (Character sits after the shifter stage). VERSION `0.3.7` -> `0.3.8`.
+
+Mode changes (`SimpleChoirEngine`):
+
+- **Warm** (dark/thick): HS 3.5 kHz -9 dB, peak 300 Hz +4.5 dB, saturation drive 1+0.6a / mix 0.5a, slot detune x0.4 (was 0).
+- **Bright** (hard/airy): HS 6 kHz +7 dB, peak 3.2 kHz +4.5 dB Q1.4, peak 280 Hz -4 dB, no detune.
+- **Vowel** (moving mouths): per-slot formant peaks, gain x1.6, Q 1.3 -> 2.2, centers swept +/-12% by free-running per-slot LFOs (0.08-0.22 Hz, advanced per block), slot detune x1.0 (was x0.75).
+- **Digital** (robotic/lo-fi): sample-hold decimator (hold 1..10 samples by amount, ~4.4 kHz effective rate at full), saturation drive 1+1.2a, HS 4.5 kHz +6 dB, detune 1.6 -> **0** (hard-locked robot; contrast with Vowel).
+- New state: `characterLfoPhases[8]` (engine), `decimatorHoldValue/Counter` (per voice, reset with the voice). `configureCharacterTone` gained an `lfoPhase` parameter. No latency impact (all per-sample filters/hold); amount 0 remains a full bypass.
+
+Character probe (new harness section: vowel 146.83 Hz + chord MIDI 50/54/57/62, Classic engine, amount 1.0 vs amount-0 baseline; band deltas in dB lowmid 200-500 / formant 900-1800 / presence 2.5-5.5k / air 6.5-11k):
+
+- Warm:    +4.5 / -1.4 / -0.1 / **-4.9**  (dark: low up, air down)
+- Bright:  -2.7 / +0.1 / +4.4 / **+5.8**  (mirror of Warm)
+- Vowel:   +1.2 / -3.2 / +6.2 / +1.9, HNR +2.5 (detune de-phasing + swept formants; the movement itself is time-domain, not captured by static bands)
+- Digital: +4.9 / +1.2 / +12.6 / **+20.3**, HNR -1.1 (decimator aliasing = intended lo-fi)
+- All four signatures differ in sign pattern; amount-0 output matches the baseline (bypass integrity).
+
+Build status:
+
+- Built by agent: harness Release (probe above; shifter comparison tables unchanged from 0.3.7), plugin Debug + Release (VST3/Standalone), no new warnings.
+
+User verification pending (listening):
+
+1. Whether each mode now has an obviously distinct musical identity at amount 50-100%, and whether the strengths feel right (all values are single constants in `configureCharacterTone`/`applyCharacterTone`, easy to trim).
+2. Vowel mode: the slow formant movement should read as "choir mouths", not as wobble.
+3. Digital mode: decimator harshness at amount 100% (intended lo-fi; reduce the 9-sample max hold if too much).
+4. Character modes under PSOLA engine (decimator + PSOLA interaction).
+5. No clicks when switching modes or sweeping amount.
+
 ## 0.3.7 D3: PSOLA field-feedback fixes: 90 Hz floor, LF noise, loudness (directions/0708_5)
 
 Date: 2026-07-08

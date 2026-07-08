@@ -82,7 +82,7 @@ Documentation split:
 - Implements wet choir rendering, pitch detection, pitch tracking, pitch shifting, per-voice envelopes, Character processing, and stereo Spread.
 - Uses mono delay-line input and stereo wet output.
 - Current pitch shifter is a lightweight delay-window design with input-synced window length when a valid smoothed pitch is available.
-- Character processing uses per-voice lightweight biquad EQ and small per-slot detune/gain/delay offsets.
+- Character processing uses per-voice lightweight biquad EQ, soft saturation, and per-slot detune/gain/delay offsets; mode identities (0.3.8): **Warm** = dark/thick (high shelf 3.5 kHz -9 dB, low-mid 300 Hz +4.5 dB, stronger saturation, light slot detune x0.4), **Bright** = hard/airy (high shelf 6 kHz +7 dB, presence 3.2 kHz +4.5 dB, low cut 280 Hz -4 dB, no detune), **Vowel** = moving-mouth choir (per-slot formant peaks, gain x1.6, Q 2.2, centers swept +/-12% by slow per-slot LFOs 0.08-0.22 Hz, full slot detune), **Digital** = robotic/lo-fi (sample-hold decimator up to 10 samples, hard saturation, high shelf 4.5 kHz +6 dB, zero detune).
 - Debug self-test functions remain in the codebase but are not run during normal realtime processing.
 
 `Source/VoxChordParameters.h`, `Source/VoxChordParameters.cpp`

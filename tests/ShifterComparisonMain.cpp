@@ -794,6 +794,109 @@ void printRow (const char* label, const MetricsRow& row, bool isSine, int latenc
 }
 
 // ---------------------------------------------------------------------------
+// Character probe (directions/0708_6.md): vowel input + 4-note chord through
+// the Classic engine, one run per character mode at amount 1.0 vs a baseline
+// at amount 0. Band-power deltas show each mode's spectral signature.
+// ---------------------------------------------------------------------------
+
+struct CharacterProbeResult
+{
+    double bandDb[4] = {};   // 200-500 / 900-1800 / 2500-5500 / 6500-11000 Hz, rel. baseline
+    double hnrDb = 0.0;
+    double rmsRelBaselineDb = 0.0;
+};
+
+void runCharacterProbe (int characterMode, float amount, std::vector<float>& wetOut)
+{
+    voxchord::SimpleChoirEngine engine;
+    engine.prepare (kSampleRate, kBlockSize);
+
+    VowelGen generator;
+    generator.init (146.83);
+
+    juce::AudioBuffer<float> dry (2, kBlockSize);
+    juce::AudioBuffer<float> wet (2, kBlockSize);
+    juce::AudioBuffer<float> lead (2, kBlockSize);
+
+    voxchord::MidiVoiceState::NoteSnapshot notes {};
+    notes.fill (-1);
+    notes[0] = 50; // D3
+    notes[1] = 54;
+    notes[2] = 57;
+    notes[3] = 62;
+
+    const auto totalBlocks = static_cast<int> (kRunSeconds * kSampleRate) / kBlockSize;
+    wetOut.assign (static_cast<size_t> (totalBlocks) * kBlockSize, 0.0f);
+
+    for (auto block = 0; block < totalBlocks; ++block)
+    {
+        for (auto n = 0; n < kBlockSize; ++n)
+        {
+            const auto s = generator.next();
+            dry.setSample (0, n, s);
+            dry.setSample (1, n, s);
+        }
+
+        engine.render (dry, wet, lead, notes, 4, 0.0f, 0.8f, 0.0f,
+                       characterMode, amount, amount, false);
+
+        for (auto n = 0; n < kBlockSize; ++n)
+            wetOut[static_cast<size_t> (block * kBlockSize + n)] = wet.getSample (0, n);
+    }
+}
+
+void printCharacterProbe()
+{
+    static constexpr double bandEdges[4][2] = {
+        { 200.0, 500.0 }, { 900.0, 1800.0 }, { 2500.0, 5500.0 }, { 6500.0, 11000.0 }
+    };
+    static const char* modeNames[4] = { "Warm", "Bright", "Vowel", "Digital" };
+
+    std::printf ("=== Character probe (vowel 146.83 Hz, chord MIDI 50/54/57/62, Classic engine) ===\n");
+    std::printf ("    band deltas vs amount-0 baseline [dB]: lowmid 200-500 | formant 900-1800 | presence 2.5-5.5k | air 6.5-11k\n");
+
+    std::vector<float> baseline;
+    runCharacterProbe (1, 0.0f, baseline);
+
+    const auto start = static_cast<int> (kMeasureFromSeconds * kSampleRate);
+    const auto length = std::min (16384, static_cast<int> (baseline.size()) - start);
+
+    double baselineBands[4];
+
+    for (auto b = 0; b < 4; ++b)
+        baselineBands[b] = bandPowerGoertzel (baseline, start, length, bandEdges[b][0], bandEdges[b][1], 25.0);
+
+    const auto baselineRms = rmsOf (baseline, start, static_cast<int> (baseline.size()));
+    const auto baselineHnr = acHnrDb (baseline, start, static_cast<int> (baseline.size()), 146.83);
+    std::printf ("    baseline (amount 0): HNR %5.1f dB\n", baselineHnr);
+
+    for (auto mode = 1; mode <= 4; ++mode)
+    {
+        std::vector<float> wet;
+        runCharacterProbe (mode, 1.0f, wet);
+
+        CharacterProbeResult result;
+
+        for (auto b = 0; b < 4; ++b)
+        {
+            const auto power = bandPowerGoertzel (wet, start, length, bandEdges[b][0], bandEdges[b][1], 25.0);
+            result.bandDb[b] = 10.0 * std::log10 (std::max (power, 1.0e-15) / std::max (baselineBands[b], 1.0e-15));
+        }
+
+        result.hnrDb = acHnrDb (wet, start, static_cast<int> (wet.size()), 146.83);
+        result.rmsRelBaselineDb = 20.0 * std::log10 (std::max (rmsOf (wet, start, static_cast<int> (wet.size())), 1.0e-9)
+                                                     / std::max (baselineRms, 1.0e-9));
+
+        std::printf ("    %-8s lowmid %+6.1f | formant %+6.1f | presence %+6.1f | air %+6.1f | HNR %5.1f dB | RMS %+5.1f dB\n",
+                     modeNames[mode - 1],
+                     result.bandDb[0], result.bandDb[1], result.bandDb[2], result.bandDb[3],
+                     result.hnrDb, result.rmsRelBaselineDb);
+    }
+
+    std::printf ("\n");
+}
+
+// ---------------------------------------------------------------------------
 // CPU benchmark
 // ---------------------------------------------------------------------------
 
@@ -991,6 +1094,8 @@ int main()
 
         std::printf ("\n");
     }
+
+    printCharacterProbe();
 
     std::printf ("=== CPU (vowel 146.83 Hz input, 10 s each, ms of processing per second of audio) ===\n");
     std::printf ("  engine, 1 note         : %7.3f ms/s (includes YIN pitch detection)\n", benchEngineMsPerSecond (1));

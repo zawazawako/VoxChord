@@ -127,6 +127,8 @@ private:
         int lastMidiNote = -1;
         bool wasActive = false;
         int lastCharacterMode = -1;
+        float decimatorHoldValue = 0.0f;
+        int decimatorHoldCounter = 0;
         float phaseA = 0.0f;
         float phaseB = 0.5f;
         float currentPitchRatio = 1.0f;
@@ -217,7 +219,7 @@ private:
     static float getCharacterPitchRatio (int slot, int characterMode, float characterAmount) noexcept;
     static float getCharacterGain (int slot, int characterMode, float characterAmount) noexcept;
     static float getCharacterDelayOffsetSamples (int slot, int characterMode, float characterAmount, double sampleRate) noexcept;
-    static void configureCharacterTone (VoicePitchState& voice, int slot, int characterMode, float characterAmount, double sampleRate) noexcept;
+    static void configureCharacterTone (VoicePitchState& voice, int slot, int characterMode, float characterAmount, double sampleRate, float lfoPhase) noexcept;
     static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode, float characterAmount) noexcept;
     static void setPeakingFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
     static void setHighShelfFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
@@ -274,6 +276,9 @@ private:
 
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     VoicePitchState leadVoiceState;
+    // Character "Vowel" formant sweep LFOs, one slow free-running phase per
+    // slot (block-rate; directions/0708_6.md).
+    std::array<float, MidiVoiceState::maxVoices> characterLfoPhases {};
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
     std::array<PsolaShifter, MidiVoiceState::maxVoices> psolaVoiceShifters;

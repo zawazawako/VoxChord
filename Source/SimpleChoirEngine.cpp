@@ -289,6 +289,7 @@ void SimpleChoirEngine::reset() noexcept
         resetVoice (voice);
 
     resetVoice (leadVoiceState);
+    characterLfoPhases.fill (0.0f);
 
     psolaScratch.clear();
 
@@ -819,6 +820,24 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             resetVoice (leadVoiceState);
     }
 
+    // Advance the per-slot Character "Vowel" formant LFOs once per block
+    // (free-running so re-triggered notes keep drifting; directions/0708_6.md).
+    {
+        static constexpr std::array<float, MidiVoiceState::maxVoices> lfoRatesHz {{
+            0.11f, 0.17f, 0.08f, 0.22f, 0.13f, 0.19f, 0.10f, 0.15f
+        }};
+
+        for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
+        {
+            auto& phase = characterLfoPhases[static_cast<size_t> (slot)];
+            phase += juce::MathConstants<float>::twoPi * lfoRatesHz[static_cast<size_t> (slot)]
+                   * static_cast<float> (samples) / static_cast<float> (currentSampleRate);
+
+            if (phase > juce::MathConstants<float>::twoPi)
+                phase -= juce::MathConstants<float>::twoPi;
+        }
+    }
+
     std::array<int, MidiVoiceState::maxVoices> renderSlots {};
     auto activeIndex = 0;
     auto renderCount = 0;
@@ -905,7 +924,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                 slot,
                                 safeCharacterMode,
                                 safeCharacterAmount,
-                                currentSampleRate);
+                                currentSampleRate,
+                                characterLfoPhases[static_cast<size_t> (slot)]);
         renderSlots[static_cast<size_t> (renderCount++)] = slot;
         ++activeIndex;
     }
@@ -1654,7 +1674,10 @@ float SimpleChoirEngine::getCharacterPitchRatio (int slot, int characterMode, fl
 
     const auto mode = sanitizeCharacterMode (characterMode);
     const auto amount = juce::jlimit (0.0f, 1.0f, characterAmount);
-    const auto multiplier = mode == 4 ? 1.6f : (mode == 3 ? 0.75f : 0.0f);
+    // Per-mode detune identity (directions/0708_6.md): Warm gets a light
+    // ensemble spread, Vowel a full one; Bright and Digital stay hard-locked
+    // (clean vs robotic).
+    const auto multiplier = mode == 3 ? 1.0f : (mode == 1 ? 0.4f : 0.0f);
     const auto cents = centsBySlot[static_cast<size_t> (juce::jlimit (0, MidiVoiceState::maxVoices - 1, slot))]
                      * multiplier
                      * amount;
@@ -1700,7 +1723,8 @@ void SimpleChoirEngine::configureCharacterTone (VoicePitchState& voice,
                                                 int slot,
                                                 int characterMode,
                                                 float characterAmount,
-                                                double sampleRate) noexcept
+                                                double sampleRate,
+                                                float lfoPhase) noexcept
 {
     static constexpr std::array<float, MidiVoiceState::maxVoices> vowelCenterHz {{
         750.0f, 1050.0f, 1350.0f, 1700.0f, 2100.0f, 2500.0f, 950.0f, 1500.0f
@@ -1725,29 +1749,33 @@ void SimpleChoirEngine::configureCharacterTone (VoicePitchState& voice,
     voice.characterFilter2.setIdentity();
     voice.characterFilter3.setIdentity();
 
+    // directions/0708_6.md: sharpen each mode's identity.
     switch (mode)
     {
-        case 1:
-            setHighShelfFilter (voice.characterFilter1, 4200.0f, -5.0f * amount, 0.7f, sampleRate);
-            setPeakingFilter (voice.characterFilter2, 350.0f, 2.5f * amount, 1.0f, sampleRate);
+        case 1: // Warm: dark, thick, tape/tube-ish
+            setHighShelfFilter (voice.characterFilter1, 3500.0f, -9.0f * amount, 0.7f, sampleRate);
+            setPeakingFilter (voice.characterFilter2, 300.0f, 4.5f * amount, 0.9f, sampleRate);
             break;
 
-        case 2:
-            setHighShelfFilter (voice.characterFilter1, 5500.0f, 4.0f * amount, 0.7f, sampleRate);
-            setPeakingFilter (voice.characterFilter2, 3200.0f, 2.5f * amount, 1.2f, sampleRate);
-            setPeakingFilter (voice.characterFilter3, 350.0f, -1.0f * amount, 1.0f, sampleRate);
+        case 2: // Bright: hard, airy, cutting
+            setHighShelfFilter (voice.characterFilter1, 6000.0f, 7.0f * amount, 0.7f, sampleRate);
+            setPeakingFilter (voice.characterFilter2, 3200.0f, 4.5f * amount, 1.4f, sampleRate);
+            setPeakingFilter (voice.characterFilter3, 280.0f, -4.0f * amount, 0.9f, sampleRate);
             break;
 
-        case 3:
+        case 3: // Vowel: "moving mouths" — slot formants slowly swept by an LFO
+        {
+            const auto sweep = 1.0f + 0.12f * amount * std::sin (lfoPhase);
             setPeakingFilter (voice.characterFilter1,
-                              vowelCenterHz[safeSlot],
-                              vowelGainDbBySlot[safeSlot] * amount,
-                              1.3f,
+                              vowelCenterHz[safeSlot] * sweep,
+                              vowelGainDbBySlot[safeSlot] * 1.6f * amount,
+                              2.2f,
                               sampleRate);
             break;
+        }
 
-        case 4:
-            setHighShelfFilter (voice.characterFilter1, 4500.0f, 5.0f * amount, 0.7f, sampleRate);
+        case 4: // Digital: robotic / lo-fi (decimator lives in applyCharacterTone)
+            setHighShelfFilter (voice.characterFilter1, 4500.0f, 6.0f * amount, 0.7f, sampleRate);
             setPeakingFilter (voice.characterFilter2, 2400.0f, 3.0f * amount, 1.2f, sampleRate);
             break;
 
@@ -1775,9 +1803,26 @@ float SimpleChoirEngine::applyCharacterTone (VoicePitchState& voice,
     coloured = voice.characterFilter3.process (coloured);
 
     if (mode == 1)
-        coloured = applySoftSaturation (coloured, 1.0f + 0.3f * amount, 0.35f * amount);
+    {
+        coloured = applySoftSaturation (coloured, 1.0f + 0.6f * amount, 0.5f * amount);
+    }
     else if (mode == 4)
-        coloured = applySoftSaturation (coloured, 1.0f + amount, 0.65f * amount);
+    {
+        // Sample-hold decimator (amount -> hold up to 10 samples, ~4.4 kHz
+        // effective rate @44.1 kHz): the iconic lo-fi/robotic digital artifact
+        // (directions/0708_6.md). Then hard-ish saturation.
+        const auto holdLength = 1 + juce::roundToInt (9.0f * amount);
+
+        if (voice.decimatorHoldCounter <= 0)
+        {
+            voice.decimatorHoldValue = coloured;
+            voice.decimatorHoldCounter = holdLength;
+        }
+
+        --voice.decimatorHoldCounter;
+        coloured = voice.decimatorHoldValue;
+        coloured = applySoftSaturation (coloured, 1.0f + 1.2f * amount, 0.65f * amount);
+    }
 
     return sample + (coloured - sample) * amount;
 }
@@ -2055,6 +2100,8 @@ void SimpleChoirEngine::resetVoice (VoicePitchState& voice) noexcept
     voice.characterFilter1.reset();
     voice.characterFilter2.reset();
     voice.characterFilter3.reset();
+    voice.decimatorHoldValue = 0.0f;
+    voice.decimatorHoldCounter = 0;
     voice.windowSamplesA = pitchWindowSamples;
     voice.windowSamplesB = pitchWindowSamples;
 }
