@@ -51,6 +51,11 @@ public:
     // Detected input fundamental in Hz; <= 0 holds the previous value.
     void setInputPitchHz (float f0Hz) noexcept;
 
+    // D4 voiced/unvoiced split (directions/0708_8.md): 1 = fully voiced
+    // (pitch-shifted output), 0 = unvoiced (latency-matched dry passthrough,
+    // consonants/breath are not shifted). Crossfaded per sample (~15 ms).
+    void setVoicedAmount (float amount) noexcept;
+
     void processBlock (const float* input, float* output, int numSamples) noexcept;
 
     int getLatencySamples() const noexcept { return latencySamples; }
@@ -95,6 +100,9 @@ private:
     float agcInputEnergy = 0.0f;
     float agcOutputEnergy = 0.0f;
     float agcGain = 1.0f;
+    float voicedTargetAmount = 1.0f;
+    float voicedSmoothedAmount = 1.0f;
+    float voicedSmoothingCoefficient = 0.01f;
     int maxGrainHalfWidth = 0;
     int searchHalfMax = 0;
     int latencySamples = 0;

@@ -309,6 +309,7 @@ void SimpleChoirEngine::reset() noexcept
 
     psolaLeadHighpassFilter.setIdentity();
     psolaLeadHighpassFilter.reset();
+    psolaVoicedState = false;
 }
 
 void SimpleChoirEngine::runPitchDetectorSelfTest()
@@ -946,6 +947,15 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                      : 1.0f - std::pow (1.0f - ratioSmoothingCoefficient,
                                                         static_cast<float> (samples));
 
+    // D4 voiced/unvoiced hysteresis (directions/0708_8.md): consonants and
+    // breath pass through the shifters as latency-matched dry audio.
+    if (! psolaVoicedState && pitchState.voiced && pitchState.confidence > 0.75f)
+        psolaVoicedState = true;
+    else if (psolaVoicedState && (! pitchState.voiced || pitchState.confidence < 0.55f))
+        psolaVoicedState = false;
+
+    const auto psolaVoicedAmount = psolaVoicedState ? 1.0f : 0.0f;
+
     for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
     {
         const auto slotIndex = static_cast<size_t> (slot);
@@ -958,6 +968,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         auto& shifter = psolaVoiceShifters[slotIndex];
         shifter.setInputPitchHz (inputFrequencyHz);
         shifter.setTargetPitchRatio (psolaCurrentRatios[slotIndex]);
+        shifter.setVoicedAmount (psolaVoicedAmount);
 
         auto* voiceOut = psolaScratch.getWritePointer (slot + 1);
         shifter.processBlock (psolaMono, voiceOut, samples);
@@ -984,6 +995,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                       psolaBlockAlpha);
     psolaLeadShifter.setInputPitchHz (inputFrequencyHz);
     psolaLeadShifter.setTargetPitchRatio (psolaLeadCurrentRatio);
+    psolaLeadShifter.setVoicedAmount (psolaVoicedAmount);
 
     auto* psolaLeadWrite = psolaScratch.getWritePointer (MidiVoiceState::maxVoices + 1);
     psolaLeadShifter.processBlock (psolaMono, psolaLeadWrite, samples);

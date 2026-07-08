@@ -56,6 +56,9 @@ void PsolaShifter::prepare (double sampleRate,
     // voices cannot pull marks off the glottal cycle (directions/0708_5.md).
     guideCoefficient = 1.0f - std::exp (static_cast<float> (-2.0 * kPi * 700.0 / sampleRateHz));
 
+    // ~15 ms voiced/unvoiced crossfade (directions/0708_8.md).
+    voicedSmoothingCoefficient = 1.0f - std::exp (static_cast<float> (-1.0 / (0.015 * sampleRateHz)));
+
     reset();
 }
 
@@ -70,6 +73,8 @@ void PsolaShifter::reset() noexcept
     agcInputEnergy = 0.0f;
     agcOutputEnergy = 0.0f;
     agcGain = 1.0f;
+    voicedTargetAmount = 1.0f;
+    voicedSmoothedAmount = 1.0f;
     storedMarkCount = 0;
     inputPeriodSamples = 0.0;
     writePos = 0;
@@ -80,6 +85,11 @@ void PsolaShifter::reset() noexcept
 void PsolaShifter::setTargetPitchRatio (float ratio) noexcept
 {
     currentRatio = std::clamp (ratio, absoluteMinRatio, absoluteMaxRatio);
+}
+
+void PsolaShifter::setVoicedAmount (float amount) noexcept
+{
+    voicedTargetAmount = std::clamp (amount, 0.0f, 1.0f);
 }
 
 void PsolaShifter::setInputPitchHz (float f0Hz) noexcept
@@ -321,17 +331,26 @@ void PsolaShifter::processBlock (const float* input, float* output, int numSampl
         const auto cell = static_cast<size_t> (emitPosition & ringMask);
         const auto windowSum = windowSumRing[cell];
 
-        output[i] = olaRing[cell] / std::max (windowSum, 0.5f);
-        blockOutputEnergy += output[i] * output[i];
+        const auto shifted = olaRing[cell] / std::max (windowSum, 0.5f);
+        blockOutputEnergy += shifted * shifted;
 
         olaRing[cell] = 0.0f;
         windowSumRing[cell] = 0.0f;
+
+        // D4 (directions/0708_8.md): crossfade to the latency-matched dry
+        // input while unvoiced (consonants/breath are not pitch-shifted).
+        // The makeup gain only applies to the shifted (voiced) branch.
+        const auto dryDelayed = inputRing[cell];
+        voicedSmoothedAmount += voicedSmoothingCoefficient * (voicedTargetAmount - voicedSmoothedAmount);
+        output[i] = shifted * agcGain * voicedSmoothedAmount
+                  + dryDelayed * (1.0f - voicedSmoothedAmount);
     }
 
     // Slow loudness normalization (see header): smooth block energies with a
     // ~250 ms time constant and steer the makeup gain toward input RMS parity.
-    // Open loop (energy measured pre-gain), so it cannot pump.
-    if (numSamples > 0)
+    // Open loop (energy measured pre-gain), so it cannot pump. Frozen while
+    // unvoiced so consonant statistics don't steer the voiced gain.
+    if (numSamples > 0 && voicedTargetAmount > 0.5f)
     {
         const auto n = static_cast<float> (numSamples);
         const auto alpha = 1.0f - std::exp (-n / (0.25f * static_cast<float> (sampleRateHz)));
@@ -346,9 +365,6 @@ void PsolaShifter::processBlock (const float* input, float* output, int numSampl
                                             2.8f);
             agcGain += alpha * (target - agcGain);
         }
-
-        for (auto i = 0; i < numSamples; ++i)
-            output[i] *= agcGain;
     }
 }
 

@@ -1,5 +1,32 @@
 # VoxChord Test Log
 
+## 0.3.10 D4: voiced/unvoiced split on the PSOLA path (directions/0708_8)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. PLAN-0.3 phase D4. Unvoiced input (consonants, breath) is no longer pitch-shifted on the PSOLA path: the shifters crossfade to a latency-matched dry copy, so consonants stay natural inside the harmony voices. Classic engine path unchanged (deferred until the D6 default-engine decision). VERSION `0.3.9` -> `0.3.10`.
+
+Changes:
+
+- `PsolaShifter::setVoicedAmount()`: per-sample ~15 ms crossfade between the shifted output (with makeup gain) and `inputRing[writePos - latency]` (exact latency-matched dry). Loudness normalization freezes while unvoiced so consonant statistics don't steer the voiced gain.
+- `SimpleChoirEngine`: voiced hysteresis from the detector (`pitchState.voiced && confidence > 0.75` to turn on, `!voiced || confidence < 0.55` to turn off) feeding all 5 shifters per block.
+- Harness: new D4 probe — alternating 300 ms vowel (196 Hz) / 100 ms white noise through the engine in PSOLA mode (MIDI 62, ratio ~1.5), plus a standalone forced-unvoiced shifter sanity check.
+
+Measured (Release harness):
+
+- Noise segments: wet vs latency-matched dry correlation **0.986** (pass > 0.9, 6 segments); standalone forced-unvoiced shifter: 0.998.
+- Vowel segments: f0 293.34 Hz (-1.9 c vs target, sd 0.9 c) — still correctly shifted; detection reported unvoiced on 0/53 noise blocks (mean confidence 0.24), hysteresis behaves.
+- Steady-voiced regression: none (all existing sine/vowel tables identical; voicedAmount stays 1 for steady tones).
+- Probe debugging notes: two measurement bugs were found and fixed in the harness itself (white noise decorrelates at +/-1 sample -> lag search around L; correlation windows must be aligned to the burst pattern period). The engine/DSP needed no fix.
+
+Build status: harness Release + plugin Debug/Release built by agent, no new warnings.
+
+User verification pending (listening):
+
+1. Sung phrases with consonants/sibilants in PSOLA mode: consonants should now sound natural (not robotic/chopped) inside the harmony; check the voiced<->unvoiced transitions for smoothness.
+2. Sustained notes must be unaffected; rapid speech-like input is the stress case (hysteresis chatter would be audible as flutter).
+3. Breathy singing: breath noise now passes unshifted — confirm this reads as "natural choir" rather than "dry leakage".
+
 ## 0.3.9 PSOLA adaptive loudness + stronger Vowel character (directions/0708_7)
 
 Date: 2026-07-08

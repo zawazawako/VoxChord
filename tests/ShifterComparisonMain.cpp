@@ -909,6 +909,204 @@ void printCharacterProbe()
 }
 
 // ---------------------------------------------------------------------------
+// D4 voiced/unvoiced probe (directions/0708_8.md): alternating vowel (300 ms)
+// and white-noise "consonant" (100 ms) bursts through the engine in PSOLA
+// mode. Noise segments must come out as a latency-matched dry copy (the
+// voiced/unvoiced split), vowel segments must still be pitch-shifted.
+// ---------------------------------------------------------------------------
+
+void runVoicedUnvoicedProbe()
+{
+    voxchord::SimpleChoirEngine engine;
+    engine.prepare (kSampleRate, kBlockSize);
+
+    // Latency of the engine's internal PSOLA config (90 Hz floor, B50):
+    voxchord::PsolaShifter reference;
+    reference.prepare (kSampleRate, 90.0f, 1.0f / 16.0f, 1.0f, 0.5f);
+    const auto psolaLatency = reference.getLatencySamples();
+
+    VowelGen vowel;
+    vowel.init (196.00);
+    juce::Random rng (20260708);
+
+    juce::AudioBuffer<float> dry (2, kBlockSize);
+    juce::AudioBuffer<float> wet (2, kBlockSize);
+    juce::AudioBuffer<float> lead (2, kBlockSize);
+
+    voxchord::MidiVoiceState::NoteSnapshot notes {};
+    notes.fill (-1);
+    notes[0] = 62; // target 293.66 Hz, ratio ~1.5 vs 196 Hz input
+
+    const auto vowelLength = static_cast<int> (0.3 * kSampleRate);
+    const auto noiseLength = static_cast<int> (0.1 * kSampleRate);
+    const auto cycle = vowelLength + noiseLength;
+    const auto totalSamples = static_cast<int> (4.0 * kSampleRate);
+    const auto totalBlocks = totalSamples / kBlockSize;
+
+    std::vector<float> dryMono (static_cast<size_t> (totalBlocks) * kBlockSize, 0.0f);
+    std::vector<float> wetMono (dryMono.size(), 0.0f);
+    std::vector<char> blockVoiced (static_cast<size_t> (totalBlocks), 0);
+    std::vector<float> blockConfidence (static_cast<size_t> (totalBlocks), 0.0f);
+
+    for (auto block = 0; block < totalBlocks; ++block)
+    {
+        for (auto n = 0; n < kBlockSize; ++n)
+        {
+            const auto position = block * kBlockSize + n;
+            const auto phase = position % cycle;
+            const auto sample = phase < vowelLength
+                                    ? vowel.next()
+                                    : 0.12f * (rng.nextFloat() * 2.0f - 1.0f);
+            dryMono[static_cast<size_t> (position)] = sample;
+            dry.setSample (0, n, sample);
+            dry.setSample (1, n, sample);
+        }
+
+        engine.render (dry, wet, lead, notes, 4, 0.0f, 0.8f, 0.0f, 0, 0.0f, 0.0f,
+                       /*leadTuneEnabled*/ false, /*psolaEnabled*/ true);
+
+        const auto st = engine.getPitchState();
+        blockVoiced[static_cast<size_t> (block)] = st.voiced ? 1 : 0;
+        blockConfidence[static_cast<size_t> (block)] = st.confidence;
+
+        for (auto n = 0; n < kBlockSize; ++n)
+            wetMono[static_cast<size_t> (block * kBlockSize + n)] = wet.getSample (0, n);
+    }
+
+    // Detection behaviour inside noise windows (diagnostic).
+    auto noiseVoicedBlocks = 0;
+    auto noiseBlocks = 0;
+    auto noiseConfidenceSum = 0.0;
+
+    for (auto block = static_cast<int> (kSampleRate) / kBlockSize; block < totalBlocks; ++block)
+    {
+        const auto position = block * kBlockSize;
+        const auto phase = position % cycle;
+
+        if (phase >= vowelLength + kBlockSize && phase < cycle - kBlockSize)
+        {
+            ++noiseBlocks;
+            noiseVoicedBlocks += blockVoiced[static_cast<size_t> (block)];
+            noiseConfidenceSum += blockConfidence[static_cast<size_t> (block)];
+        }
+    }
+
+    // Per segment (skipping the first second and 60 ms of each segment edge):
+    // noise segments -> normalized correlation of wet vs dry delayed by the
+    // PSOLA latency; vowel segments -> f0 via autocorrelation.
+    auto noiseCorrSum = 0.0;
+    auto noiseCorrCount = 0;
+    std::vector<float> vowelConcat;
+
+    const auto edge = static_cast<int> (0.06 * kSampleRate);
+
+    const auto firstAlignedCycle = ((static_cast<int> (kSampleRate) / cycle) + 1) * cycle; // pattern-aligned, past 1 s
+
+    for (auto cycleStart = firstAlignedCycle; cycleStart + cycle < totalSamples - psolaLatency; cycleStart += cycle)
+    {
+        const auto noiseStart = cycleStart + vowelLength + edge;
+        const auto noiseEnd = cycleStart + cycle - static_cast<int> (0.01 * kSampleRate);
+
+        if (noiseEnd > noiseStart + 512)
+        {
+            // White noise decorrelates completely at +/-1 sample, so search a
+            // few lags around the nominal latency (the passthrough is L-1 due
+            // to write-then-emit ordering; irrelevant for real audio).
+            auto bestCorrelation = -1.0;
+
+            for (auto lag = psolaLatency - 2; lag <= psolaLatency + 2; ++lag)
+            {
+                auto sum = 0.0, energyA = 0.0, energyB = 0.0;
+
+                for (auto i = noiseStart; i < noiseEnd; ++i)
+                {
+                    const auto a = static_cast<double> (dryMono[static_cast<size_t> (i)]);
+                    const auto b = static_cast<double> (wetMono[static_cast<size_t> (i + lag)]);
+                    sum += a * b;
+                    energyA += a * a;
+                    energyB += b * b;
+                }
+
+                const auto denominator = std::sqrt (energyA * energyB);
+
+                if (denominator > 1.0e-12)
+                    bestCorrelation = std::max (bestCorrelation, sum / denominator);
+            }
+
+            if (bestCorrelation > -1.0)
+            {
+                noiseCorrSum += bestCorrelation;
+                ++noiseCorrCount;
+            }
+        }
+
+        for (auto i = cycleStart + edge; i < cycleStart + vowelLength - edge; ++i)
+            vowelConcat.push_back (wetMono[static_cast<size_t> (i)]);
+    }
+
+    // Isolation check: a standalone shifter forced unvoiced must emit an
+    // exact latency-matched dry copy.
+    auto shifterDryCorrelation = 0.0;
+    {
+        voxchord::PsolaShifter forced;
+        forced.prepare (kSampleRate, 90.0f, 1.0f / 16.0f, 1.0f, 0.5f);
+        forced.setInputPitchHz (196.0f);
+        forced.setTargetPitchRatio (1.5f);
+        forced.setVoicedAmount (0.0f);
+
+        const auto count = static_cast<int> (2.0 * kSampleRate);
+        std::vector<float> in (static_cast<size_t> (count)), out (static_cast<size_t> (count));
+        juce::Random rng2 (42);
+
+        for (auto& v : in)
+            v = 0.12f * (rng2.nextFloat() * 2.0f - 1.0f);
+
+        for (auto p = 0; p + kBlockSize <= count; p += kBlockSize)
+            forced.processBlock (in.data() + p, out.data() + p, kBlockSize);
+
+        const auto lag0 = forced.getLatencySamples();
+        auto best = -1.0;
+
+        for (auto lag = lag0 - 2; lag <= lag0 + 2; ++lag)
+        {
+            auto sum = 0.0, energyA = 0.0, energyB = 0.0;
+
+            for (auto i = static_cast<int> (kSampleRate); i + lag < count; ++i)
+            {
+                const auto a = static_cast<double> (in[static_cast<size_t> (i)]);
+                const auto b = static_cast<double> (out[static_cast<size_t> (i + lag)]);
+                sum += a * b;
+                energyA += a * a;
+                energyB += b * b;
+            }
+
+            if (energyA * energyB > 1.0e-12)
+                best = std::max (best, sum / std::sqrt (energyA * energyB));
+        }
+
+        shifterDryCorrelation = best;
+    }
+
+    const auto targetHz = midiNoteToHz (62);
+    const auto vowelF0 = measureF0 (vowelConcat, 0, static_cast<int> (vowelConcat.size()), targetHz);
+
+    std::printf ("=== D4 voiced/unvoiced probe (vowel 196 Hz 300 ms / noise 100 ms, PSOLA engine, MIDI 62) ===\n");
+    std::printf ("    detection inside noise windows: voiced on %d/%d blocks, mean confidence %.2f\n",
+                 noiseVoicedBlocks, noiseBlocks,
+                 noiseBlocks > 0 ? noiseConfidenceSum / noiseBlocks : 0.0);
+    std::printf ("    standalone shifter forced unvoiced, noise passthrough correlation = %.3f (expect ~1.0)\n",
+                 shifterDryCorrelation);
+    std::printf ("    noise segments: wet vs latency-matched dry correlation = %.3f (pass > 0.9) over %d segments\n",
+                 noiseCorrCount > 0 ? noiseCorrSum / noiseCorrCount : 0.0, noiseCorrCount);
+
+    if (vowelF0.valid)
+        std::printf ("    vowel segments: f0 %.2f Hz (%+.1f c vs target %.2f Hz, sd %.1f c)\n\n",
+                     vowelF0.meanHz, vowelF0.meanCents, targetHz, vowelF0.stdCents);
+    else
+        std::printf ("    vowel segments: f0 measurement invalid\n\n");
+}
+
+// ---------------------------------------------------------------------------
 // CPU benchmark
 // ---------------------------------------------------------------------------
 
@@ -1113,6 +1311,7 @@ int main()
     }
 
     printCharacterProbe();
+    runVoicedUnvoicedProbe();
 
     std::printf ("=== CPU (vowel 146.83 Hz input, 10 s each, ms of processing per second of audio) ===\n");
     std::printf ("  engine, 1 note         : %7.3f ms/s (includes YIN pitch detection)\n", benchEngineMsPerSecond (1));

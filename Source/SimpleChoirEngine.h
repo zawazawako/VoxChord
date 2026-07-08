@@ -292,6 +292,9 @@ private:
     // wanted harmonics (directions/0708_5.md item 2).
     std::array<VoicePitchState::CharacterBiquad, MidiVoiceState::maxVoices> psolaHighpassFilters {};
     VoicePitchState::CharacterBiquad psolaLeadHighpassFilter;
+    // D4 voiced/unvoiced hysteresis feeding PsolaShifter::setVoicedAmount
+    // (on: voiced && confidence > 0.75, off: !voiced || confidence < 0.55).
+    bool psolaVoicedState = false;
     juce::AudioBuffer<float> psolaScratch; // ch0 = mono in, ch1..maxVoices = voices, last = lead
     float lastDetectedInputFrequencyHz = 0.0f;
     float windowPitchHz = 0.0f;
