@@ -1,5 +1,30 @@
 # VoxChord Test Log
 
+## 0.3.5 D3: PSOLA asymmetric grains (plan B) + 4-way comparison (directions/0708_3)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Adds `rightHalfWidthFactor` to `PsolaShifter::prepare()` (two-piece Hann, right/future half shortened; factor 1.0 = 0.3.4 behaviour, verified bit-identical metrics). Harness rows reorganized to engine / psolaA (factor 1.0) / psolaB75 / psolaB50 (psolaQ dropped — its ratio<=0.5 defect was established in 0.3.3). Latency `L = Hl + factor*Hl + Pmax/2 + 64`. Plugin DSP untouched. VERSION `0.3.4` -> `0.3.5`.
+
+Results (Release, agent-built and run; 110 Hz-floor plugin provisioning by formula):
+
+- Latency: A' 24.2 ms / B75 21.9 ms / **B50 19.7 ms** — B50 meets the ~20 ms target. Sine-unison measured latencies track configured within ~2 ms.
+- Vowel quality vs A': B75 within 0.5 dB HNR / 0.2 pt AM everywhere (on the 294 Hz vowel B75/B50 actually score 1-2.6 dB *better* HNR than A'); B50 worst case -1.2 dB HNR (147 Hz unison 24.5 -> 23.3). Both far inside the <=2 dB / <=2 pt acceptance bar. f0 accuracy/stability unchanged (<=0.1 c).
+- Pure-tone cost: sine unison SNR B75 ~= A' (28.6/37.6/45.9 vs 29.0/38.4/45.5 dB); **B50 drops 6-17 dB** (22.8/27.0/28.2). Inaudible in the vowel metrics but suggests mild added roughness on very clean/breathy material — flag for the listening test.
+- Side effect: the asymmetric window breaks the exact anti-phase cancellation, so the sine ratio-2.0 pathological case now yields the correct f0 (residual still dominates; spectral-envelope preservation unchanged).
+- CPU: unchanged (PSOLA 1.3-2.3 ms/s per voice).
+
+Four-way verdict recorded for the D3 gate (vowel inputs, 110 Hz-floor true transient latency): window engine = lowest latency at high input pitch but 28-30% AM warble, HNR as low as 2-12 dB when shifting, formants scale with ratio, breaks below ratio 0.25; PSOLA A' = cleanest reference, 24.2 ms; B75 = same quality, 21.9 ms; **B50 = recommended live default, 19.7 ms, quality within bar** (fallback to B75 if the ear test hears roughness). Plan A (0.3.3) remains rejected (content-age flaw).
+
+Build status:
+
+- Release `VoxChordShifterCompare` built and run by agent; no new warnings.
+
+User verification pending:
+
+1. Approve B50 (or B75) as the PSOLA configuration to wire into the plugin for the A/B listening gate (PLAN-0.3 gate 2).
+2. Listening checks remain impossible until plugin integration (next iteration).
+
 ## 0.3.4 D3: PSOLA placement bound P/2 fix (directions/0708_2, plan A')
 
 Date: 2026-07-08

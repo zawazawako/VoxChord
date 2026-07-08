@@ -23,13 +23,15 @@
 //    cap >= 1/minRatio gives the quality mode (no gaps, more latency + smear).
 //
 // Latency is constant per prepare() configuration:
-//    latency = 2*Hmax + Pmax/2 + margin (margin = 64 samples)
-// so worst-case values must be chosen up front (minInputF0Hz, minPitchRatio).
-// This is the true floor for symmetric one-period grains: the peak search
-// lookahead is folded into the grain's extraction wait, and the Pmax/2 term
-// pays for mark-phase quantization so every synthesis mark can use a mark
-// within half a period of its position (content age averages zero; unison is
-// exact reconstruction). See directions/0708_1.md and 0708_2.md.
+//    latency = Hlmax + Hrmax + Pmax/2 + margin (margin = 64 samples)
+// where Hr = rightHalfWidthFactor * Hl (two-piece Hann window; factor 1.0 is
+// the symmetric case). Worst-case values must be chosen up front
+// (minInputF0Hz, minPitchRatio). The peak search lookahead is folded into the
+// grain's extraction wait, and the Pmax/2 term pays for mark-phase
+// quantization so every synthesis mark can use a mark within half a period of
+// its position (content age averages zero; unison is exact reconstruction).
+// Shrinking the right (future) half trades spectral sharpness for latency.
+// See directions/0708_1.md, 0708_2.md and 0708_3.md.
 
 namespace voxchord
 {
@@ -39,7 +41,8 @@ public:
     void prepare (double sampleRate,
                   float minInputF0Hz,
                   float minPitchRatio,
-                  float grainCapInputPeriods);
+                  float grainCapInputPeriods,
+                  float rightHalfWidthFactor = 1.0f);
     void reset() noexcept;
 
     // ratio > 1 shifts up. Clamped to [1/16, 8]. Takes effect per grain.
@@ -56,8 +59,10 @@ private:
     void onSampleWritten() noexcept;
     void finalizeAnalysisMarksUpTo() noexcept;
     void placeReadyGrains() noexcept;
-    void placeGrain (std::int64_t analysisMark, std::int64_t synthesisMark, int halfWidth) noexcept;
+    void placeGrain (std::int64_t analysisMark, std::int64_t synthesisMark,
+                     int leftHalfWidth, int rightHalfWidth) noexcept;
     int currentGrainHalfWidth() const noexcept;
+    int rightHalfWidthFor (int leftHalfWidth) const noexcept;
 
     static constexpr int ringSizePow2 = 17; // 131072 samples (~3 s @ 44.1 kHz)
     static constexpr int ringSize = 1 << ringSizePow2;
@@ -78,6 +83,7 @@ private:
     double maxPeriodSamples = 512.0;
     float currentRatio = 1.0f;
     float grainCapPeriods = 8.0f;
+    float rightFactor = 1.0f;
     int maxGrainHalfWidth = 0;
     int searchHalfMax = 0;
     int latencySamples = 0;

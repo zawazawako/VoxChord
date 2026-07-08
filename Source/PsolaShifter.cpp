@@ -18,13 +18,15 @@ namespace
 void PsolaShifter::prepare (double sampleRate,
                             float minInputF0Hz,
                             float minPitchRatio,
-                            float grainCapInputPeriods)
+                            float grainCapInputPeriods,
+                            float rightHalfWidthFactor)
 {
     sampleRateHz = std::max (1.0, sampleRate);
 
     const auto safeMinF0 = std::max (20.0f, minInputF0Hz);
     const auto safeMinRatio = std::clamp (minPitchRatio, absoluteMinRatio, absoluteMaxRatio);
     grainCapPeriods = std::clamp (grainCapInputPeriods, 1.0f, 16.0f);
+    rightFactor = std::clamp (rightHalfWidthFactor, 0.25f, 1.0f);
 
     maxPeriodSamples = sampleRateHz / static_cast<double> (safeMinF0);
     minPeriodSamples = std::max (8.0, sampleRateHz / 1000.0);
@@ -41,7 +43,8 @@ void PsolaShifter::prepare (double sampleRate,
 
     maxGrainHalfWidth = static_cast<int> (std::ceil (widest));
     searchHalfMax = static_cast<int> (std::ceil (maxPeriodSamples * 0.25));
-    latencySamples = 2 * maxGrainHalfWidth
+    latencySamples = maxGrainHalfWidth
+                   + static_cast<int> (std::ceil (rightFactor * static_cast<float> (maxGrainHalfWidth)))
                    + static_cast<int> (std::ceil (maxPeriodSamples * 0.5)) + 64;
 
     inputRing.assign (ringSize, 0.0f);
@@ -86,6 +89,11 @@ int PsolaShifter::currentGrainHalfWidth() const noexcept
     const auto halfWidth = std::max (inputPeriodSamples, capped);
 
     return std::clamp (static_cast<int> (std::lround (halfWidth)), 8, maxGrainHalfWidth);
+}
+
+int PsolaShifter::rightHalfWidthFor (int leftHalfWidth) const noexcept
+{
+    return std::max (8, static_cast<int> (std::lround (rightFactor * static_cast<float> (leftHalfWidth))));
 }
 
 void PsolaShifter::finalizeAnalysisMarksUpTo() noexcept
@@ -136,11 +144,15 @@ void PsolaShifter::finalizeAnalysisMarksUpTo() noexcept
 
 void PsolaShifter::placeGrain (std::int64_t analysisMark,
                                std::int64_t synthesisMark,
-                               int halfWidth) noexcept
+                               int leftHalfWidth,
+                               int rightHalfWidth) noexcept
 {
-    const auto invHalfWidth = 1.0f / static_cast<float> (halfWidth);
+    // Two-piece Hann: continuous at k = 0 (peak 1); the shorter right half
+    // trades spectral sharpness for lookahead (directions/0708_3.md item 1).
+    const auto invLeft = 1.0f / static_cast<float> (leftHalfWidth);
+    const auto invRight = 1.0f / static_cast<float> (rightHalfWidth);
 
-    for (auto k = -halfWidth; k <= halfWidth; ++k)
+    for (auto k = -leftHalfWidth; k <= rightHalfWidth; ++k)
     {
         const auto sourceIndex = analysisMark + k;
         const auto destinationIndex = synthesisMark + k;
@@ -148,6 +160,7 @@ void PsolaShifter::placeGrain (std::int64_t analysisMark,
         if (sourceIndex < 0 || destinationIndex < 0)
             continue;
 
+        const auto invHalfWidth = k <= 0 ? invLeft : invRight;
         const auto window = 0.5f + 0.5f * std::cos (static_cast<float> (kPi)
                                                     * static_cast<float> (k) * invHalfWidth);
         const auto sample = inputRing[static_cast<size_t> (sourceIndex & ringMask)];
@@ -163,16 +176,18 @@ void PsolaShifter::placeReadyGrains() noexcept
     if (storedMarkCount == 0)
         return;
 
-    const auto halfWidth = currentGrainHalfWidth();
+    const auto leftHalfWidth = currentGrainHalfWidth();
+    const auto rightHalfWidth = rightHalfWidthFor (leftHalfWidth);
 
-    // A mark is placeable once its whole grain is inside the written input
-    // (mark + halfWidth < writePos). Synthesis marks no longer wait for the
-    // nearest mark to become placeable; they use the nearest *placeable* one,
-    // which may be up to ~one period older than the synthesis position
-    // (directions/0708_1.md item 2: removes the finalization-granularity wait).
+    // A mark is placeable once its whole grain is inside the written input;
+    // only the right (future) half needs waiting for (mark + Hr < writePos).
+    // Synthesis marks do not wait for the nearest mark to become placeable;
+    // they use the nearest *placeable* one, and the P/2 loop bound below
+    // guarantees that mark is within half a period of the synthesis position
+    // (directions/0708_1.md item 2, 0708_2.md item 1, 0708_3.md item 1).
     auto placeableCount = storedMarkCount;
 
-    while (placeableCount > 0 && storedMarks[placeableCount - 1] + halfWidth >= writePos)
+    while (placeableCount > 0 && storedMarks[placeableCount - 1] + rightHalfWidth >= writePos)
         --placeableCount;
 
     if (placeableCount == 0)
@@ -206,7 +221,7 @@ void PsolaShifter::placeReadyGrains() noexcept
             }
         }
 
-        placeGrain (nearest, synthesisMark, halfWidth);
+        placeGrain (nearest, synthesisMark, leftHalfWidth, rightHalfWidth);
         nextSynthMark += periodOut;
     }
 }

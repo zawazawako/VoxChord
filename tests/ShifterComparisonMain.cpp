@@ -526,11 +526,13 @@ struct RunOutputs
 {
     std::vector<float> dry;
     std::vector<float> engine;
-    std::vector<float> psolaQ;
-    std::vector<float> psolaLL;
+    std::vector<float> psolaA;   // symmetric grains (factor 1.0) = 0.3.4 baseline
+    std::vector<float> psolaB75; // right half 0.75 * left
+    std::vector<float> psolaB50; // right half 0.50 * left
     double detectedInputHz = 0.0;
-    int psolaQLatency = 0;
-    int psolaLLLatency = 0;
+    int psolaALatency = 0;
+    int psolaB75Latency = 0;
+    int psolaB50Latency = 0;
 };
 
 template <typename Generator>
@@ -541,8 +543,9 @@ void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& 
 
     outputs.dry.assign (static_cast<size_t> (totalBlocks) * kBlockSize, 0.0f);
     outputs.engine.assign (outputs.dry.size(), 0.0f);
-    outputs.psolaQ.assign (outputs.dry.size(), 0.0f);
-    outputs.psolaLL.assign (outputs.dry.size(), 0.0f);
+    outputs.psolaA.assign (outputs.dry.size(), 0.0f);
+    outputs.psolaB75.assign (outputs.dry.size(), 0.0f);
+    outputs.psolaB50.assign (outputs.dry.size(), 0.0f);
 
     voxchord::SimpleChoirEngine engine;
     engine.prepare (kSampleRate, kBlockSize);
@@ -550,14 +553,17 @@ void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& 
     const auto targetHz = midiNoteToHz (midiNote);
     const auto nominalRatio = targetHz / inputF0Hz;
 
-    voxchord::PsolaShifter psolaQ;
-    voxchord::PsolaShifter psolaLL;
+    voxchord::PsolaShifter psolaA;
+    voxchord::PsolaShifter psolaB75;
+    voxchord::PsolaShifter psolaB50;
     const auto minF0 = static_cast<float> (inputF0Hz * 0.8);
     const auto minRatio = static_cast<float> (std::min (nominalRatio * 0.9, 1.0));
-    psolaQ.prepare (kSampleRate, minF0, minRatio, 2.0f);
-    psolaLL.prepare (kSampleRate, minF0, minRatio, 1.0f);
-    outputs.psolaQLatency = psolaQ.getLatencySamples();
-    outputs.psolaLLLatency = psolaLL.getLatencySamples();
+    psolaA.prepare (kSampleRate, minF0, minRatio, 1.0f, 1.0f);
+    psolaB75.prepare (kSampleRate, minF0, minRatio, 1.0f, 0.75f);
+    psolaB50.prepare (kSampleRate, minF0, minRatio, 1.0f, 0.5f);
+    outputs.psolaALatency = psolaA.getLatencySamples();
+    outputs.psolaB75Latency = psolaB75.getLatencySamples();
+    outputs.psolaB50Latency = psolaB50.getLatencySamples();
 
     juce::AudioBuffer<float> dry (2, kBlockSize);
     juce::AudioBuffer<float> wet (2, kBlockSize);
@@ -597,24 +603,30 @@ void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& 
         {
             outputs.detectedInputHz = detected;
             const auto ratio = static_cast<float> (targetHz / detected);
-            psolaQ.setInputPitchHz (detected);
-            psolaLL.setInputPitchHz (detected);
-            psolaQ.setTargetPitchRatio (ratio);
-            psolaLL.setTargetPitchRatio (ratio);
+
+            for (auto* shifter : { &psolaA, &psolaB75, &psolaB50 })
+            {
+                shifter->setInputPitchHz (detected);
+                shifter->setTargetPitchRatio (ratio);
+            }
         }
 
         for (auto n = 0; n < kBlockSize; ++n)
             outputs.engine[static_cast<size_t> (block * kBlockSize + n)] = wet.getSample (0, n);
 
-        psolaQ.processBlock (mono.data(), psolaOut.data(), kBlockSize);
+        const std::pair<voxchord::PsolaShifter*, std::vector<float>*> shifterOutputs[] = {
+            { &psolaA, &outputs.psolaA },
+            { &psolaB75, &outputs.psolaB75 },
+            { &psolaB50, &outputs.psolaB50 },
+        };
 
-        for (auto n = 0; n < kBlockSize; ++n)
-            outputs.psolaQ[static_cast<size_t> (block * kBlockSize + n)] = psolaOut[static_cast<size_t> (n)];
+        for (const auto& [shifter, destination] : shifterOutputs)
+        {
+            shifter->processBlock (mono.data(), psolaOut.data(), kBlockSize);
 
-        psolaLL.processBlock (mono.data(), psolaOut.data(), kBlockSize);
-
-        for (auto n = 0; n < kBlockSize; ++n)
-            outputs.psolaLL[static_cast<size_t> (block * kBlockSize + n)] = psolaOut[static_cast<size_t> (n)];
+            for (auto n = 0; n < kBlockSize; ++n)
+                (*destination)[static_cast<size_t> (block * kBlockSize + n)] = psolaOut[static_cast<size_t> (n)];
+        }
     }
 }
 
@@ -650,7 +662,7 @@ MetricsRow analyse (const std::vector<float>& x, double targetHz, bool isSine)
 
 void printRow (const char* label, const MetricsRow& row, bool isSine, int latencySamples, double measuredLatencyMs)
 {
-    std::printf ("    %-7s ", label);
+    std::printf ("    %-8s ", label);
 
     if (row.f0.valid)
         std::printf ("f0 %8.2f Hz (%+7.1f c, sd %6.1f c)", row.f0.meanHz, row.f0.meanCents, row.f0.stdCents);
@@ -718,10 +730,10 @@ double benchEngineMsPerSecond (int activeNotes)
     return elapsed / seconds;
 }
 
-double benchPsolaMsPerSecond (float ratio, float grainCap)
+double benchPsolaMsPerSecond (float ratio, float rightHalfFactor)
 {
     voxchord::PsolaShifter shifter;
-    shifter.prepare (kSampleRate, 100.0f, std::min (ratio, 1.0f), grainCap);
+    shifter.prepare (kSampleRate, 100.0f, std::min (ratio, 1.0f), 1.0f, rightHalfFactor);
     shifter.setInputPitchHz (146.83f);
     shifter.setTargetPitchRatio (ratio);
 
@@ -756,9 +768,10 @@ int main()
 {
     std::printf ("VoxChord D3 shifter comparison - SR %.0f Hz, block %d, run %.1f s, measure from %.1f s\n",
                  kSampleRate, kBlockSize, kRunSeconds, kMeasureFromSeconds);
-    std::printf ("engine  = SimpleChoirEngine windowed dual-tap shifter (ratio clamp 0.25..8)\n");
-    std::printf ("psolaQ  = TD-PSOLA, grain half-width up to output period (quality mode)\n");
-    std::printf ("psolaLL = TD-PSOLA, grain half-width = 1 input period (low-latency mode)\n\n");
+    std::printf ("engine   = SimpleChoirEngine windowed dual-tap shifter (ratio clamp 0.25..8)\n");
+    std::printf ("psolaA   = TD-PSOLA, symmetric 1-period grains (0.3.4 plan A' baseline)\n");
+    std::printf ("psolaB75 = TD-PSOLA, asymmetric grains, right half = 0.75 * left (plan B)\n");
+    std::printf ("psolaB50 = TD-PSOLA, asymmetric grains, right half = 0.50 * left (plan B)\n\n");
 
     struct Signal
     {
@@ -818,12 +831,14 @@ int main()
                          offset, midiNote, targetHz, targetHz / signal.f0, outputs.detectedInputHz);
 
             const auto engineRow = analyse (outputs.engine, targetHz, ! signal.vowel);
-            const auto psolaQRow = analyse (outputs.psolaQ, targetHz, ! signal.vowel);
-            const auto psolaLLRow = analyse (outputs.psolaLL, targetHz, ! signal.vowel);
+            const auto psolaARow = analyse (outputs.psolaA, targetHz, ! signal.vowel);
+            const auto psolaB75Row = analyse (outputs.psolaB75, targetHz, ! signal.vowel);
+            const auto psolaB50Row = analyse (outputs.psolaB50, targetHz, ! signal.vowel);
 
             auto engineLatencyMs = -1.0;
-            auto psolaQLatencyMs = -1.0;
-            auto psolaLLLatencyMs = -1.0;
+            auto psolaALatencyMs = -1.0;
+            auto psolaB75LatencyMs = -1.0;
+            auto psolaB50LatencyMs = -1.0;
 
             if (offset == 0)
             {
@@ -843,15 +858,17 @@ int main()
                 }
 
                 const auto start = static_cast<int> (1.0 * kSampleRate);
-                const auto maxLag = std::max (6144, outputs.psolaQLatency + 1024);
+                const auto maxLag = std::max (6144, outputs.psolaALatency + 1024);
                 engineLatencyMs = measureLatencyMs (outputs.dry, outputs.engine, start, 6144);
-                psolaQLatencyMs = measureLatencyMs (outputs.dry, outputs.psolaQ, start, maxLag);
-                psolaLLLatencyMs = measureLatencyMs (outputs.dry, outputs.psolaLL, start, maxLag);
+                psolaALatencyMs = measureLatencyMs (outputs.dry, outputs.psolaA, start, maxLag);
+                psolaB75LatencyMs = measureLatencyMs (outputs.dry, outputs.psolaB75, start, maxLag);
+                psolaB50LatencyMs = measureLatencyMs (outputs.dry, outputs.psolaB50, start, maxLag);
             }
 
             printRow ("engine", engineRow, ! signal.vowel, 0, engineLatencyMs);
-            printRow ("psolaQ", psolaQRow, ! signal.vowel, outputs.psolaQLatency, psolaQLatencyMs);
-            printRow ("psolaLL", psolaLLRow, ! signal.vowel, outputs.psolaLLLatency, psolaLLLatencyMs);
+            printRow ("psolaA", psolaARow, ! signal.vowel, outputs.psolaALatency, psolaALatencyMs);
+            printRow ("psolaB75", psolaB75Row, ! signal.vowel, outputs.psolaB75Latency, psolaB75LatencyMs);
+            printRow ("psolaB50", psolaB50Row, ! signal.vowel, outputs.psolaB50Latency, psolaB50LatencyMs);
         }
 
         std::printf ("\n");
@@ -860,9 +877,9 @@ int main()
     std::printf ("=== CPU (vowel 146.83 Hz input, 10 s each, ms of processing per second of audio) ===\n");
     std::printf ("  engine, 1 note         : %7.3f ms/s (includes YIN pitch detection)\n", benchEngineMsPerSecond (1));
     std::printf ("  engine, 4 notes        : %7.3f ms/s (includes YIN pitch detection)\n", benchEngineMsPerSecond (4));
-    std::printf ("  psola x1, ratio 0.5, Q : %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (0.5f, 16.0f));
-    std::printf ("  psola x1, ratio 0.5, LL: %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (0.5f, 1.0f));
-    std::printf ("  psola x1, ratio 2.0    : %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (2.0f, 16.0f));
+    std::printf ("  psola x1, ratio 0.5, A  : %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (0.5f, 1.0f));
+    std::printf ("  psola x1, ratio 0.5, B50: %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (0.5f, 0.5f));
+    std::printf ("  psola x1, ratio 2.0, A  : %7.3f ms/s (shifter only, no detection)\n", benchPsolaMsPerSecond (2.0f, 1.0f));
 
     std::printf ("\nNotes:\n");
     std::printf ("  f0     = autocorrelation estimate of the output pitch (mean over 4096-hop frames, cents vs target, sd = stability)\n");
