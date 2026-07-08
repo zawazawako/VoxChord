@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.3.5)
+project(VoxChord VERSION 0.3.6)
 
 add_subdirectory(../JUCE JUCE)
 
@@ -26,6 +26,8 @@ target_sources(VoxChord
         Source/PluginEditor.h
         Source/PluginProcessor.cpp
         Source/PluginProcessor.h
+        Source/PsolaShifter.cpp
+        Source/PsolaShifter.h
         Source/SimpleChoirEngine.cpp
         Source/SimpleChoirEngine.h
         Source/VoxChordDebugPluginName.h
@@ -71,6 +73,7 @@ juce_add_console_app(VoxChordOfflineTest
 target_sources(VoxChordOfflineTest
     PRIVATE
         tests/OfflineDiagnosticsMain.cpp
+        Source/PsolaShifter.cpp
         Source/SimpleChoirEngine.cpp
         Source/MidiVoiceState.cpp)
 

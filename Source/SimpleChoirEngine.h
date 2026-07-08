@@ -7,6 +7,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 
 #include "MidiVoiceState.h"
+#include "PsolaShifter.h"
 
 namespace voxchord
 {
@@ -80,7 +81,8 @@ public:
                  int characterMode,
                  float characterAmountRaw,
                  float characterAmountSmoothed,
-                 bool leadTuneEnabled) noexcept;
+                 bool leadTuneEnabled,
+                 bool psolaEnabled = false) noexcept;
     float getLastDetectedInputFrequencyHz() const noexcept { return lastDetectedInputFrequencyHz; }
     PitchState getPitchState() const noexcept { return pitchState; }
     void resetRatioClampHitCount() noexcept { ratioClampHitCounter.store (0, std::memory_order_relaxed); }
@@ -257,10 +259,27 @@ private:
     static constexpr float voiceEnvelopeSilenceThreshold = 0.0001f;
     static constexpr float baseVoiceGain = 0.45f;
 
+    // D3 A/B experiment (branch exp/d3-psola, directions/0708_4.md):
+    // per-voice TD-PSOLA bank, run every block so switching is instant.
+    // Config = plan B50 at a 110 Hz provisioning floor (wet delay ~19.7 ms
+    // @44.1 kHz). If breathy/clean voices sound rough in the listening test,
+    // fall back to plan B75 by setting psolaRightHalfFactor to 0.75f.
+    static constexpr float psolaMinF0Hz = 110.0f;
+    static constexpr float psolaRightHalfFactor = 0.5f;
+    static constexpr float psolaGrainCapPeriods = 1.0f;
+    static constexpr float psolaMinPitchRatio = 1.0f / 16.0f;
+    static constexpr float psolaMaxPitchRatio = 8.0f;
+
     std::array<VoicePitchState, MidiVoiceState::maxVoices> voiceStates {};
     VoicePitchState leadVoiceState;
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
+    std::array<PsolaShifter, MidiVoiceState::maxVoices> psolaVoiceShifters;
+    PsolaShifter psolaLeadShifter;
+    std::array<float, MidiVoiceState::maxVoices> psolaTargetRatios {};
+    std::array<float, MidiVoiceState::maxVoices> psolaCurrentRatios {};
+    float psolaLeadCurrentRatio = 1.0f;
+    juce::AudioBuffer<float> psolaScratch; // ch0 = mono in, ch1..maxVoices = voices, last = lead
     float lastDetectedInputFrequencyHz = 0.0f;
     float windowPitchHz = 0.0f;
     PitchState pitchState;

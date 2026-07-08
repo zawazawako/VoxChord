@@ -256,6 +256,16 @@ void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
     delayBuffer.setSize (1, delayBufferSize, false, false, true);
     pitchDetector.prepare (currentSampleRate);
 
+    // D3 A/B experiment: PSOLA bank (see directions/0708_4.md).
+    psolaScratch.setSize (MidiVoiceState::maxVoices + 2, juce::jmax (1, maxBlockSize), false, false, true);
+
+    for (auto& shifter : psolaVoiceShifters)
+        shifter.prepare (currentSampleRate, psolaMinF0Hz, psolaMinPitchRatio,
+                         psolaGrainCapPeriods, psolaRightHalfFactor);
+
+    psolaLeadShifter.prepare (currentSampleRate, psolaMinF0Hz, psolaMinPitchRatio,
+                              psolaGrainCapPeriods, psolaRightHalfFactor);
+
     reset();
 }
 
@@ -279,6 +289,16 @@ void SimpleChoirEngine::reset() noexcept
         resetVoice (voice);
 
     resetVoice (leadVoiceState);
+
+    psolaScratch.clear();
+
+    for (auto& shifter : psolaVoiceShifters)
+        shifter.reset();
+
+    psolaLeadShifter.reset();
+    psolaTargetRatios.fill (1.0f);
+    psolaCurrentRatios.fill (1.0f);
+    psolaLeadCurrentRatio = 1.0f;
 }
 
 void SimpleChoirEngine::runPitchDetectorSelfTest()
@@ -693,7 +713,8 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                 int characterMode,
                                 float characterAmountRaw,
                                 float characterAmountSmoothed,
-                                bool leadTuneEnabled) noexcept
+                                bool leadTuneEnabled,
+                                bool psolaEnabled) noexcept
 {
     wetOutput.clear();
     tunedLeadOutput.clear();
@@ -811,10 +832,16 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         }
 
         const auto midiNote = activeNotes[static_cast<size_t> (slot)];
-        const auto targetRatio = juce::jlimit (minPitchRatio,
-                                               maxPitchRatio,
-                                               getPitchRatioForNote (midiNote, inputFrequencyHz)
-                                                   * getCharacterPitchRatio (slot, safeCharacterMode, safeCharacterAmount));
+        const auto rawTargetRatio = getPitchRatioForNote (midiNote, inputFrequencyHz)
+                                        * getCharacterPitchRatio (slot, safeCharacterMode, safeCharacterAmount);
+        const auto targetRatio = juce::jlimit (minPitchRatio, maxPitchRatio, rawTargetRatio);
+
+        // D3 A/B: the PSOLA path gets the wider clamp so deep downshifts (the
+        // D1 low-MIDI failure at ratio < 0.25) actually reach pitch
+        // (directions/0708_4.md).
+        psolaTargetRatios[static_cast<size_t> (slot)] = juce::jlimit (psolaMinPitchRatio,
+                                                                      psolaMaxPitchRatio,
+                                                                      rawTargetRatio);
 
         // D1 low-pitch diagnostics only: does not feed back into targetRatio above.
         const auto diagnosticTargetFrequency = static_cast<float> (juce::MidiMessage::getMidiNoteInHertz (midiNote));
@@ -842,6 +869,7 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                 voice.windowSamplesB = activePitchWindowSamples;
                 voice.currentPitchRatio = targetRatio;
                 voice.envelopeGain = 0.0f;
+                psolaCurrentRatios[static_cast<size_t> (slot)] = psolaTargetRatios[static_cast<size_t> (slot)];
             }
 
             voice.targetPitchRatio = targetRatio;
@@ -873,6 +901,55 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         ++activeIndex;
     }
 
+    // D3 A/B experiment: run the PSOLA bank every block regardless of mode so
+    // A/B switching is instant and warm (CPU cost ~0.7% total); only the
+    // per-sample source selection below depends on psolaEnabled
+    // (directions/0708_4.md). Note the Character per-slot delay offsets are
+    // not applied on the PSOLA path (input-side delays would fight the pitch
+    // marks); Character pitch offsets, gains and tone filters apply as usual.
+    auto* psolaMono = psolaScratch.getWritePointer (0);
+
+    for (auto sample = 0; sample < samples; ++sample)
+        psolaMono[sample] = readMonoInput (dryInput, sample);
+
+    const auto psolaBlockAlpha = ratioSmoothingCoefficient >= 1.0f
+                                     ? 1.0f
+                                     : 1.0f - std::pow (1.0f - ratioSmoothingCoefficient,
+                                                        static_cast<float> (samples));
+
+    for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
+    {
+        const auto slotIndex = static_cast<size_t> (slot);
+        psolaCurrentRatios[slotIndex] = psolaBlockAlpha >= 1.0f
+                                            ? psolaTargetRatios[slotIndex]
+                                            : smoothFrequencyLog (psolaCurrentRatios[slotIndex],
+                                                                  psolaTargetRatios[slotIndex],
+                                                                  psolaBlockAlpha);
+
+        auto& shifter = psolaVoiceShifters[slotIndex];
+        shifter.setInputPitchHz (inputFrequencyHz);
+        shifter.setTargetPitchRatio (psolaCurrentRatios[slotIndex]);
+        shifter.processBlock (psolaMono, psolaScratch.getWritePointer (slot + 1), samples);
+    }
+
+    psolaLeadCurrentRatio = psolaBlockAlpha >= 1.0f
+                                ? leadVoiceState.targetPitchRatio
+                                : smoothFrequencyLog (psolaLeadCurrentRatio,
+                                                      leadVoiceState.targetPitchRatio,
+                                                      psolaBlockAlpha);
+    psolaLeadShifter.setInputPitchHz (inputFrequencyHz);
+    psolaLeadShifter.setTargetPitchRatio (psolaLeadCurrentRatio);
+    psolaLeadShifter.processBlock (psolaMono,
+                                   psolaScratch.getWritePointer (MidiVoiceState::maxVoices + 1),
+                                   samples);
+
+    std::array<const float*, MidiVoiceState::maxVoices> psolaVoiceOut {};
+
+    for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
+        psolaVoiceOut[static_cast<size_t> (slot)] = psolaScratch.getReadPointer (slot + 1);
+
+    const auto* psolaLeadOut = psolaScratch.getReadPointer (MidiVoiceState::maxVoices + 1);
+
     auto* delay = delayBuffer.getWritePointer (0);
     auto* left = wetOutput.getWritePointer (0);
     auto* right = outputChannels > 1 ? wetOutput.getWritePointer (1) : nullptr;
@@ -897,10 +974,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             leadVoiceState.envelopeGain += (leadVoiceState.targetEnvelopeGain - leadVoiceState.envelopeGain)
                                          * leadEnvelopeCoefficient;
 
-            const auto leadShifted = renderPitchShiftedSample (leadVoiceState,
-                                                               ratioSmoothingCoefficient,
-                                                               0.0f,
-                                                               activePitchWindowSamples);
+            const auto leadShifted = psolaEnabled
+                                         ? psolaLeadOut[sample]
+                                         : renderPitchShiftedSample (leadVoiceState,
+                                                                     ratioSmoothingCoefficient,
+                                                                     0.0f,
+                                                                     activePitchWindowSamples);
             const auto leadMix = juce::jlimit (0.0f, 1.0f, leadVoiceState.envelopeGain);
             const auto leadSample = drySample + (leadShifted - drySample) * leadMix;
 
@@ -928,10 +1007,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                  : getEnvelopeCoefficient (voiceReleaseSeconds, currentSampleRate);
             voice.envelopeGain += (voice.targetEnvelopeGain - voice.envelopeGain) * envelopeCoefficient;
 
-            const auto shifted = renderPitchShiftedSample (voice,
-                                                           ratioSmoothingCoefficient,
-                                                           voice.delayOffsetSamples,
-                                                           activePitchWindowSamples);
+            const auto shifted = psolaEnabled
+                                     ? psolaVoiceOut[static_cast<size_t> (renderSlots[static_cast<size_t> (index)])][sample]
+                                     : renderPitchShiftedSample (voice,
+                                                                 ratioSmoothingCoefficient,
+                                                                 voice.delayOffsetSamples,
+                                                                 activePitchWindowSamples);
             characterInputSumSquares += shifted * shifted;
             ++characterInputCount;
 

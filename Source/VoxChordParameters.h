@@ -18,6 +18,7 @@ namespace ParameterIDs
     inline constexpr auto inputSource = "inputSource";
     inline constexpr auto leadTuneEnabled = "leadTuneEnabled";
     inline constexpr auto monoOutputEnabled = "monoOutputEnabled";
+    inline constexpr auto psolaEnabled = "psolaEnabled";
 }
 
 int characterModeGuiIndexToInternalMode (int guiIndex) noexcept;

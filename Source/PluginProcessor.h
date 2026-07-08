@@ -91,6 +91,7 @@ public:
     voxchord::PitchShifterSelfTestSummary getPitchShifterSelfTestSummary() const noexcept;
     const voxchord::LevelMeterState& getLevelMeterState() const noexcept { return meters; }
     bool isMonoOutputEnabledForUi() const noexcept;
+    bool isPsolaEnabledForUi() const noexcept;
 
 private:
     static float calculatePeak (const juce::AudioBuffer<float>& buffer, int channels, int samples) noexcept;
@@ -107,6 +108,7 @@ private:
     int getCharacterModeRaw() const noexcept;
     int getCharacterMode() const noexcept;
     bool getLeadTuneEnabled() const noexcept;
+    bool getPsolaEnabled() const noexcept;
     bool getMonoOutputEnabled() const noexcept;
     InputSource getInputSource() const noexcept;
 
@@ -181,6 +183,7 @@ private:
     std::atomic<float>* inputSourceParameter = nullptr;
     std::atomic<float>* leadTuneEnabledParameter = nullptr;
     std::atomic<float>* monoOutputEnabledParameter = nullptr;
+    std::atomic<float>* psolaEnabledParameter = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessor)
 };

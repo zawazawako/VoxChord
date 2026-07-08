@@ -127,6 +127,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         "Mono Out",
         false));
 
+    // D3 A/B experiment (branch exp/d3-psola): selects the TD-PSOLA shifter
+    // for the wet voices instead of the classic windowed shifter. Default
+    // stays Classic until the listening gate decides (directions/0708_4.md).
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        ParameterID { ParameterIDs::psolaEnabled, 1 },
+        "PSOLA Engine",
+        false));
+
     return layout;
 }
 

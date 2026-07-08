@@ -118,6 +118,7 @@ private:
     juce::ComboBox characterModeBox;
     juce::ToggleButton leadTuneButton { "Auto Tune" };
     juce::ToggleButton monoOutputButton { "Mono Out" };
+    juce::ToggleButton psolaButton { "PSOLA" };
     juce::TextButton panicButton { "PANIC" };
     juce::Rectangle<int> characterCardBounds;
 
@@ -132,6 +133,7 @@ private:
     std::unique_ptr<ComboBoxAttachment> characterModeAttachment;
     std::unique_ptr<ButtonAttachment> leadTuneAttachment;
     std::unique_ptr<ButtonAttachment> monoOutputAttachment;
+    std::unique_ptr<ButtonAttachment> psolaAttachment;
 
     uint32_t lastSeenMidiActivityCounter = 0;
     bool isUpdatingEditableValueLabels = false;

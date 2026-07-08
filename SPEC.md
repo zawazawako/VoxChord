@@ -89,7 +89,7 @@ Documentation split:
 
 - Defines the APVTS parameter layout.
 - Parameter IDs are compatibility-sensitive and should not be renamed without an explicit migration plan.
-- Current parameter IDs: `voiceCount`, `tune`, `glide`, `character`, `characterMode`, `spread`, `dryWet`, `outputLevel`, `inputGainDb`, `inputSource`, `leadTuneEnabled`, `monoOutputEnabled`.
+- Current parameter IDs: `voiceCount`, `tune`, `glide`, `character`, `characterMode`, `spread`, `dryWet`, `outputLevel`, `inputGainDb`, `inputSource`, `leadTuneEnabled`, `monoOutputEnabled`, `psolaEnabled`.
 
 `Source/VoxChordDebugPluginName.h`
 
@@ -223,6 +223,22 @@ Smoothing:
 - GUI label: `Mono Out`
 - Default: `false`
 - Replaces stereo output with `0.5 * (left + right)` on both channels after Dry/Wet and Output gain.
+
+`psolaEnabled`
+
+- Type: bool
+- GUI label: `PSOLA`
+- Default: `false` (Classic windowed shifter)
+- Experimental (branch exp/d3-psola): selects the TD-PSOLA shifter bank for the wet harmony voices and the tuned lead. See "Engine Modes" below.
+
+## Engine Modes (experimental, branch exp/d3-psola)
+
+The wet pitch shifter stage exists in two selectable implementations; pitch detection, MIDI voice management, envelopes, Character tone/gain/pitch offsets, Spread and Lead Tune are shared by both.
+
+- **Classic** (`psolaEnabled = false`, default): windowed dual-tap delay-line shifter. Pitch ratio clamp `0.25..8`. No added wet-path latency beyond the shifter's own window delay (~9-23 ms depending on input pitch).
+- **PSOLA** (`psolaEnabled = true`): per-voice TD-PSOLA bank (4 voices + lead), configuration plan B50 (`Source/SimpleChoirEngine.h`: `psolaMinF0Hz = 110`, `psolaRightHalfFactor = 0.5`, grain cap 1 period). Wet-path delay is a constant ~19.7 ms @44.1 kHz; the dry path is unaffected and no latency is reported to the host (live-first design; the wet choir layer does not require phase alignment with the dry signal). Pitch ratio clamp is wider (`1/16..8`), so deep downshifts below ratio 0.25 reach pitch instead of clamping.
+- The PSOLA bank runs every block in both modes (total CPU cost ~0.7% of one core) so A/B switching is instant and the shifters stay warm. Character per-slot delay offsets are not applied on the PSOLA path; all other Character components apply in both modes.
+- The default engine decision (and possible removal of one path) is deferred to the 0.3 D6 integration phase.
 
 ## MIDI Voice Behavior
 

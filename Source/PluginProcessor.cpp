@@ -39,6 +39,7 @@ VoxChordAudioProcessor::VoxChordAudioProcessor()
     inputGainParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputGainDb);
     inputSourceParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::inputSource);
     leadTuneEnabledParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::leadTuneEnabled);
+    psolaEnabledParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::psolaEnabled);
     monoOutputEnabledParameter = apvts.getRawParameterValue (voxchord::ParameterIDs::monoOutputEnabled);
 
     for (auto& note : activeMidiNotes)
@@ -216,7 +217,8 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                          characterModeInternal,
                          characterAmountRawValue,
                          characterAmount,
-                         getLeadTuneEnabled());
+                         getLeadTuneEnabled(),
+                         getPsolaEnabled());
     const auto pitchState = choirEngine.getPitchState();
     detectedInputPitchHz.store (pitchState.correctionInputPitchHz, std::memory_order_relaxed);
     inputRmsDb.store (pitchState.inputRmsDb, std::memory_order_relaxed);
@@ -474,6 +476,19 @@ bool VoxChordAudioProcessor::getLeadTuneEnabled() const noexcept
         return false;
 
     return leadTuneEnabledParameter->load (std::memory_order_relaxed) >= 0.5f;
+}
+
+bool VoxChordAudioProcessor::getPsolaEnabled() const noexcept
+{
+    if (psolaEnabledParameter == nullptr)
+        return false;
+
+    return psolaEnabledParameter->load (std::memory_order_relaxed) >= 0.5f;
+}
+
+bool VoxChordAudioProcessor::isPsolaEnabledForUi() const noexcept
+{
+    return getPsolaEnabled();
 }
 
 bool VoxChordAudioProcessor::getMonoOutputEnabled() const noexcept

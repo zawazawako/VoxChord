@@ -1,5 +1,37 @@
 # VoxChord Test Log
 
+## 0.3.6 D3: PSOLA A/B wiring into the plugin (directions/0708_4)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Wires the TD-PSOLA shifter into the plugin behind a new `psolaEnabled` parameter (GUI toggle "PSOLA") so the listening gate (PLAN-0.3 gate 2) can be run. Engine-internal integration: detection, MIDI voices, envelopes, Character tone/gain/pitch, Spread and Lead Tune are shared; only the shifter stage switches. PSOLA config = plan B50 @110 Hz floor (wet delay ~19.7 ms @44.1 kHz; constants in `SimpleChoirEngine.h`, B75 fallback = one constant). VERSION `0.3.5` -> `0.3.6`.
+
+Implementation status:
+
+- `VoxChordParameters`: new `psolaEnabled` AudioParameterBool "PSOLA Engine", default false (Classic). **No existing parameter IDs changed.**
+- `PluginProcessor`: raw-pointer + `getPsolaEnabled()` (private) and `isPsolaEnabledForUi()` (public), passed as a new trailing `render()` argument.
+- `SimpleChoirEngine`: PSOLA bank members (4 voice shifters + lead, `psolaScratch` buffer, per-slot target/current ratios), prepared/reset with the engine. The bank runs **every block in both modes** (~0.7% CPU) so A/B switching is instant and warm; per-sample source selection is the only mode-dependent code. PSOLA ratio uses a wider clamp (1/16..8, vs classic 0.25..8) computed alongside the classic clamp in the voice-setup loop, so the D1 low-MIDI failure is actually fixed in PSOLA mode (implementation addition vs the direction, which had reused the classic-clamped ratio). Ratio smoothing per block via `1-(1-alpha)^N` compounding. Character per-slot delay offsets are not applied on the PSOLA path (documented limitation).
+- `PluginEditor`: "PSOLA" ToggleButton next to Mono Out (visible in Release too); Debug pitch line now prefixed `[PSOLA]`/`[WIN]`; Debug build id -> `d3-psola-ab-001`.
+- CMake: `PsolaShifter.cpp/.h` added to the `VoxChord` and `VoxChordOfflineTest` targets (already in `VoxChordShifterCompare`).
+- `render()` gained a defaulted `psolaEnabled = false` parameter, so the offline harness and self-tests compile unchanged.
+
+Build status:
+
+- **Not built by agent. User will build** (user took over builds for this iteration):
+  - `cmake --build build --config Debug`
+  - `cmake --build build --config Release`
+  (configure only if the cache is broken; `build/` currently uses the VS 18 2026 generator)
+
+User verification pending (listening gate 2 checklist, from directions/0708_4.md):
+
+1. A/B toggle while playing: no glitch/dropout beyond a momentary waveform jump (no crossfade is applied by design).
+2. Low MIDI notes (A2 and below): pitch stability in both modes — PSOLA should hold pitch where Classic jumped an octave.
+3. PSOLA warble reduction / voice quality at large shifts.
+4. Whether the PSOLA wet delay (~19.7 ms) feels acceptable live.
+5. B50 roughness on breathy/clean voices — if rough, set `psolaRightHalfFactor` to `0.75f` and rebuild.
+6. Character modes / Spread / Lead Tune sanity in PSOLA mode.
+7. Panic, rapid note on/off, no stuck notes; Debug build shows `VoxChord_dbg`, subtitle `Build: d3-psola-ab-001`, and the `[PSOLA]`/`[WIN]` prefix follows the toggle.
+
 ## 0.3.5 D3: PSOLA asymmetric grains (plan B) + 4-way comparison (directions/0708_3)
 
 Date: 2026-07-08

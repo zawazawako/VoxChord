@@ -480,6 +480,14 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
                                                                voxchord::ParameterIDs::monoOutputEnabled,
                                                                monoOutputButton);
 
+    // D3 A/B experiment (exp/d3-psola): engine selector for the listening gate.
+    psolaButton.setColour (juce::ToggleButton::textColourId, juce::Colours::white);
+    psolaButton.setColour (juce::ToggleButton::tickColourId, accentColour());
+    addAndMakeVisible (psolaButton);
+    psolaAttachment = std::make_unique<ButtonAttachment> (state,
+                                                          voxchord::ParameterIDs::psolaEnabled,
+                                                          psolaButton);
+
     configureStatusLabel (midiNotesLabel, "MIDI: -- | Pitch: --", juce::Justification::centredLeft);
     addAndMakeVisible (midiNotesLabel);
 
@@ -613,6 +621,8 @@ void VoxChordAudioProcessorEditor::resized()
     utilityArea.removeFromTop (4);
     auto panicArea = utilityArea.removeFromRight (90);
     panicButton.setBounds (panicArea.reduced (0, 1));
+    auto psolaArea = utilityArea.removeFromRight (86);
+    psolaButton.setBounds (psolaArea.reduced (4, 2));
     monoOutputButton.setBounds (utilityArea.reduced (4, 2));
 
     bounds.removeFromTop (18);
@@ -991,9 +1001,11 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
 #if JUCE_DEBUG
-    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString + " | Build: d1-lowpitch-diag-002",
+    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString + " | Build: d3-psola-ab-001",
                            juce::dontSendNotification);
-    pitchDebugLabel.setText (formatD1LowPitchDiagnostics (processorRef.getPitchState()), juce::dontSendNotification);
+    pitchDebugLabel.setText (juce::String (processorRef.isPsolaEnabledForUi() ? "[PSOLA] " : "[WIN] ")
+                                 + formatD1LowPitchDiagnostics (processorRef.getPitchState()),
+                             juce::dontSendNotification);
 #else
     subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString,
                            juce::dontSendNotification);
