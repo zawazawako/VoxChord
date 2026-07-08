@@ -48,8 +48,13 @@ void PsolaShifter::prepare (double sampleRate,
                    + static_cast<int> (std::ceil (maxPeriodSamples * 0.5)) + 64;
 
     inputRing.assign (ringSize, 0.0f);
+    guideRing.assign (ringSize, 0.0f);
     olaRing.assign (ringSize, 0.0f);
     windowSumRing.assign (ringSize, 0.0f);
+
+    // Peak search runs on a ~700 Hz one-pole lowpass so formant ripple on real
+    // voices cannot pull marks off the glottal cycle (directions/0708_5.md).
+    guideCoefficient = 1.0f - std::exp (static_cast<float> (-2.0 * kPi * 700.0 / sampleRateHz));
 
     reset();
 }
@@ -57,9 +62,11 @@ void PsolaShifter::prepare (double sampleRate,
 void PsolaShifter::reset() noexcept
 {
     std::fill (inputRing.begin(), inputRing.end(), 0.0f);
+    std::fill (guideRing.begin(), guideRing.end(), 0.0f);
     std::fill (olaRing.begin(), olaRing.end(), 0.0f);
     std::fill (windowSumRing.begin(), windowSumRing.end(), 0.0f);
 
+    guideState = 0.0f;
     storedMarkCount = 0;
     inputPeriodSamples = 0.0;
     writePos = 0;
@@ -77,9 +84,17 @@ void PsolaShifter::setInputPitchHz (float f0Hz) noexcept
     if (f0Hz <= 0.0f)
         return; // unvoiced / not yet detected: hold the previous period
 
-    inputPeriodSamples = std::clamp (sampleRateHz / static_cast<double> (f0Hz),
-                                     minPeriodSamples,
-                                     maxPeriodSamples);
+    auto period = std::clamp (sampleRateHz / static_cast<double> (f0Hz),
+                              minPeriodSamples,
+                              maxPeriodSamples);
+
+    // Slew-limit the period (+/-8% per block) so momentary detector jumps
+    // cannot modulate the mark spacing into low-frequency artifacts
+    // (directions/0708_5.md item 2).
+    if (inputPeriodSamples > 0.0)
+        period = std::clamp (period, inputPeriodSamples * 0.92, inputPeriodSamples * 1.08);
+
+    inputPeriodSamples = period;
 }
 
 int PsolaShifter::currentGrainHalfWidth() const noexcept
@@ -110,14 +125,15 @@ void PsolaShifter::finalizeAnalysisMarksUpTo() noexcept
         auto best = guess;
         auto bestValue = -1.0e30f;
 
-        // Refine to the strongest positive waveform peak so successive grains
-        // are extracted phase-coherently (one unambiguous peak per period).
+        // Refine to the strongest positive peak of the lowpassed guide signal
+        // so successive grains are extracted phase-coherently; the guide keeps
+        // formant ripple from splitting the per-period peak into competitors.
         for (auto p = guess - searchHalf; p <= guess + searchHalf; ++p)
         {
             if (p < 0)
                 continue;
 
-            const auto value = inputRing[static_cast<size_t> (p & ringMask)];
+            const auto value = guideRing[static_cast<size_t> (p & ringMask)];
 
             if (value > bestValue)
             {
@@ -142,31 +158,68 @@ void PsolaShifter::finalizeAnalysisMarksUpTo() noexcept
     }
 }
 
+// Loudness compensation: downshift gaps (duty < 1) and upshift comb thinning
+// both lower the wet RMS relative to unison; compensate per grain from the
+// duty cycle / ratio (empirically calibrated, directions/0708_5.md item 3).
+float PsolaShifter::grainGainFor (int leftHalfWidth, int rightHalfWidth, double periodOut) const noexcept
+{
+    if (periodOut <= 1.0)
+        return 1.0f;
+
+    const auto duty = static_cast<float> ((leftHalfWidth + rightHalfWidth) / periodOut);
+    auto gain = 1.0f;
+
+    if (duty < 1.0f)
+        gain = std::pow (std::max (duty, 0.05f), -0.6f);
+    else if (currentRatio > 1.0f)
+        gain = std::pow (currentRatio, 0.35f);
+
+    return std::min (gain, 2.2f); // cap ~ +6.8 dB
+}
+
 void PsolaShifter::placeGrain (std::int64_t analysisMark,
-                               std::int64_t synthesisMark,
+                               double synthesisMark,
                                int leftHalfWidth,
-                               int rightHalfWidth) noexcept
+                               int rightHalfWidth,
+                               float gain) noexcept
 {
     // Two-piece Hann: continuous at k = 0 (peak 1); the shorter right half
     // trades spectral sharpness for lookahead (directions/0708_3.md item 1).
+    //
+    // The grain is deposited at the *fractional* synthesis position: rounding
+    // the synthesis grid to integers modulates the grain spacing with a
+    // sawtooth at the grid's beat rate against the sample clock, which shows
+    // up as low-frequency sidebands at incommensurate ratios
+    // (directions/0708_5.md item 2). Window and content are both evaluated at
+    // the fractional offset (linear interpolation on the content).
     const auto invLeft = 1.0f / static_cast<float> (leftHalfWidth);
     const auto invRight = 1.0f / static_cast<float> (rightHalfWidth);
+    const auto baseIndex = static_cast<std::int64_t> (std::floor (synthesisMark));
+    const auto fraction = static_cast<float> (synthesisMark - static_cast<double> (baseIndex));
 
-    for (auto k = -leftHalfWidth; k <= rightHalfWidth; ++k)
+    for (auto j = -leftHalfWidth; j <= rightHalfWidth + 1; ++j)
     {
-        const auto sourceIndex = analysisMark + k;
-        const auto destinationIndex = synthesisMark + k;
+        const auto k = static_cast<float> (j) - fraction; // offset from the fractional mark
 
-        if (sourceIndex < 0 || destinationIndex < 0)
+        if (k < static_cast<float> (-leftHalfWidth) || k > static_cast<float> (rightHalfWidth))
             continue;
 
-        const auto invHalfWidth = k <= 0 ? invLeft : invRight;
-        const auto window = 0.5f + 0.5f * std::cos (static_cast<float> (kPi)
-                                                    * static_cast<float> (k) * invHalfWidth);
-        const auto sample = inputRing[static_cast<size_t> (sourceIndex & ringMask)];
+        const auto destinationIndex = baseIndex + j;
+        const auto sourceFloor = analysisMark + j - 1; // analysisMark + k lies in [sourceFloor, sourceFloor + 1]
+
+        if (destinationIndex < 0 || sourceFloor < 0)
+            continue;
+
+        const auto invHalfWidth = k <= 0.0f ? invLeft : invRight;
+        const auto window = 0.5f + 0.5f * std::cos (static_cast<float> (kPi) * k * invHalfWidth);
+
+        const auto sourceFraction = 1.0f - fraction; // (analysisMark + k) - sourceFloor
+        const auto s0 = inputRing[static_cast<size_t> (sourceFloor & ringMask)];
+        const auto s1 = inputRing[static_cast<size_t> ((sourceFloor + 1) & ringMask)];
+        const auto sample = s0 + (s1 - s0) * sourceFraction;
         const auto cell = static_cast<size_t> (destinationIndex & ringMask);
 
-        olaRing[cell] += window * sample;
+        olaRing[cell] += window * sample * gain;
         windowSumRing[cell] += window;
     }
 }
@@ -221,7 +274,8 @@ void PsolaShifter::placeReadyGrains() noexcept
             }
         }
 
-        placeGrain (nearest, synthesisMark, leftHalfWidth, rightHalfWidth);
+        const auto gain = grainGainFor (leftHalfWidth, rightHalfWidth, periodOut);
+        placeGrain (nearest, nextSynthMark, leftHalfWidth, rightHalfWidth, gain);
         nextSynthMark += periodOut;
     }
 }
@@ -243,6 +297,8 @@ void PsolaShifter::processBlock (const float* input, float* output, int numSampl
     for (auto i = 0; i < numSamples; ++i)
     {
         inputRing[static_cast<size_t> (writePos & ringMask)] = input[i];
+        guideState += guideCoefficient * (input[i] - guideState);
+        guideRing[static_cast<size_t> (writePos & ringMask)] = guideState;
         ++writePos;
 
         onSampleWritten();

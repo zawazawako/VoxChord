@@ -59,10 +59,11 @@ private:
     void onSampleWritten() noexcept;
     void finalizeAnalysisMarksUpTo() noexcept;
     void placeReadyGrains() noexcept;
-    void placeGrain (std::int64_t analysisMark, std::int64_t synthesisMark,
-                     int leftHalfWidth, int rightHalfWidth) noexcept;
+    void placeGrain (std::int64_t analysisMark, double synthesisMark,
+                     int leftHalfWidth, int rightHalfWidth, float gain) noexcept;
     int currentGrainHalfWidth() const noexcept;
     int rightHalfWidthFor (int leftHalfWidth) const noexcept;
+    float grainGainFor (int leftHalfWidth, int rightHalfWidth, double periodOut) const noexcept;
 
     static constexpr int ringSizePow2 = 17; // 131072 samples (~3 s @ 44.1 kHz)
     static constexpr int ringSize = 1 << ringSizePow2;
@@ -72,6 +73,7 @@ private:
     static constexpr float absoluteMaxRatio = 8.0f;
 
     std::vector<float> inputRing;
+    std::vector<float> guideRing; // ~700 Hz one-pole lowpass of the input; peak search runs on this
     std::vector<float> olaRing;
     std::vector<float> windowSumRing;
     std::int64_t storedMarks[maxStoredMarks] = {};
@@ -84,6 +86,8 @@ private:
     float currentRatio = 1.0f;
     float grainCapPeriods = 8.0f;
     float rightFactor = 1.0f;
+    float guideCoefficient = 0.1f;
+    float guideState = 0.0f;
     int maxGrainHalfWidth = 0;
     int searchHalfMax = 0;
     int latencySamples = 0;

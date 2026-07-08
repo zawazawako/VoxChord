@@ -299,6 +299,15 @@ void SimpleChoirEngine::reset() noexcept
     psolaTargetRatios.fill (1.0f);
     psolaCurrentRatios.fill (1.0f);
     psolaLeadCurrentRatio = 1.0f;
+
+    for (auto& filter : psolaHighpassFilters)
+    {
+        filter.setIdentity();
+        filter.reset();
+    }
+
+    psolaLeadHighpassFilter.setIdentity();
+    psolaLeadHighpassFilter.reset();
 }
 
 void SimpleChoirEngine::runPitchDetectorSelfTest()
@@ -929,7 +938,23 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
         auto& shifter = psolaVoiceShifters[slotIndex];
         shifter.setInputPitchHz (inputFrequencyHz);
         shifter.setTargetPitchRatio (psolaCurrentRatios[slotIndex]);
-        shifter.processBlock (psolaMono, psolaScratch.getWritePointer (slot + 1), samples);
+
+        auto* voiceOut = psolaScratch.getWritePointer (slot + 1);
+        shifter.processBlock (psolaMono, voiceOut, samples);
+
+        if (inputFrequencyHz > 0.0f)
+        {
+            const auto targetHz = psolaCurrentRatios[slotIndex] * inputFrequencyHz;
+            setHighPassFilter (psolaHighpassFilters[slotIndex],
+                               juce::jlimit (30.0f, 1000.0f, 0.6f * targetHz),
+                               0.707f,
+                               currentSampleRate);
+        }
+
+        auto& highpass = psolaHighpassFilters[slotIndex];
+
+        for (auto sample = 0; sample < samples; ++sample)
+            voiceOut[sample] = highpass.process (voiceOut[sample]);
     }
 
     psolaLeadCurrentRatio = psolaBlockAlpha >= 1.0f
@@ -939,9 +964,18 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
                                                       psolaBlockAlpha);
     psolaLeadShifter.setInputPitchHz (inputFrequencyHz);
     psolaLeadShifter.setTargetPitchRatio (psolaLeadCurrentRatio);
-    psolaLeadShifter.processBlock (psolaMono,
-                                   psolaScratch.getWritePointer (MidiVoiceState::maxVoices + 1),
-                                   samples);
+
+    auto* psolaLeadWrite = psolaScratch.getWritePointer (MidiVoiceState::maxVoices + 1);
+    psolaLeadShifter.processBlock (psolaMono, psolaLeadWrite, samples);
+
+    if (inputFrequencyHz > 0.0f)
+        setHighPassFilter (psolaLeadHighpassFilter,
+                           juce::jlimit (30.0f, 1000.0f, 0.6f * psolaLeadCurrentRatio * inputFrequencyHz),
+                           0.707f,
+                           currentSampleRate);
+
+    for (auto sample = 0; sample < samples; ++sample)
+        psolaLeadWrite[sample] = psolaLeadHighpassFilter.process (psolaLeadWrite[sample]);
 
     std::array<const float*, MidiVoiceState::maxVoices> psolaVoiceOut {};
 
@@ -1813,6 +1847,39 @@ void SimpleChoirEngine::setHighShelfFilter (VoicePitchState::CharacterBiquad& fi
     const auto a0 = aPlusOne - aMinusOne * cosOmega + twoSqrtAAlpha;
     const auto a1 = 2.0f * (aMinusOne - aPlusOne * cosOmega);
     const auto a2 = aPlusOne - aMinusOne * cosOmega - twoSqrtAAlpha;
+
+    filter.b0 = b0 / a0;
+    filter.b1 = b1 / a0;
+    filter.b2 = b2 / a0;
+    filter.a1 = a1 / a0;
+    filter.a2 = a2 / a0;
+}
+
+void SimpleChoirEngine::setHighPassFilter (VoicePitchState::CharacterBiquad& filter,
+                                           float frequencyHz,
+                                           float q,
+                                           double sampleRate) noexcept
+{
+    if (sampleRate <= 1.0)
+    {
+        filter.setIdentity();
+        return;
+    }
+
+    const auto safeFrequency = juce::jlimit (20.0f,
+                                             static_cast<float> (sampleRate * 0.45),
+                                             frequencyHz);
+    const auto safeQ = juce::jmax (0.1f, q);
+    const auto omega = juce::MathConstants<float>::twoPi * safeFrequency / static_cast<float> (sampleRate);
+    const auto sinOmega = std::sin (omega);
+    const auto cosOmega = std::cos (omega);
+    const auto alpha = sinOmega / (2.0f * safeQ);
+    const auto b0 = (1.0f + cosOmega) * 0.5f;
+    const auto b1 = -(1.0f + cosOmega);
+    const auto b2 = (1.0f + cosOmega) * 0.5f;
+    const auto a0 = 1.0f + alpha;
+    const auto a1 = -2.0f * cosOmega;
+    const auto a2 = 1.0f - alpha;
 
     filter.b0 = b0 / a0;
     filter.b1 = b1 / a0;

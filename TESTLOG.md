@@ -1,5 +1,37 @@
 # VoxChord Test Log
 
+## 0.3.7 D3: PSOLA field-feedback fixes: 90 Hz floor, LF noise, loudness (directions/0708_5)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. Addresses the three issues from the user's 0.3.6 listening test: (1) lower the PSOLA input floor to ~90 Hz accepting more latency, (2) low-frequency noise with real voice + high/polyphonic MIDI, (3) wet level dropping as the MIDI note moves away from the input pitch. Also records the user's direction: keep PSOLA as the "high quality" option alongside the windowed engine. VERSION `0.3.6` -> `0.3.7`.
+
+Changes:
+
+- `psolaMinF0Hz` 110 -> 90 (`SimpleChoirEngine.h`): PSOLA wet delay 19.7 -> **23.7 ms** @44.1 kHz (user-accepted trade).
+- `PsolaShifter`: pitch-mark peak search now runs on a ~700 Hz one-pole lowpassed guide ring (formant ripple can no longer pull marks off the glottal cycle); period slew limit +/-8% per block (detector jumps can't modulate mark spacing); **fractional-sample grain placement** (window + linearly interpolated content evaluated at the fractional synthesis position; removes the integer-grid quantization); per-grain loudness compensation `duty^-0.6` (downshift gaps) / `ratio^0.35` (upshift comb thinning), cap +6.8 dB.
+- `SimpleChoirEngine`: per-voice tracking highpass at `0.6 * target f0` (RBJ, Q 0.707, clamp 30..1000 Hz) on the PSOLA path only — everything below the output comb's fundamental is artifact energy (mark-reuse sidebands at incommensurate ratios), so it is removed without touching wanted harmonics. New `setHighPassFilter` helper.
+- Harness: vibrato vowel signal (196 Hz, +/-30 cents @5 Hz, offsets +19/+16/+12/+7/0) reproducing the reported case; LF-noise metric (band < 0.6*min(f0_in, f0_target) vs broad band); RMS metric (vs dry); mirrored tracking highpass so measurements match the plugin path.
+- Tried and **rejected**: OLA-correlation micro phase alignment of grains — it aligns to the *output* periodicity and cancels the pitch shift entirely (output locks to input pitch). Documented here so it is not retried.
+
+Measured (Release harness, agent-run; baseline -> fixed):
+
+- **LF noise (item 2)**: worst reproduced case (vowel 196 vib, +16 semitones, ratio 2.52): psola **-38 -> -59 dB** (engine -56 dB); vib +19: -54 -> -80 dB; all vowel rows now at or better than the engine (-50..-81 dB). Root cause split: mostly mark-reuse phase sidebands below the output fundamental (removed by the tracking highpass), plus robustness from the guide/slew changes.
+- **Loudness (item 3)**: B50 wet RMS vs unison across all vowel runs: was 0..-6.0 dB, now within **+/-1.8 dB** (target +/-3 dB).
+- No regressions: f0 accuracy/stability, HNR, formant peaks unchanged or better (vowel294 +12 HNR 30.3 -> 32.4 dB); unison reconstruction improved (fractional placement); sine-unison SNR up (psolaA 220 Hz: 38 -> 94 dB).
+- Latency: configured values track the new floor; plugin provisioning at 90 Hz = 1044 samples = 23.7 ms; measured (sine unison, envelope xcorr) tracks configured within ~2 ms.
+- Known residual: vibrato at ratio ~3 still shows ~11-14% AM (engine: 27%); inherent to grain reuse under pitch movement, acceptable relative to the engine.
+
+Build status:
+
+- Built by agent: harness Release (measurements above), plugin Debug + Release (VST3/Standalone/OfflineTest), all artifacts produced, no new warnings. Note: plugin binaries were rebuilt after the version bump to 0.3.7.
+
+User verification pending:
+
+1. Real-voice retest of the 0.3.6 complaints: high MIDI + polyphony low-frequency noise (should be gone or greatly reduced), and wet loudness consistency across intervals.
+2. Low input notes down to ~G2/A2 (new 90 Hz floor) in PSOLA mode.
+3. Whether ~23.7 ms wet delay still feels acceptable.
+
 ## 0.3.6 D3: PSOLA A/B wiring into the plugin (directions/0708_4)
 
 Date: 2026-07-08

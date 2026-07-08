@@ -221,6 +221,7 @@ private:
     static float applyCharacterTone (VoicePitchState& voice, float sample, int slot, int characterMode, float characterAmount) noexcept;
     static void setPeakingFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
     static void setHighShelfFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float gainDb, float q, double sampleRate) noexcept;
+    static void setHighPassFilter (VoicePitchState::CharacterBiquad& filter, float frequencyHz, float q, double sampleRate) noexcept;
     static float applySoftSaturation (float sample, float drive, float amount) noexcept;
     static int getFixedPitchWindowSamples (double sampleRate) noexcept;
     static int getInputSyncedPitchWindowSamples (float inputFrequencyHz, double sampleRate) noexcept;
@@ -261,10 +262,11 @@ private:
 
     // D3 A/B experiment (branch exp/d3-psola, directions/0708_4.md):
     // per-voice TD-PSOLA bank, run every block so switching is instant.
-    // Config = plan B50 at a 110 Hz provisioning floor (wet delay ~19.7 ms
-    // @44.1 kHz). If breathy/clean voices sound rough in the listening test,
-    // fall back to plan B75 by setting psolaRightHalfFactor to 0.75f.
-    static constexpr float psolaMinF0Hz = 110.0f;
+    // Config = plan B50 at a 90 Hz provisioning floor (wet delay ~23.7 ms
+    // @44.1 kHz; floor lowered from 110 Hz per user request, 0708_5). If
+    // breathy/clean voices sound rough in the listening test, fall back to
+    // plan B75 by setting psolaRightHalfFactor to 0.75f.
+    static constexpr float psolaMinF0Hz = 90.0f;
     static constexpr float psolaRightHalfFactor = 0.5f;
     static constexpr float psolaGrainCapPeriods = 1.0f;
     static constexpr float psolaMinPitchRatio = 1.0f / 16.0f;
@@ -279,6 +281,12 @@ private:
     std::array<float, MidiVoiceState::maxVoices> psolaTargetRatios {};
     std::array<float, MidiVoiceState::maxVoices> psolaCurrentRatios {};
     float psolaLeadCurrentRatio = 1.0f;
+    // Tracking highpass at 0.6 * target f0 per PSOLA voice: everything below
+    // the output comb's fundamental is artifact energy (mark-reuse sidebands
+    // at incommensurate ratios), so it can be removed without touching the
+    // wanted harmonics (directions/0708_5.md item 2).
+    std::array<VoicePitchState::CharacterBiquad, MidiVoiceState::maxVoices> psolaHighpassFilters {};
+    VoicePitchState::CharacterBiquad psolaLeadHighpassFilter;
     juce::AudioBuffer<float> psolaScratch; // ch0 = mono in, ch1..maxVoices = voices, last = lead
     float lastDetectedInputFrequencyHz = 0.0f;
     float windowPitchHz = 0.0f;

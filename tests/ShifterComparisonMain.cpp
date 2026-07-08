@@ -94,11 +94,15 @@ struct VowelGen
         double a1 = 0.0, a2 = 0.0, g = 1.0, y1 = 0.0, y2 = 0.0;
     };
 
-    void init (double f0Hz)
+    void init (double f0Hz, double vibratoDepthCents = 0.0, double vibratoRateHz = 5.0)
     {
         phase = 0.0;
         carry = 0.0;
-        increment = f0Hz / kSampleRate;
+        baseIncrement = f0Hz / kSampleRate;
+        increment = baseIncrement;
+        vibratoCents = vibratoDepthCents;
+        vibratoRate = vibratoRateHz;
+        vibratoPhase = 0.0;
         f1.init (700.0, 130.0, 1.0);
         f2.init (1200.0, 150.0, 0.6);
         f3.init (2600.0, 250.0, 0.35);
@@ -116,6 +120,15 @@ struct VowelGen
 
     float rawNext()
     {
+        if (vibratoCents > 0.0)
+        {
+            increment = baseIncrement * std::exp2 (vibratoCents * std::sin (vibratoPhase) / 1200.0);
+            vibratoPhase += 2.0 * kPi * vibratoRate / kSampleRate;
+
+            if (vibratoPhase > 2.0 * kPi)
+                vibratoPhase -= 2.0 * kPi;
+        }
+
         auto x = carry;
         carry = 0.0;
         phase += increment;
@@ -135,7 +148,11 @@ struct VowelGen
 
     double phase = 0.0;
     double increment = 0.0;
+    double baseIncrement = 0.0;
     double carry = 0.0;
+    double vibratoCents = 0.0;
+    double vibratoRate = 5.0;
+    double vibratoPhase = 0.0;
     float scale = 1.0f;
     Resonator f1, f2, f3;
 };
@@ -403,6 +420,47 @@ double goertzelPower (const std::vector<float>& x, int start, int length, double
     return s1 * s1 + s2 * s2 - coefficient * s1 * s2;
 }
 
+// Band power approximated by summing Goertzel powers on a Hann-windowed segment.
+double bandPowerGoertzel (const std::vector<float>& x, int start, int length,
+                          double fromHz, double toHz, double stepHz)
+{
+    auto sum = 0.0;
+
+    for (auto f = fromHz; f <= toHz; f += stepHz)
+        sum += goertzelPower (x, start, length, f);
+
+    return sum;
+}
+
+// Low-frequency noise indicator: power below lfCutoffHz relative to the broad
+// band (25 Hz .. 5 kHz), both computed the same way so the ratio is comparable
+// across runs. Mark-jitter artifacts in PSOLA land below the fundamentals.
+double lfNoiseDb (const std::vector<float>& x, int start, int end, double lfCutoffHz)
+{
+    const auto length = std::min (16384, end - start);
+
+    if (length < 4096 || lfCutoffHz <= 30.0)
+        return 0.0;
+
+    const auto lf = bandPowerGoertzel (x, start, length, 25.0, lfCutoffHz, 5.0);
+    const auto broad = bandPowerGoertzel (x, start, length, 25.0, 5000.0, 25.0);
+
+    if (broad < 1.0e-12)
+        return 0.0;
+
+    return 10.0 * std::log10 (std::max (lf, 1.0e-15) / broad);
+}
+
+double rmsOf (const std::vector<float>& x, int start, int end)
+{
+    auto sum = 0.0;
+
+    for (auto i = start; i < end; ++i)
+        sum += static_cast<double> (x[static_cast<size_t> (i)]) * x[static_cast<size_t> (i)];
+
+    return std::sqrt (sum / std::max (1, end - start));
+}
+
 // Dominant spectral peak between 250 and 3400 Hz (formant preservation probe).
 double dominantPeakHz (const std::vector<float>& x, int start, int end)
 {
@@ -535,6 +593,38 @@ struct RunOutputs
     int psolaB50Latency = 0;
 };
 
+// Mirrors SimpleChoirEngine's tracking highpass on the PSOLA voice path
+// (cutoff 0.6 * target f0, RBJ highpass, Q 0.707): sub-fundamental output is
+// artifact energy by construction. Kept in the harness so the measurements
+// match what the plugin actually plays (directions/0708_5.md item 2).
+struct TrackingHighpass
+{
+    void configure (double cutoffHz)
+    {
+        const auto safeFrequency = std::clamp (cutoffHz, 30.0, 1000.0);
+        const auto omega = 2.0 * kPi * safeFrequency / kSampleRate;
+        const auto sinOmega = std::sin (omega);
+        const auto cosOmega = std::cos (omega);
+        const auto alpha = sinOmega / (2.0 * 0.707);
+        const auto a0 = 1.0 + alpha;
+        b0 = ((1.0 + cosOmega) * 0.5) / a0;
+        b1 = (-(1.0 + cosOmega)) / a0;
+        b2 = b0;
+        a1 = (-2.0 * cosOmega) / a0;
+        a2 = (1.0 - alpha) / a0;
+    }
+
+    float process (float x)
+    {
+        const auto y = b0 * x + z1;
+        z1 = b1 * x - a1 * y + z2;
+        z2 = b2 * x - a2 * y;
+        return static_cast<float> (y);
+    }
+
+    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0, z1 = 0.0, z2 = 0.0;
+};
+
 template <typename Generator>
 void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& outputs)
 {
@@ -575,6 +665,7 @@ void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& 
 
     std::array<float, kBlockSize> mono {};
     std::array<float, kBlockSize> psolaOut {};
+    TrackingHighpass highpassA, highpassB75, highpassB50;
 
     for (auto block = 0; block < totalBlocks; ++block)
     {
@@ -609,23 +700,26 @@ void runOnce (Generator& generator, double inputF0Hz, int midiNote, RunOutputs& 
                 shifter->setInputPitchHz (detected);
                 shifter->setTargetPitchRatio (ratio);
             }
+
+            for (auto* highpass : { &highpassA, &highpassB75, &highpassB50 })
+                highpass->configure (0.6 * targetHz);
         }
 
         for (auto n = 0; n < kBlockSize; ++n)
             outputs.engine[static_cast<size_t> (block * kBlockSize + n)] = wet.getSample (0, n);
 
-        const std::pair<voxchord::PsolaShifter*, std::vector<float>*> shifterOutputs[] = {
-            { &psolaA, &outputs.psolaA },
-            { &psolaB75, &outputs.psolaB75 },
-            { &psolaB50, &outputs.psolaB50 },
+        const std::tuple<voxchord::PsolaShifter*, TrackingHighpass*, std::vector<float>*> shifterOutputs[] = {
+            { &psolaA, &highpassA, &outputs.psolaA },
+            { &psolaB75, &highpassB75, &outputs.psolaB75 },
+            { &psolaB50, &highpassB50, &outputs.psolaB50 },
         };
 
-        for (const auto& [shifter, destination] : shifterOutputs)
+        for (const auto& [shifter, highpass, destination] : shifterOutputs)
         {
             shifter->processBlock (mono.data(), psolaOut.data(), kBlockSize);
 
             for (auto n = 0; n < kBlockSize; ++n)
-                (*destination)[static_cast<size_t> (block * kBlockSize + n)] = psolaOut[static_cast<size_t> (n)];
+                (*destination)[static_cast<size_t> (block * kBlockSize + n)] = highpass->process (psolaOut[static_cast<size_t> (n)]);
         }
     }
 }
@@ -637,9 +731,13 @@ struct MetricsRow
     double amPercent = 0.0;
     double hnrDb = 0.0;
     double peakHz = 0.0;
+    double rmsRelDryDb = 0.0;
+    double lfDb = 0.0;
+    bool hasVowelExtras = false;
 };
 
-MetricsRow analyse (const std::vector<float>& x, double targetHz, bool isSine)
+MetricsRow analyse (const std::vector<float>& x, double targetHz, bool isSine,
+                    double dryRms = 0.0, double lfCutoffHz = 0.0)
 {
     MetricsRow row;
     const auto start = static_cast<int> (kMeasureFromSeconds * kSampleRate);
@@ -655,6 +753,13 @@ MetricsRow analyse (const std::vector<float>& x, double targetHz, bool isSine)
     {
         row.hnrDb = acHnrDb (x, start, end, fitHz);
         row.peakHz = dominantPeakHz (x, start, end);
+
+        if (dryRms > 1.0e-9)
+        {
+            row.rmsRelDryDb = 20.0 * std::log10 (std::max (rmsOf (x, start, end), 1.0e-9) / dryRms);
+            row.lfDb = lfNoiseDb (x, start, end, lfCutoffHz);
+            row.hasVowelExtras = true;
+        }
     }
 
     return row;
@@ -675,6 +780,9 @@ void printRow (const char* label, const MetricsRow& row, bool isSine, int latenc
         std::printf ("  SNR %6.1f dB", row.snrDb);
     else
         std::printf ("  HNR %6.1f dB  peak %6.0f Hz", row.hnrDb, row.peakHz);
+
+    if (row.hasVowelExtras)
+        std::printf ("  RMS %+6.1f dB  LF %6.1f dB", row.rmsRelDryDb, row.lfDb);
 
     if (latencySamples > 0)
         std::printf ("  lat %5.1f ms", 1000.0 * latencySamples / kSampleRate);
@@ -780,6 +888,7 @@ int main()
         double f0;
         int baseMidi;
         std::vector<int> offsets;
+        double vibratoCents = 0.0; // > 0: +/- cents at 5 Hz (realistic voice movement)
     };
 
     const std::vector<Signal> signals = {
@@ -788,6 +897,9 @@ int main()
         { "sine 110", false, 110.00, 45, { 12, 7, 0, -5, -12 } },
         { "vowel 147", true, 146.83, 50, { 12, 7, 0, -5, -12 } },
         { "vowel 294", true, 293.66, 62, { 12, 0, -5, -12, -24 } },
+        // High-MIDI upshift stress with vocal-like pitch movement: reproduces
+        // the reported low-frequency noise case (directions/0708_5.md item 2).
+        { "vowel 196 vib", true, 196.00, 55, { 19, 16, 12, 7, 0 }, 30.0 },
     };
 
     RunOutputs outputs;
@@ -817,7 +929,7 @@ int main()
             if (signal.vowel)
             {
                 VowelGen generator;
-                generator.init (signal.f0);
+                generator.init (signal.f0, signal.vibratoCents);
                 runOnce (generator, signal.f0, midiNote, outputs);
             }
             else
@@ -830,10 +942,16 @@ int main()
             std::printf ("  note %+3d (MIDI %d, target %7.2f Hz, ratio %.4f, detIn %.2f Hz)\n",
                          offset, midiNote, targetHz, targetHz / signal.f0, outputs.detectedInputHz);
 
-            const auto engineRow = analyse (outputs.engine, targetHz, ! signal.vowel);
-            const auto psolaARow = analyse (outputs.psolaA, targetHz, ! signal.vowel);
-            const auto psolaB75Row = analyse (outputs.psolaB75, targetHz, ! signal.vowel);
-            const auto psolaB50Row = analyse (outputs.psolaB50, targetHz, ! signal.vowel);
+            const auto measureStart = static_cast<int> (kMeasureFromSeconds * kSampleRate);
+            const auto dryRms = signal.vowel
+                                    ? rmsOf (outputs.dry, measureStart, static_cast<int> (outputs.dry.size()))
+                                    : 0.0;
+            const auto lfCutoffHz = 0.6 * std::min (signal.f0, targetHz);
+
+            const auto engineRow = analyse (outputs.engine, targetHz, ! signal.vowel, dryRms, lfCutoffHz);
+            const auto psolaARow = analyse (outputs.psolaA, targetHz, ! signal.vowel, dryRms, lfCutoffHz);
+            const auto psolaB75Row = analyse (outputs.psolaB75, targetHz, ! signal.vowel, dryRms, lfCutoffHz);
+            const auto psolaB50Row = analyse (outputs.psolaB50, targetHz, ! signal.vowel, dryRms, lfCutoffHz);
 
             auto engineLatencyMs = -1.0;
             auto psolaALatencyMs = -1.0;
