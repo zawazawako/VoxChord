@@ -94,18 +94,30 @@ struct VowelGen
         double a1 = 0.0, a2 = 0.0, g = 1.0, y1 = 0.0, y2 = 0.0;
     };
 
-    void init (double f0Hz, double vibratoDepthCents = 0.0, double vibratoRateHz = 5.0)
+    void init (double f0Hz, double vibratoDepthCents = 0.0, bool darkTimbre = false)
     {
         phase = 0.0;
         carry = 0.0;
         baseIncrement = f0Hz / kSampleRate;
         increment = baseIncrement;
         vibratoCents = vibratoDepthCents;
-        vibratoRate = vibratoRateHz;
+        vibratoRate = 5.0;
         vibratoPhase = 0.0;
-        f1.init (700.0, 130.0, 1.0);
-        f2.init (1200.0, 150.0, 0.6);
-        f3.init (2600.0, 250.0, 0.35);
+
+        if (darkTimbre)
+        {
+            // Realistic-voice envelope: energy falls steeply with frequency, so
+            // upshifted combs sample far less energy (directions/0708_7.md).
+            f1.init (500.0, 110.0, 1.0);
+            f2.init (1100.0, 160.0, 0.22);
+            f3.init (2300.0, 300.0, 0.05);
+        }
+        else
+        {
+            f1.init (700.0, 130.0, 1.0);
+            f2.init (1200.0, 150.0, 0.6);
+            f3.init (2600.0, 250.0, 0.35);
+        }
 
         // Normalize peak amplitude over one second of warm-up.
         scale = 1.0f;
@@ -992,6 +1004,7 @@ int main()
         int baseMidi;
         std::vector<int> offsets;
         double vibratoCents = 0.0; // > 0: +/- cents at 5 Hz (realistic voice movement)
+        bool dark = false;         // steeply falling spectral envelope (realistic voice)
     };
 
     const std::vector<Signal> signals = {
@@ -1003,6 +1016,10 @@ int main()
         // High-MIDI upshift stress with vocal-like pitch movement: reproduces
         // the reported low-frequency noise case (directions/0708_5.md item 2).
         { "vowel 196 vib", true, 196.00, 55, { 19, 16, 12, 7, 0 }, 30.0 },
+        // Dark (realistic) envelope: reproduces the "high notes are quieter"
+        // report; the shifter's adaptive loudness normalization must flatten
+        // this within ~2 dB (directions/0708_7.md).
+        { "dark 196", true, 196.00, 55, { 19, 12, 7, 0 }, 0.0, true },
     };
 
     RunOutputs outputs;
@@ -1032,7 +1049,7 @@ int main()
             if (signal.vowel)
             {
                 VowelGen generator;
-                generator.init (signal.f0, signal.vibratoCents);
+                generator.init (signal.f0, signal.vibratoCents, signal.dark);
                 runOnce (generator, signal.f0, midiNote, outputs);
             }
             else

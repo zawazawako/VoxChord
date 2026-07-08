@@ -88,6 +88,13 @@ private:
     float rightFactor = 1.0f;
     float guideCoefficient = 0.1f;
     float guideState = 0.0f;
+    // Slow loudness normalization (~250 ms): matches wet RMS to input RMS so
+    // material-dependent spectral-envelope loss (high targets on dark voices)
+    // is compensated adaptively; the per-grain static gain stays as the fast
+    // first-order term (directions/0708_7.md).
+    float agcInputEnergy = 0.0f;
+    float agcOutputEnergy = 0.0f;
+    float agcGain = 1.0f;
     int maxGrainHalfWidth = 0;
     int searchHalfMax = 0;
     int latencySamples = 0;

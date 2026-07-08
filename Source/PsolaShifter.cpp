@@ -67,6 +67,9 @@ void PsolaShifter::reset() noexcept
     std::fill (windowSumRing.begin(), windowSumRing.end(), 0.0f);
 
     guideState = 0.0f;
+    agcInputEnergy = 0.0f;
+    agcOutputEnergy = 0.0f;
+    agcGain = 1.0f;
     storedMarkCount = 0;
     inputPeriodSamples = 0.0;
     writePos = 0;
@@ -294,12 +297,16 @@ void PsolaShifter::onSampleWritten() noexcept
 
 void PsolaShifter::processBlock (const float* input, float* output, int numSamples) noexcept
 {
+    auto blockInputEnergy = 0.0f;
+    auto blockOutputEnergy = 0.0f;
+
     for (auto i = 0; i < numSamples; ++i)
     {
         inputRing[static_cast<size_t> (writePos & ringMask)] = input[i];
         guideState += guideCoefficient * (input[i] - guideState);
         guideRing[static_cast<size_t> (writePos & ringMask)] = guideState;
         ++writePos;
+        blockInputEnergy += input[i] * input[i];
 
         onSampleWritten();
 
@@ -315,9 +322,33 @@ void PsolaShifter::processBlock (const float* input, float* output, int numSampl
         const auto windowSum = windowSumRing[cell];
 
         output[i] = olaRing[cell] / std::max (windowSum, 0.5f);
+        blockOutputEnergy += output[i] * output[i];
 
         olaRing[cell] = 0.0f;
         windowSumRing[cell] = 0.0f;
+    }
+
+    // Slow loudness normalization (see header): smooth block energies with a
+    // ~250 ms time constant and steer the makeup gain toward input RMS parity.
+    // Open loop (energy measured pre-gain), so it cannot pump.
+    if (numSamples > 0)
+    {
+        const auto n = static_cast<float> (numSamples);
+        const auto alpha = 1.0f - std::exp (-n / (0.25f * static_cast<float> (sampleRateHz)));
+
+        agcInputEnergy += alpha * (blockInputEnergy / n - agcInputEnergy);
+        agcOutputEnergy += alpha * (blockOutputEnergy / n - agcOutputEnergy);
+
+        if (agcInputEnergy > 1.0e-8f)
+        {
+            const auto target = std::clamp (std::sqrt (agcInputEnergy / std::max (agcOutputEnergy, 1.0e-12f)),
+                                            0.5f,
+                                            2.8f);
+            agcGain += alpha * (target - agcGain);
+        }
+
+        for (auto i = 0; i < numSamples; ++i)
+            output[i] *= agcGain;
     }
 }
 

@@ -1765,11 +1765,11 @@ void SimpleChoirEngine::configureCharacterTone (VoicePitchState& voice,
 
         case 3: // Vowel: "moving mouths" — slot formants slowly swept by an LFO
         {
-            const auto sweep = 1.0f + 0.12f * amount * std::sin (lfoPhase);
+            const auto sweep = 1.0f + 0.18f * amount * std::sin (lfoPhase);
             setPeakingFilter (voice.characterFilter1,
                               vowelCenterHz[safeSlot] * sweep,
-                              vowelGainDbBySlot[safeSlot] * 1.6f * amount,
-                              2.2f,
+                              vowelGainDbBySlot[safeSlot] * 2.2f * amount,
+                              2.5f,
                               sampleRate);
             break;
         }

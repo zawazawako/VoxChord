@@ -1,5 +1,28 @@
 # VoxChord Test Log
 
+## 0.3.9 PSOLA adaptive loudness + stronger Vowel character (directions/0708_7)
+
+Date: 2026-07-08
+
+Scope: Branch `exp/d3-psola`. User feedback on 0.3.8: high notes simply sound quieter (not interval-dependent); Vowel character could be stronger. Root cause of the former: the 0.3.7 static gain was calibrated on a bright synthetic vowel; real voices have steeply falling spectral envelopes, so upshifted combs sample much less energy — no static curve fits all material. VERSION `0.3.8` -> `0.3.9`.
+
+Changes:
+
+- `PsolaShifter`: built-in slow loudness normalization — block input/output energies smoothed with a ~250 ms time constant, makeup gain steered toward input-RMS parity, clamp 0.5..2.8, gain applied after measurement (open loop, cannot pump). Static per-grain compensation kept as the fast first-order term.
+- Harness: new "dark 196" vowel signal (formants 500/1100/2300 Hz with steeply falling gains) reproducing the realistic-envelope case.
+- Character Vowel: formant gain x1.6 -> x2.2, LFO sweep +/-12% -> +/-18%, Q 2.2 -> 2.5.
+
+Measured (Release harness):
+
+- PSOLA wet RMS vs unison: all vowel runs (bright, vibrato, dark) now within **-1.0..0.0 dB** (0.3.7: +/-1.8 dB bright-only; dark high targets would have drooped further). Dark vowel +19 semitones: -0.7..-1.0 dB.
+- No regressions: f0, HNR, LF-noise, AM, latency all at 0.3.7 levels (dark-vowel runs are near-ideal: HNR ~40 dB, LF < -100 dB — the dark tone is close to a pure low-partial tone).
+- Character probe: Vowel now HNR +3.2, RMS +2.9 dB vs baseline (was +2.5/+2.3); band signature unchanged in shape.
+- Known/deferred (D6 calibration item): Classic wet sits ~7 dB below PSOLA wet at unison (Classic's fixed 0.45 voice gain vs PSOLA's input-parity AGC). Existed since 0.3.6; engine-to-engine level matching belongs to the D6 integration pass.
+
+Build status: harness Release + plugin Debug/Release built by agent, no new warnings.
+
+User verification pending: high-note loudness with real voice (should now track the input); Vowel character strength (constants easy to trim further).
+
 ## 0.3.8 D5-lite: Character mode distinctiveness (directions/0708_6)
 
 Date: 2026-07-08
