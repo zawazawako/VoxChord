@@ -144,8 +144,9 @@ Smoothing:
 - Type: float percent
 - Range: `0.0-1.0`
 - Default: `0.80`
-- Currently kept for compatibility and future Tightness behavior.
-- Current DSP hard-tune path does not meaningfully use this value.
+- Retune Speed (display name `Retune`): sets the Lead Tune ratio snap time — 90% settle from ~200 ms (0%) to ~1 ms (100%), `settleMs = 1 + 199*(1 - tune)^2`. Independent of Glide.
+- The parameter ID stays `tune`; only the display name changed. Not currently exposed as an on-screen knob (host automation / generic editor only).
+- The practical retune-to-a-new-note time is floored by the pitch detector's own latency (~27 ms at the current YIN frame), so tune values above ~0.6 mainly affect the smoothing character rather than the total settle time.
 
 `glide`
 
@@ -233,7 +234,7 @@ Smoothing:
 
 ## Engine Modes (experimental, branch exp/d3-psola)
 
-The wet pitch shifter stage exists in two selectable implementations; pitch detection, MIDI voice management, envelopes, Character tone/gain/pitch offsets, Spread and Lead Tune are shared by both.
+The wet pitch shifter stage exists in two selectable implementations; pitch detection, MIDI voice management, envelopes, Character tone/gain/pitch offsets, and Spread are shared by both. The tuned **Lead** always uses the window shifter regardless of engine mode (it replaces the dry monitor signal, where the window shifter's lower, pitch-synced latency and snappier retune feel more natural); the PSOLA bank covers the harmony voices only.
 
 - **Classic** (`psolaEnabled = false`, default): windowed dual-tap delay-line shifter. Pitch ratio clamp `0.25..8`. No added wet-path latency beyond the shifter's own window delay (~9-23 ms depending on input pitch).
 - **PSOLA** (`psolaEnabled = true`): per-voice TD-PSOLA bank (4 voices + lead), configuration plan B50 (`Source/SimpleChoirEngine.h`: `psolaMinF0Hz = 90`, `psolaRightHalfFactor = 0.5`, grain cap 1 period). Wet-path delay is a constant ~23.7 ms @44.1 kHz; the dry path is unaffected and no latency is reported to the host (live-first design; the wet choir layer does not require phase alignment with the dry signal). Pitch ratio clamp is wider (`1/16..8`), so deep downshifts below ratio 0.25 reach pitch instead of clamping. The PSOLA path additionally uses: pitch-mark peak search on a ~700 Hz lowpassed guide (robust against formant ripple), a +/-8%-per-block period slew limit, fractional-sample grain placement, per-grain loudness compensation (duty/ratio based, cap +6.8 dB) plus a slow (~250 ms) input-RMS-parity loudness normalization (clamp 0.5..2.8, open loop) that keeps wet RMS within ~1 dB of unison across ratios and vocal timbres, and a per-voice tracking highpass at 0.6 * target f0 (sub-fundamental output is artifact energy by construction).
@@ -259,7 +260,8 @@ Primary fields:
 - `rawPitchHz`: direct pitch detector result.
 - `correctedPitchHz`: harmonic-corrected pitch result.
 - `displayStablePitchHz`: smoothed GUI/debug pitch.
-- `correctionInputPitchHz`: pitch used for harmony ratio calculation.
+- `correctionInputPitchHz`: pitch used for harmony ratio calculation (median + fast-attack smoothed).
+- `tunePitchHz`: harmonic-corrected pitch with no median/smoothing, used only by the Lead Tune (Retune) path so the tuner snaps directly; `0` when unvoiced.
 - `confidence`: pitch confidence derived from CMNDF.
 - `voiced`: voiced/unvoiced state after RMS/confidence filtering and hold handling.
 - `ratioSmoothingCoefficient`: current per-voice pitch-ratio smoothing coefficient.
@@ -429,7 +431,7 @@ Debug display:
 ## Known Current Limitations
 
 - Pitch detection quality remains experimental for real vocal material.
-- `Tune` exists as an APVTS parameter but is currently not meaningfully used by DSP.
+- `Retune` (`tune` parameter) is functional (Lead Tune snap speed) but has no dedicated on-screen knob yet; it is reachable via host automation only.
 - Debug MIDI counters are still visible in Debug builds and may be removed or relocated later.
 - Pitch shifter is lightweight and low-latency oriented, not high-quality offline pitch shifting.
 - Standalone device settings persistence has not been implemented as a VoxChord-specific feature.

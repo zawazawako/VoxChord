@@ -228,6 +228,7 @@ void VoxChordAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     correctionInputPitchHz.store (pitchState.correctionInputPitchHz, std::memory_order_relaxed);
     stablePitchHz.store (pitchState.stablePitchHz, std::memory_order_relaxed);
     harmonyPitchHz.store (pitchState.harmonyPitchHz, std::memory_order_relaxed);
+    tunePitchHz.store (pitchState.tunePitchHz, std::memory_order_relaxed);
     ratioSmoothingCoefficient.store (pitchState.ratioSmoothingCoefficient, std::memory_order_relaxed);
     characterAmountRaw.store (pitchState.characterAmountRaw, std::memory_order_relaxed);
     characterAmountSmoothedValue.store (pitchState.characterAmountSmoothed, std::memory_order_relaxed);
@@ -339,6 +340,7 @@ voxchord::PitchState VoxChordAudioProcessor::getPitchState() const noexcept
     state.correctionInputPitchHz = correctionInputPitchHz.load (std::memory_order_relaxed);
     state.stablePitchHz = stablePitchHz.load (std::memory_order_relaxed);
     state.harmonyPitchHz = harmonyPitchHz.load (std::memory_order_relaxed);
+    state.tunePitchHz = tunePitchHz.load (std::memory_order_relaxed);
     state.ratioSmoothingCoefficient = ratioSmoothingCoefficient.load (std::memory_order_relaxed);
     state.characterAmountRaw = characterAmountRaw.load (std::memory_order_relaxed);
     state.characterAmountSmoothed = characterAmountSmoothedValue.load (std::memory_order_relaxed);

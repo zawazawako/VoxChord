@@ -148,6 +148,7 @@ private:
     std::atomic<float> correctionInputPitchHz { 0.0f };
     std::atomic<float> stablePitchHz { 0.0f };
     std::atomic<float> harmonyPitchHz { 0.0f };
+    std::atomic<float> tunePitchHz { 0.0f };
     std::atomic<float> ratioSmoothingCoefficient { 0.0f };
     std::atomic<float> characterAmountRaw { 0.0f };
     std::atomic<float> characterAmountSmoothedValue { 0.0f };

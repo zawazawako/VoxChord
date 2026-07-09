@@ -1,5 +1,40 @@
 # VoxChord Test Log
 
+## 0.3.11 Lead Tune rework: window lead + Retune Speed (directions/0708_9, supersedes 0703_2)
+
+Date: 2026-07-09
+
+Scope: Branch `exp/d3-psola`. User feedback: PSOLA-mode Auto Tune felt less intuitive than the window shifter; wanted the window feel kept but a stronger auto-tune. This iteration makes the tuned lead always use the window shifter (both engine modes) and revives the `tune` parameter as Retune Speed (the long-pending D2 work, `0703_2.md`, now superseded by `0708_9.md`). Harmony voices are unchanged. VERSION `0.3.10` -> `0.3.11`.
+
+Root-cause analysis (4 points): the lead replaces the dry monitor signal, so (1) the PSOLA lead's fixed 23.7 ms latency was felt directly as monitoring delay; (2) PSOLA's formant preservation + AGC made the correction too transparent ("no grip"); (3) the D4 voiced/unvoiced split dropped the lead to dry on consonants/breath; (4) `tune` was DSP-inert so the snap speed was tied to Glide smoothing.
+
+Changes:
+
+- `SimpleChoirEngine`: the tuned lead always uses `renderPitchShiftedSample` (window shifter); removed `psolaLeadShifter` / `psolaLeadHighpassFilter` / `psolaLeadCurrentRatio` and the lead PSOLA processing. `psolaScratch` shrank to `maxVoices + 1` channels. PSOLA bank now covers the 4 harmony voices only.
+- Pitch path split: new `PitchState::tunePitchHz` = harmonic-corrected pitch with no median/smoothing (0 when unvoiced), published through a new processor atomic. The display/harmony path (`correctionInputPitchHz`, median + fast-attack) is untouched — verified by diffing `updateStablePitch`/`updateCorrectionInputPitch`/`applyMedianFilter` (unchanged) and by the harness harmony/shift tables being identical to 0.3.10.
+- Retune Speed: `getLeadRetuneCoefficient(tune, sr)` gives a per-sample log-domain ratio smoothing coefficient with 90% settle `1 + 199*(1-tune)^2` ms; the lead uses it instead of the Glide-derived coefficient. `tune` is now consumed (was `ignoreUnused`). Lead target now uses `tunePitchHz`.
+- GUI/params: `tune` APVTS display name `Tune` -> `Retune` (ID unchanged). Debug line adds a Retune section (effective ms, tune pitch + divergence vs display pitch, lead target note); Debug build id `d3-psola-ab-001` -> `lead-retune-001`.
+- Harness: new retune step-response probe (continuous-phase sine steps 212->216 Hz across the G#3/A3 boundary with Lead Tune on; measures 90% settle of the lead output frequency).
+
+Measured (Release harness):
+
+- Retune step response (measured 90% settle vs theoretical retune-only): Retune 0% -> 193.9 ms (200), 50% -> 63.9 ms (51), 80% -> 31.4 ms (9), 100% -> 26.7 ms (1). Slow settings match theory; fast settings floor at ~27 ms = the pitch detector's own latency (YIN 2048 frame + hop). So `tune` controls the snap for gentle-to-medium settings and the retune smoothing itself is 1-9 ms at high settings, but the *total* retune-to-new-note time cannot beat the ~27 ms detection floor. Documented as a known limit; reducing it is a detector change (out of scope).
+- No regressions: shifter comparison tables, Character probe, and D4 probe (noise passthrough 0.986, vowel f0 -1.9 c) all unchanged from 0.3.10.
+- Latency: PSOLA-mode lead drops from 23.7 ms (removed PSOLA lead) to the window shifter's pitch-synced ~13-20 ms; harmony and dry unchanged.
+
+Scope note (flagged for follow-up): the current editor has **no on-screen Tune/Retune knob** — the `tune` parameter was orphaned (APVTS-only). This iteration makes it functional and renames it, but per the direction's "no GUI layout change" boundary (and because an unverifiable layout edit is risky without visual check) no knob was added. The default `tune = 0.80` already delivers a ~9 ms hard-tune snap, so the improvement lands at the default. Adding a Retune knob to the editor is the recommended next step.
+
+Build status:
+
+- Built by agent: harness Release (measurements above), plugin Debug + Release (VST3/Standalone). Only pre-existing harfbuzz C4819 codepage warnings; no errors.
+
+User verification pending (listening):
+
+1. PSOLA-mode Auto Tune should now feel as "direct" as the window engine (lead is window in both modes) — confirm the improved feel and lower monitoring latency.
+2. Retune character: with `tune` at default (~9 ms smoothing, ~27 ms total) vs lowered values, confirm hard-tune vs gentle behaviour (control via host automation until a knob exists).
+3. Lead Tune OFF, harmony voices, and Glide must be unchanged from before.
+4. Consonants/breath under Lead Tune should no longer drop out oddly (lead no longer follows the harmony D4 split).
+
 ## 0.3.10 D4: voiced/unvoiced split on the PSOLA path (directions/0708_8)
 
 Date: 2026-07-08

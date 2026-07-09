@@ -110,6 +110,29 @@ namespace
              + "  Grain " + juce::String (state.representativeGrainWindowSamples) + "smp"
              + "  Clamp#" + juce::String (state.ratioClampHitCount);
     }
+
+    juce::String formatLeadRetuneDiagnostics (const voxchord::PitchState& state, float tune)
+    {
+        // Retune (Lead Tune) diagnostics: effective snap time, the un-smoothed
+        // tune pitch and its divergence from the display pitch, and the lead's
+        // chromatic target note (directions/0708_9.md item 4).
+        const auto settleMs = 1.0f + 199.0f * (1.0f - tune) * (1.0f - tune);
+        auto targetNote = juce::String ("--");
+        auto divergence = juce::String ("--");
+
+        if (state.tunePitchHz > 0.0f)
+        {
+            const auto midiFloat = 69.0f + 12.0f * std::log2 (state.tunePitchHz / 440.0f);
+            targetNote = juce::MidiMessage::getMidiNoteName (juce::roundToInt (midiFloat), true, true, 3);
+
+            if (state.displayStablePitchHz > 0.0f)
+                divergence = juce::String (1200.0f * std::log2 (state.tunePitchHz / state.displayStablePitchHz), 0) + "c";
+        }
+
+        return "Retune " + juce::String (settleMs, 0) + "ms  Tune "
+             + (state.tunePitchHz > 0.0f ? juce::String (state.tunePitchHz, 1) + "Hz" : juce::String ("--"))
+             + " (" + divergence + " vs disp)  Lead" + juce::String (juce::CharPointer_UTF8 ("\xe2\x86\x92")) + targetNote;
+    }
 #endif
 
     juce::String formatDetailedPitchDebug (const voxchord::PitchState& state,
@@ -1001,10 +1024,18 @@ void VoxChordAudioProcessorEditor::updateMeters()
 void VoxChordAudioProcessorEditor::updatePitchDebug()
 {
 #if JUCE_DEBUG
-    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString + " | Build: d3-psola-ab-001",
+    subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString + " | Build: lead-retune-001",
                            juce::dontSendNotification);
+
+    const auto pitchState = processorRef.getPitchState();
+    auto tuneValue = 0.8f;
+
+    if (auto* raw = processorRef.getValueTreeState().getRawParameterValue (voxchord::ParameterIDs::tune))
+        tuneValue = raw->load (std::memory_order_relaxed);
+
     pitchDebugLabel.setText (juce::String (processorRef.isPsolaEnabledForUi() ? "[PSOLA] " : "[WIN] ")
-                                 + formatD1LowPitchDiagnostics (processorRef.getPitchState()),
+                                 + formatD1LowPitchDiagnostics (pitchState)
+                                 + "  ||  " + formatLeadRetuneDiagnostics (pitchState, tuneValue),
                              juce::dontSendNotification);
 #else
     subtitleLabel.setText (juce::String ("VoxChord v") + JucePlugin_VersionString,

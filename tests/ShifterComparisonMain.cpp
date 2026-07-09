@@ -1107,6 +1107,136 @@ void runVoicedUnvoicedProbe()
 }
 
 // ---------------------------------------------------------------------------
+// Retune step-response probe (directions/0708_9.md item 3): a continuous-phase
+// sine steps across the G#3/A3 boundary (212 -> 216 Hz) at t = 2 s with Lead
+// Tune on, so the tuned lead's target note jumps G#3 (207.65) -> A3 (220). The
+// 90% settling time of the lead output frequency is measured for several tune
+// values. Measured settling also includes the detector's own latency (~YIN
+// frame), which floors the fast tune settings; the theoretical retune-only
+// settle time is printed alongside for reference.
+// ---------------------------------------------------------------------------
+
+double theoreticalRetuneSettleMs (double tune)
+{
+    return 1.0 + 199.0 * (1.0 - tune) * (1.0 - tune);
+}
+
+double measureLeadRetuneSettleMs (float tune)
+{
+    voxchord::SimpleChoirEngine engine;
+    engine.prepare (kSampleRate, kBlockSize);
+
+    juce::AudioBuffer<float> dry (2, kBlockSize);
+    juce::AudioBuffer<float> wet (2, kBlockSize);
+    juce::AudioBuffer<float> lead (2, kBlockSize);
+
+    voxchord::MidiVoiceState::NoteSnapshot notes {};
+    notes.fill (-1); // lead tune is independent of MIDI notes
+
+    const auto totalSamples = static_cast<int> (4.0 * kSampleRate);
+    const auto totalBlocks = totalSamples / kBlockSize;
+    const auto stepSample = static_cast<int> (2.0 * kSampleRate);
+
+    std::vector<float> leadOut (static_cast<size_t> (totalBlocks) * kBlockSize, 0.0f);
+
+    double phase = 0.0;
+
+    for (auto block = 0; block < totalBlocks; ++block)
+    {
+        for (auto n = 0; n < kBlockSize; ++n)
+        {
+            const auto position = block * kBlockSize + n;
+            const auto f = position < stepSample ? 212.0 : 216.0;
+            phase += 2.0 * kPi * f / kSampleRate;
+
+            if (phase > 2.0 * kPi)
+                phase -= 2.0 * kPi;
+
+            const auto s = kInputAmplitude * static_cast<float> (std::sin (phase));
+            dry.setSample (0, n, s);
+            dry.setSample (1, n, s);
+        }
+
+        engine.render (dry, wet, lead, notes, 4, 0.0f, tune, 0.0f, 0, 0.0f, 0.0f,
+                       /*leadTuneEnabled*/ true, /*psolaEnabled*/ false);
+
+        for (auto n = 0; n < kBlockSize; ++n)
+            leadOut[static_cast<size_t> (block * kBlockSize + n)] = lead.getSample (0, n);
+    }
+
+    // Instantaneous frequency via upward zero crossings (time, freq) pairs.
+    std::vector<std::pair<double, double>> freqSamples;
+    auto lastCrossing = -1.0;
+
+    for (auto i = 1; i < totalSamples; ++i)
+    {
+        const auto prev = leadOut[static_cast<size_t> (i - 1)];
+        const auto cur = leadOut[static_cast<size_t> (i)];
+
+        if (prev < 0.0f && cur >= 0.0f)
+        {
+            const auto frac = cur != prev ? (-prev) / (cur - prev) : 0.0f;
+            const auto crossing = (i - 1) + static_cast<double> (frac);
+
+            if (lastCrossing >= 0.0)
+            {
+                const auto period = crossing - lastCrossing;
+
+                if (period > 1.0)
+                    freqSamples.emplace_back (crossing / kSampleRate, kSampleRate / period);
+            }
+
+            lastCrossing = crossing;
+        }
+    }
+
+    auto medianFreqIn = [&] (double t0, double t1)
+    {
+        std::vector<double> v;
+
+        for (const auto& fs : freqSamples)
+            if (fs.first >= t0 && fs.first < t1)
+                v.push_back (fs.second);
+
+        if (v.empty())
+            return 0.0;
+
+        std::sort (v.begin(), v.end());
+        return v[v.size() / 2];
+    };
+
+    const auto baseline = medianFreqIn (1.5, 2.0);
+    const auto final = medianFreqIn (3.5, 4.0);
+
+    if (baseline <= 0.0 || final <= 0.0 || std::abs (final - baseline) < 1.0)
+        return -1.0;
+
+    const auto target90 = baseline + 0.9 * (final - baseline);
+
+    for (const auto& fs : freqSamples)
+        if (fs.first >= 2.0 && fs.second >= target90)
+            return 1000.0 * (fs.first - 2.0);
+
+    return -1.0;
+}
+
+void printRetuneProbe()
+{
+    std::printf ("=== Retune step-response probe (sine 212->216 Hz step, Lead Tune on, window lead) ===\n");
+    std::printf ("    lead output note step G#3 (207.65 Hz) -> A3 (220 Hz); 90%% settle time per Retune value\n");
+    std::printf ("    (measured includes detector latency; theoretical = retune smoothing only)\n");
+
+    for (const auto tune : { 0.0f, 0.5f, 0.8f, 1.0f })
+    {
+        const auto measured = measureLeadRetuneSettleMs (tune);
+        std::printf ("    Retune %4.0f%%: measured 90%% settle %7.1f ms   (theoretical retune-only %6.1f ms)\n",
+                     tune * 100.0f, measured, theoreticalRetuneSettleMs (tune));
+    }
+
+    std::printf ("\n");
+}
+
+// ---------------------------------------------------------------------------
 // CPU benchmark
 // ---------------------------------------------------------------------------
 
@@ -1312,6 +1442,7 @@ int main()
 
     printCharacterProbe();
     runVoicedUnvoicedProbe();
+    printRetuneProbe();
 
     std::printf ("=== CPU (vowel 146.83 Hz input, 10 s each, ms of processing per second of audio) ===\n");
     std::printf ("  engine, 1 note         : %7.3f ms/s (includes YIN pitch detection)\n", benchEngineMsPerSecond (1));

@@ -20,6 +20,9 @@ struct PitchState
     float correctionInputPitchHz = 0.0f;
     float stablePitchHz = 0.0f;
     float harmonyPitchHz = 0.0f;
+    // Lead Tune (Retune) path: harmonic-corrected pitch with no median/smoothing,
+    // so the tuner snaps directly (0 when unvoiced). See directions/0708_9.md.
+    float tunePitchHz = 0.0f;
     float ratioSmoothingCoefficient = 0.0f;
     float characterAmountRaw = 0.0f;
     float characterAmountSmoothed = 0.0f;
@@ -212,6 +215,7 @@ private:
     static float getPitchRatioForNote (int midiNote, float inputFrequencyHz) noexcept;
     static float applyTuneToRatio (float pitchRatio, float tune) noexcept;
     static float getGlideCoefficient (float glide, double sampleRate) noexcept;
+    static float getLeadRetuneCoefficient (float tune, double sampleRate) noexcept;
     static float getNoteTransitionRatioCoefficient (double sampleRate) noexcept;
     static float getEnvelopeCoefficient (float timeSeconds, double sampleRate) noexcept;
     static int sanitizeCharacterMode (int characterMode) noexcept;
@@ -281,21 +285,22 @@ private:
     std::array<float, MidiVoiceState::maxVoices> characterLfoPhases {};
     SimplePitchDetector pitchDetector;
     juce::AudioBuffer<float> delayBuffer;
+    // PSOLA bank covers the harmony voices only. The tuned lead always uses the
+    // window shifter regardless of engine mode (directions/0708_9.md item 1):
+    // it replaces the dry monitor signal, where the window shifter's lower,
+    // pitch-synced latency and its snappier retune behaviour feel more natural.
     std::array<PsolaShifter, MidiVoiceState::maxVoices> psolaVoiceShifters;
-    PsolaShifter psolaLeadShifter;
     std::array<float, MidiVoiceState::maxVoices> psolaTargetRatios {};
     std::array<float, MidiVoiceState::maxVoices> psolaCurrentRatios {};
-    float psolaLeadCurrentRatio = 1.0f;
     // Tracking highpass at 0.6 * target f0 per PSOLA voice: everything below
     // the output comb's fundamental is artifact energy (mark-reuse sidebands
     // at incommensurate ratios), so it can be removed without touching the
     // wanted harmonics (directions/0708_5.md item 2).
     std::array<VoicePitchState::CharacterBiquad, MidiVoiceState::maxVoices> psolaHighpassFilters {};
-    VoicePitchState::CharacterBiquad psolaLeadHighpassFilter;
     // D4 voiced/unvoiced hysteresis feeding PsolaShifter::setVoicedAmount
     // (on: voiced && confidence > 0.75, off: !voiced || confidence < 0.55).
     bool psolaVoicedState = false;
-    juce::AudioBuffer<float> psolaScratch; // ch0 = mono in, ch1..maxVoices = voices, last = lead
+    juce::AudioBuffer<float> psolaScratch; // ch0 = mono in, ch1..maxVoices = harmony voices
     float lastDetectedInputFrequencyHz = 0.0f;
     float windowPitchHz = 0.0f;
     PitchState pitchState;

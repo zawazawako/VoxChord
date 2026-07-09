@@ -256,15 +256,13 @@ void SimpleChoirEngine::prepare (double sampleRate, int maxBlockSize)
     delayBuffer.setSize (1, delayBufferSize, false, false, true);
     pitchDetector.prepare (currentSampleRate);
 
-    // D3 A/B experiment: PSOLA bank (see directions/0708_4.md).
-    psolaScratch.setSize (MidiVoiceState::maxVoices + 2, juce::jmax (1, maxBlockSize), false, false, true);
+    // D3 A/B experiment: PSOLA bank for the harmony voices (see
+    // directions/0708_4.md); the lead uses the window shifter (0708_9.md).
+    psolaScratch.setSize (MidiVoiceState::maxVoices + 1, juce::jmax (1, maxBlockSize), false, false, true);
 
     for (auto& shifter : psolaVoiceShifters)
         shifter.prepare (currentSampleRate, psolaMinF0Hz, psolaMinPitchRatio,
                          psolaGrainCapPeriods, psolaRightHalfFactor);
-
-    psolaLeadShifter.prepare (currentSampleRate, psolaMinF0Hz, psolaMinPitchRatio,
-                              psolaGrainCapPeriods, psolaRightHalfFactor);
 
     reset();
 }
@@ -296,10 +294,8 @@ void SimpleChoirEngine::reset() noexcept
     for (auto& shifter : psolaVoiceShifters)
         shifter.reset();
 
-    psolaLeadShifter.reset();
     psolaTargetRatios.fill (1.0f);
     psolaCurrentRatios.fill (1.0f);
-    psolaLeadCurrentRatio = 1.0f;
 
     for (auto& filter : psolaHighpassFilters)
     {
@@ -307,8 +303,6 @@ void SimpleChoirEngine::reset() noexcept
         filter.reset();
     }
 
-    psolaLeadHighpassFilter.setIdentity();
-    psolaLeadHighpassFilter.reset();
     psolaVoicedState = false;
 }
 
@@ -738,7 +732,6 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     if (samples <= 0 || outputChannels <= 0 || leadOutputChannels <= 0 || delayBufferSize <= 0)
         return;
 
-    juce::ignoreUnused (tune);
 
     const auto safeVoiceLimit = juce::jlimit (1, MidiVoiceState::maxVoices, voiceLimit);
     const auto safeGlide = juce::jlimit (0.0f, 1.0f, glide);
@@ -779,6 +772,10 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto ratioSmoothingCoefficient = safeGlide <= 0.001f
                                                ? transitionRatioCoefficient
                                                : juce::jmin (transitionRatioCoefficient, glideCoefficient);
+    // Retune Speed: the tuned lead's ratio snap time is driven by `tune`
+    // (independent of Glide), so hard-tune is snappy and low `tune` is gentle
+    // (directions/0708_9.md item 3).
+    const auto leadRetuneCoefficient = getLeadRetuneCoefficient (tune, currentSampleRate);
     pitchState = pitchDetector.processBlock (dryInput);
     pitchState.ratioSmoothingCoefficient = ratioSmoothingCoefficient;
     pitchState.characterModeRaw = characterMode;
@@ -794,8 +791,9 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
     const auto activePitchWindowSamples = useInputSyncedPitchWindowByDefault
                                               ? getInputSyncedPitchWindowSamples (windowFrequencyHz, currentSampleRate)
                                               : pitchWindowSamples;
-    const auto leadCanTune = leadTuneEnabled && pitchState.voiced && inputFrequencyHz > 0.0f;
-    const auto leadTargetRatio = leadCanTune ? getChromaticLeadPitchRatio (inputFrequencyHz) : 1.0f;
+    // Lead Tune uses the un-smoothed tune pitch path (directions/0708_9.md).
+    const auto leadCanTune = leadTuneEnabled && pitchState.voiced && pitchState.tunePitchHz > 0.0f;
+    const auto leadTargetRatio = leadCanTune ? getChromaticLeadPitchRatio (pitchState.tunePitchHz) : 1.0f;
 
     if (leadTuneEnabled)
     {
@@ -988,33 +986,10 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             voiceOut[sample] = highpass.process (voiceOut[sample]);
     }
 
-    psolaLeadCurrentRatio = psolaBlockAlpha >= 1.0f
-                                ? leadVoiceState.targetPitchRatio
-                                : smoothFrequencyLog (psolaLeadCurrentRatio,
-                                                      leadVoiceState.targetPitchRatio,
-                                                      psolaBlockAlpha);
-    psolaLeadShifter.setInputPitchHz (inputFrequencyHz);
-    psolaLeadShifter.setTargetPitchRatio (psolaLeadCurrentRatio);
-    psolaLeadShifter.setVoicedAmount (psolaVoicedAmount);
-
-    auto* psolaLeadWrite = psolaScratch.getWritePointer (MidiVoiceState::maxVoices + 1);
-    psolaLeadShifter.processBlock (psolaMono, psolaLeadWrite, samples);
-
-    if (inputFrequencyHz > 0.0f)
-        setHighPassFilter (psolaLeadHighpassFilter,
-                           juce::jlimit (30.0f, 1000.0f, 0.6f * psolaLeadCurrentRatio * inputFrequencyHz),
-                           0.707f,
-                           currentSampleRate);
-
-    for (auto sample = 0; sample < samples; ++sample)
-        psolaLeadWrite[sample] = psolaLeadHighpassFilter.process (psolaLeadWrite[sample]);
-
     std::array<const float*, MidiVoiceState::maxVoices> psolaVoiceOut {};
 
     for (auto slot = 0; slot < MidiVoiceState::maxVoices; ++slot)
         psolaVoiceOut[static_cast<size_t> (slot)] = psolaScratch.getReadPointer (slot + 1);
-
-    const auto* psolaLeadOut = psolaScratch.getReadPointer (MidiVoiceState::maxVoices + 1);
 
     auto* delay = delayBuffer.getWritePointer (0);
     auto* left = wetOutput.getWritePointer (0);
@@ -1040,12 +1015,12 @@ void SimpleChoirEngine::render (const juce::AudioBuffer<float>& dryInput,
             leadVoiceState.envelopeGain += (leadVoiceState.targetEnvelopeGain - leadVoiceState.envelopeGain)
                                          * leadEnvelopeCoefficient;
 
-            const auto leadShifted = psolaEnabled
-                                         ? psolaLeadOut[sample]
-                                         : renderPitchShiftedSample (leadVoiceState,
-                                                                     ratioSmoothingCoefficient,
-                                                                     0.0f,
-                                                                     activePitchWindowSamples);
+            // The tuned lead always uses the window shifter (both engine modes),
+            // with the Retune-controlled ratio snap (directions/0708_9.md).
+            const auto leadShifted = renderPitchShiftedSample (leadVoiceState,
+                                                               leadRetuneCoefficient,
+                                                               0.0f,
+                                                               activePitchWindowSamples);
             const auto leadMix = juce::jlimit (0.0f, 1.0f, leadVoiceState.envelopeGain);
             const auto leadSample = drySample + (leadShifted - drySample) * leadMix;
 
@@ -1252,6 +1227,7 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
     {
         state.rawPitchHz = 0.0f;
         state.correctedPitchHz = 0.0f;
+        state.tunePitchHz = 0.0f;
         state.confidence = 0.0f;
         state.voiced = false;
         state.harmonicCorrectionMode = 0;
@@ -1277,6 +1253,7 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
 
     if (rawPitch <= 0.0f || state.confidence < confidenceThreshold)
     {
+        state.tunePitchHz = 0.0f;
         state.voiced = false;
         return;
     }
@@ -1286,9 +1263,15 @@ void SimpleChoirEngine::SimplePitchDetector::analyseFrame() noexcept
 
     if (correctedPitch <= 0.0f)
     {
+        state.tunePitchHz = 0.0f;
         state.voiced = false;
         return;
     }
+
+    // Lead Tune (Retune) path: harmonic-corrected pitch, no median/smoothing,
+    // so the tuner tracks the input directly (directions/0708_9.md item 2).
+    // The display/harmony path below (correctionInputPitchHz) is unchanged.
+    state.tunePitchHz = correctedPitch;
 
     updateCorrectionInputPitch (correctedPitch);
 
@@ -1647,6 +1630,22 @@ float SimpleChoirEngine::getGlideCoefficient (float glide, double sampleRate) no
 
     const auto glideSeconds = 0.005f + safeGlide * safeGlide * 0.495f;
     return 1.0f - std::exp (-1.0f / (glideSeconds * static_cast<float> (sampleRate)));
+}
+
+float SimpleChoirEngine::getLeadRetuneCoefficient (float tune, double sampleRate) noexcept
+{
+    // `tune` (Retune Speed) sets the lead's 90%-settling time from ~200 ms at 0
+    // to ~1 ms at 1.0: settleMs = 1 + 199*(1 - tune)^2 (directions/0708_9.md).
+    // Convert to a per-sample first-order log-domain coefficient via
+    // tau = settleMs / ln(10), alpha = 1 - exp(-1 / tauSamples).
+    if (sampleRate <= 1.0)
+        return 1.0f;
+
+    const auto safeTune = juce::jlimit (0.0f, 1.0f, tune);
+    const auto settleMs = 1.0f + 199.0f * (1.0f - safeTune) * (1.0f - safeTune);
+    const auto tauSamples = juce::jmax (1.0f,
+                                        settleMs * 0.001f * static_cast<float> (sampleRate) / 2.302585f);
+    return juce::jlimit (0.0f, 1.0f, 1.0f - std::exp (-1.0f / tauSamples));
 }
 
 float SimpleChoirEngine::getNoteTransitionRatioCoefficient (double sampleRate) noexcept
