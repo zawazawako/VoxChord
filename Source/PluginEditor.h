@@ -118,7 +118,7 @@ private:
     juce::ComboBox characterModeBox;
     juce::ToggleButton leadTuneButton { "Auto Tune" };
     juce::ToggleButton monoOutputButton { "Mono Out" };
-    juce::ToggleButton psolaButton { "PSOLA" };
+    juce::ToggleButton psolaButton { "High Quality" };
     juce::TextButton panicButton { "PANIC" };
     juce::Rectangle<int> characterCardBounds;
 

@@ -1,5 +1,33 @@
 # VoxChord Test Log
 
+## 0.4.0 Beta freeze: High Quality (PSOLA) as the default engine (directions/0709_1)
+
+Date: 2026-07-09
+
+Scope: Branch `exp/d3-psola`. D6 integration / beta freeze. Following the listening gate, the user decided: (1) present PSOLA as **"High Quality"** and make it the default engine, (2) **accept the Classic/PSOLA wet level difference as specified behaviour** (no level matching), (3) **keep the Classic window engine** — unchecking High Quality selects it. No DSP logic changed. VERSION `0.3.12` -> `0.4.0` (beta, mirroring the `0.2.0` beta-initial convention).
+
+Changes:
+
+- `VoxChordParameters.cpp`: `psolaEnabled` display name `PSOLA Engine` -> `High Quality`, default `false` -> `true`. **Parameter ID unchanged** (`psolaEnabled`), so saved states stay compatible.
+- `PluginEditor.h/.cpp`: toggle label `PSOLA` -> `High Quality`. `resized()` reallocates the header: `logoArea` 220 -> 200 px, `utilityArea` 296 -> 316 px (the gain column width is untouched); bottom utility row re-split to `PANIC 86 / High Quality 116 / Mono Out (remainder)` so the longer label fits.
+- SPEC: Engine Modes section is no longer marked experimental; default is High Quality; the ~7 dB Classic-vs-PSOLA wet level difference is documented as accepted behaviour; both engines are retained.
+
+Verification (agent):
+
+- Plugin Debug + Release built (VST3 + Standalone), all exit 0; only pre-existing warnings. Debug VST3 still reports `VoxChord_dbg`.
+- Harness rerun: all probes identical to 0.3.11 (D4 noise passthrough 0.986, vowel f0 -1.9 c; retune step response 193.9 / 63.9 / 31.4 / 26.7 ms) — confirms the DSP paths were untouched and only the default/labels moved.
+
+Not verified by agent:
+
+- **GUI layout was changed but not visually inspected** (the agent cannot see the rendered editor). The `High Quality` label at 116 px and `Mono Out` in the remaining width are calculated to fit, but overlap/clipping must be confirmed on screen. In Debug builds the subtitle (`VoxChord v0.4.0 | Build: lead-retune-001`) may now clip in the narrower 200 px logo column; Release subtitle (`VoxChord v0.4.0`) should fit.
+
+User verification pending:
+
+1. Screenshot / visual check of the header row: `High Quality` and `Mono Out` labels not clipped or overlapping `PANIC`.
+2. A fresh instance defaults to High Quality checked; unchecking it audibly switches to the Classic engine with no glitch.
+3. Existing saved sessions keep their stored `psolaEnabled` value (APVTS defaults apply to new instances only).
+4. General beta pass: Panic, note on/off, Character modes, Spread, Lead Tune, Standalone startup.
+
 ## 0.3.12 Retune default 100%, no Retune knob (user decision)
 
 Date: 2026-07-09

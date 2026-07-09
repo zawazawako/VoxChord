@@ -70,7 +70,7 @@ Documentation split:
 
 - Implements the live-oriented single-window GUI.
 - Main areas: Header, Harmony, MIDI, and Level.
-- Header contains logo/version, Input Gain, Output, Auto Tune, Input Source, Mono Out, and PANIC.
+- Header contains logo/version, Input Gain, Output, Auto Tune, Input Source, Mono Out, High Quality, and PANIC.
 - Harmony contains Voices, Glide, Character, Spread, and Dry/Wet.
 - Character groups Type and Amount as one visible function.
 - MIDI area shows active notes, a display-only mini keyboard, and current MIDI delivery counters in Debug builds.
@@ -229,19 +229,20 @@ Smoothing:
 `psolaEnabled`
 
 - Type: bool
-- GUI label: `PSOLA`
-- Default: `false` (Classic windowed shifter)
-- Experimental (branch exp/d3-psola): selects the TD-PSOLA shifter bank for the wet harmony voices and the tuned lead. See "Engine Modes" below.
+- GUI label: `High Quality`
+- Default: `true` (TD-PSOLA harmony shifter)
+- Selects the TD-PSOLA shifter bank for the wet harmony voices. Unchecking it falls back to the Classic windowed shifter, which is retained. See "Engine Modes" below. The parameter ID stays `psolaEnabled` for state compatibility.
 
-## Engine Modes (experimental, branch exp/d3-psola)
+## Engine Modes
 
 The wet pitch shifter stage exists in two selectable implementations; pitch detection, MIDI voice management, envelopes, Character tone/gain/pitch offsets, and Spread are shared by both. The tuned **Lead** always uses the window shifter regardless of engine mode (it replaces the dry monitor signal, where the window shifter's lower, pitch-synced latency and snappier retune feel more natural); the PSOLA bank covers the harmony voices only.
 
-- **Classic** (`psolaEnabled = false`, default): windowed dual-tap delay-line shifter. Pitch ratio clamp `0.25..8`. No added wet-path latency beyond the shifter's own window delay (~9-23 ms depending on input pitch).
-- **PSOLA** (`psolaEnabled = true`): per-voice TD-PSOLA bank (4 voices + lead), configuration plan B50 (`Source/SimpleChoirEngine.h`: `psolaMinF0Hz = 90`, `psolaRightHalfFactor = 0.5`, grain cap 1 period). Wet-path delay is a constant ~23.7 ms @44.1 kHz; the dry path is unaffected and no latency is reported to the host (live-first design; the wet choir layer does not require phase alignment with the dry signal). Pitch ratio clamp is wider (`1/16..8`), so deep downshifts below ratio 0.25 reach pitch instead of clamping. The PSOLA path additionally uses: pitch-mark peak search on a ~700 Hz lowpassed guide (robust against formant ripple), a +/-8%-per-block period slew limit, fractional-sample grain placement, per-grain loudness compensation (duty/ratio based, cap +6.8 dB) plus a slow (~250 ms) input-RMS-parity loudness normalization (clamp 0.5..2.8, open loop) that keeps wet RMS within ~1 dB of unison across ratios and vocal timbres, and a per-voice tracking highpass at 0.6 * target f0 (sub-fundamental output is artifact energy by construction).
+- **Classic** (`psolaEnabled = false`): windowed dual-tap delay-line shifter. Pitch ratio clamp `0.25..8`. No added wet-path latency beyond the shifter's own window delay (~9-23 ms depending on input pitch).
+- **High Quality / PSOLA** (`psolaEnabled = true`, **default**): per-voice TD-PSOLA bank (4 harmony voices), configuration plan B50 (`Source/SimpleChoirEngine.h`: `psolaMinF0Hz = 90`, `psolaRightHalfFactor = 0.5`, grain cap 1 period). Wet-path delay is a constant ~23.7 ms @44.1 kHz; the dry path is unaffected and no latency is reported to the host (live-first design; the wet choir layer does not require phase alignment with the dry signal). Pitch ratio clamp is wider (`1/16..8`), so deep downshifts below ratio 0.25 reach pitch instead of clamping. The PSOLA path additionally uses: pitch-mark peak search on a ~700 Hz lowpassed guide (robust against formant ripple), a +/-8%-per-block period slew limit, fractional-sample grain placement, per-grain loudness compensation (duty/ratio based, cap +6.8 dB) plus a slow (~250 ms) input-RMS-parity loudness normalization (clamp 0.5..2.8, open loop) that keeps wet RMS within ~1 dB of unison across ratios and vocal timbres, and a per-voice tracking highpass at 0.6 * target f0 (sub-fundamental output is artifact energy by construction).
 - The PSOLA bank runs every block in both modes (total CPU cost ~0.7% of one core) so A/B switching is instant and the shifters stay warm. Character per-slot delay offsets are not applied on the PSOLA path; all other Character components apply in both modes.
 - **Voiced/unvoiced split (PSOLA path only)**: unvoiced input (consonants, breath; detector hysteresis on `voiced`/`confidence`, on > 0.75, off < 0.55) is not pitch-shifted — the shifters crossfade (~15 ms) to a latency-matched dry copy, so consonants stay natural in the harmony. The loudness normalization freezes while unvoiced.
-- The default engine decision (and possible removal of one path) is deferred to the 0.3 D6 integration phase.
+- **Wet level differs between the two engines** (Classic sits roughly 7 dB below High Quality at unison, because Classic uses a fixed per-voice gain while PSOLA normalizes to input-RMS parity). This is accepted as specified behaviour, not a defect: switching engines is expected to change the wet balance, and Dry/Wet plus Output compensate.
+- Both engines are retained. High Quality is the default; unchecking it selects Classic.
 
 ## MIDI Voice Behavior
 

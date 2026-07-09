@@ -503,7 +503,7 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
                                                                voxchord::ParameterIDs::monoOutputEnabled,
                                                                monoOutputButton);
 
-    // D3 A/B experiment (exp/d3-psola): engine selector for the listening gate.
+    // Engine selector: on = High Quality (PSOLA), off = Classic window shifter.
     psolaButton.setColour (juce::ToggleButton::textColourId, juce::Colours::white);
     psolaButton.setColour (juce::ToggleButton::tickColourId, accentColour());
     addAndMakeVisible (psolaButton);
@@ -617,8 +617,10 @@ void VoxChordAudioProcessorEditor::resized()
     auto bounds = getLocalBounds().reduced (26);
 
     auto header = bounds.removeFromTop (74);
-    auto logoArea = header.removeFromLeft (220).reduced (8, 4);
-    auto utilityArea = header.removeFromRight (296).reduced (8, 5);
+    // Utility column widened by 20 px (taken from the logo column, not the gain
+    // column) so the "High Quality" toggle label fits (directions/0709_1.md).
+    auto logoArea = header.removeFromLeft (200).reduced (8, 4);
+    auto utilityArea = header.removeFromRight (316).reduced (8, 5);
     auto gainArea = header.reduced (8, 4);
 
     titleLabel.setBounds (logoArea.removeFromTop (36));
@@ -642,9 +644,9 @@ void VoxChordAudioProcessorEditor::resized()
     leadTuneButton.setBounds (utilityTop.reduced (4, 1));
 
     utilityArea.removeFromTop (4);
-    auto panicArea = utilityArea.removeFromRight (90);
+    auto panicArea = utilityArea.removeFromRight (86);
     panicButton.setBounds (panicArea.reduced (0, 1));
-    auto psolaArea = utilityArea.removeFromRight (86);
+    auto psolaArea = utilityArea.removeFromRight (116);
     psolaButton.setBounds (psolaArea.reduced (4, 2));
     monoOutputButton.setBounds (utilityArea.reduced (4, 2));
 
