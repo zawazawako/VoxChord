@@ -1,5 +1,28 @@
 # VoxChord Test Log
 
+## 0.3.12 Retune default 100%, no Retune knob (user decision)
+
+Date: 2026-07-09
+
+Scope: Branch `exp/d3-psola`. User confirmed the 0.3.11 Auto Tune rework behaves as intended, and decided **not** to add a Retune knob — exposing it would violate the project's one-screen / simple-UI principle. Retune instead defaults to full hard-tune. No DSP logic changed. VERSION `0.3.11` -> `0.3.12`.
+
+Changes:
+
+- `VoxChordParameters.cpp`: `tune` (display name `Retune`) default `0.80` -> `1.00` = instant snap (~1 ms retune smoothing; total retune-to-note still floored by the ~27 ms YIN detection latency). Parameter ID unchanged.
+- `PluginEditor.cpp`: Debug readout fallback value for `tune` aligned to `1.0` (only used if the parameter lookup fails).
+- SPEC: `tune` default and the "no on-screen knob" note reworded from a known limitation to a deliberate design choice (host-automatable only).
+
+Build status:
+
+- Built by agent: harness Release, plugin Debug + Release (VST3/Standalone), all exit 0. Only pre-existing warnings (harfbuzz C4819; existing unused-local/unused-parameter warnings in `PluginProcessor.cpp` / `SimpleChoirEngine.cpp`, none from this change).
+- Retune step-response measurements are unchanged from 0.3.11 (the probe drives `tune` explicitly; only the plugin default moved).
+
+User verification pending:
+
+1. Fresh plugin instance defaults to full hard-tune on Lead Tune (previously ~9 ms snap).
+2. No clicks on rapid pitch changes at the harder default.
+3. Existing saved sessions keep their stored `tune` value (APVTS defaults apply to new instances only) — confirm nothing regressed in an old project.
+
 ## 0.3.11 Lead Tune rework: window lead + Retune Speed (directions/0708_9, supersedes 0703_2)
 
 Date: 2026-07-09

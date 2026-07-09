@@ -54,12 +54,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
     // "Retune" = Lead Tune snap speed / Retune Speed (directions/0708_9.md).
     // Parameter ID stays `tune` for state compatibility; only the display
-    // name changes. Default 0.80 gives a ~9 ms hard-tune snap.
+    // name changes. Deliberately not given an on-screen knob (one-screen UI
+    // principle): the default 1.0 = instant hard-tune snap is the intended
+    // live behaviour, and the value stays host-automatable for the rest.
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         ParameterID { ParameterIDs::tune, 1 },
         "Retune",
         juce::NormalisableRange<float> { 0.0f, 1.0f, 0.01f },
-        0.80f,
+        1.0f,
         percentAttributes()));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (

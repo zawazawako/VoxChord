@@ -143,9 +143,10 @@ Smoothing:
 
 - Type: float percent
 - Range: `0.0-1.0`
-- Default: `0.80`
+- Default: `1.00` (instant hard-tune snap)
 - Retune Speed (display name `Retune`): sets the Lead Tune ratio snap time — 90% settle from ~200 ms (0%) to ~1 ms (100%), `settleMs = 1 + 199*(1 - tune)^2`. Independent of Glide.
-- The parameter ID stays `tune`; only the display name changed. Not currently exposed as an on-screen knob (host automation / generic editor only).
+- The parameter ID stays `tune`; only the display name changed.
+- Intentionally has no on-screen knob (one-screen UI principle). The default is the intended live behaviour; the value remains host-automatable for anyone who wants a gentler correction.
 - The practical retune-to-a-new-note time is floored by the pitch detector's own latency (~27 ms at the current YIN frame), so tune values above ~0.6 mainly affect the smoothing character rather than the total settle time.
 
 `glide`
@@ -396,7 +397,7 @@ Harmony:
 - Spread.
 - Dry/Wet.
 - Voices, Glide, Character Amount, Spread, and Dry/Wet support direct numeric entry.
-- The old Tune knob is hidden, but the APVTS parameter remains.
+- There is no Tune/Retune knob by design; the `tune` (Retune) parameter is host-automatable only and defaults to full hard-tune.
 
 MIDI:
 
@@ -431,7 +432,7 @@ Debug display:
 ## Known Current Limitations
 
 - Pitch detection quality remains experimental for real vocal material.
-- `Retune` (`tune` parameter) is functional (Lead Tune snap speed) but has no dedicated on-screen knob yet; it is reachable via host automation only.
+- `Retune` (`tune` parameter) is functional (Lead Tune snap speed) and defaults to `1.00`; by design it has no on-screen knob and is reachable via host automation only.
 - Debug MIDI counters are still visible in Debug builds and may be removed or relocated later.
 - Pitch shifter is lightweight and low-latency oriented, not high-quality offline pitch shifting.
 - Standalone device settings persistence has not been implemented as a VoxChord-specific feature.

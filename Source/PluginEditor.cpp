@@ -1028,7 +1028,7 @@ void VoxChordAudioProcessorEditor::updatePitchDebug()
                            juce::dontSendNotification);
 
     const auto pitchState = processorRef.getPitchState();
-    auto tuneValue = 0.8f;
+    auto tuneValue = 1.0f;
 
     if (auto* raw = processorRef.getValueTreeState().getRawParameterValue (voxchord::ParameterIDs::tune))
         tuneValue = raw->load (std::memory_order_relaxed);
