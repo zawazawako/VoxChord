@@ -4,3 +4,7 @@ build*/
 *.suo
 *.VC.db
 directions/
+
+# Agent-facing docs: kept locally, never published
+AGENTS.md
+CLAUDE.md
