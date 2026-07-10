@@ -154,6 +154,7 @@ Smoothing:
 - Type: float percent
 - Range: `0.0-1.0`
 - Default: `0.15`
+- Exposed in the GUI as a three-entry dropdown (`None` 0.0, `Weak` 0.15, `Strong` 0.50). The parameter itself stays continuous, so automation may set any value; the dropdown shows the nearest entry.
 - Controls MIDI target pitch glide.
 
 `character`
@@ -388,18 +389,19 @@ Header:
 - Auto Tune toggle.
 - Input Source dropdown.
 - Mono Out toggle.
-- High Quality toggle (engine selector).
-- PANIC button.
+- High Quality toggle (engine selector). Its label text ends exactly at the left edge of the `Input` label text.
+- PANIC button. The Input Source box and PANIC form a right-hand column and share the same size.
+- The gain sliders and the three toggles sit left of that column as one block.
 
 Harmony:
 
-- Voices.
-- Glide.
+- Voices and Glide are stacked dropdowns in a single column (Voices `1`-`8`; Glide `None` = 0%, `Weak` = 15%, `Strong` = 50%). `glide` remains a continuous `0.0-1.0` parameter, so host automation can set intermediate values; the dropdown then displays the nearest entry without writing back.
 - Character Type and Amount.
 - Spread.
 - Dry/Wet.
-- Voices, Glide, Character Amount, Spread, and Dry/Wet support direct numeric entry.
+- Character Amount, Spread, and Dry/Wet support direct numeric entry.
 - All knobs and the header sliders reset to their parameter default on double-click.
+- All controls have hover tooltips.
 - There is no Tune/Retune knob by design; the `tune` (Retune) parameter is host-automatable only and defaults to full hard-tune.
 
 MIDI:

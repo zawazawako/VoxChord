@@ -9,6 +9,13 @@ namespace
     constexpr auto showDebugSelfTestSummary = false;
     constexpr auto showDebugPitchRuntimeDetails = false;
 
+    // Glide is presented as three named settings. The `glide` parameter itself
+    // stays a continuous 0..1 float, so these are just the values the dropdown
+    // writes; anything else (e.g. host automation) snaps to the nearest entry.
+    constexpr int numGlideChoices = 3;
+    constexpr float glideChoiceValues[numGlideChoices] = { 0.0f, 0.15f, 0.50f };
+    const juce::String glideChoiceNames[numGlideChoices] = { "None", "Weak", "Strong" };
+
     juce::Colour backgroundColour()
     {
         return juce::Colour::fromRGB (12, 15, 18);
@@ -441,20 +448,15 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     subtitleLabel.setFont (juce::FontOptions { 15.0f });
     addAndMakeVisible (subtitleLabel);
 
-    configureSlider (voiceCountSlider, voiceCountLabel, "Voices");
-    configureSlider (glideSlider, glideLabel, "Glide");
     configureSlider (characterAmountSlider, characterLabel, "Amount");
     configureSlider (spreadSlider, spreadLabel, "Spread");
     configureSlider (dryWetSlider, dryWetLabel, "Dry/Wet");
     configureCompactSlider (inputGainSlider, inputGainLabel, "Input Gain");
     configureCompactSlider (outputSlider, outputLabel, "Output");
 
-    voiceCountSlider.setNumDecimalPlacesToDisplay (0);
     characterAmountSlider.setNumDecimalPlacesToDisplay (0);
     inputGainSlider.setNumDecimalPlacesToDisplay (1);
     outputSlider.setNumDecimalPlacesToDisplay (1);
-    voiceCountSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    glideSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     spreadSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     dryWetSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     inputGainSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -475,19 +477,32 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (outputValueLabel);
 
-    configureEditableValueLabel (voiceCountValueLabel);
-    voiceCountValueLabel.onTextChange = [this]
-    {
-        commitEditableValueLabel (voiceCountValueLabel, voxchord::ParameterIDs::voiceCount, EditableValueFormat::integer);
-    };
-    addAndMakeVisible (voiceCountValueLabel);
+    // Voices and Glide are dropdowns rather than knobs: both are step controls
+    // in practice, and the list makes the available settings explicit.
+    voiceCountLabel.setText ("Voices", juce::dontSendNotification);
+    voiceCountLabel.setJustificationType (juce::Justification::centred);
+    voiceCountLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
+    voiceCountLabel.setFont (juce::FontOptions { 15.0f, juce::Font::bold });
+    addAndMakeVisible (voiceCountLabel);
 
-    configureEditableValueLabel (glideValueLabel);
-    glideValueLabel.onTextChange = [this]
-    {
-        commitEditableValueLabel (glideValueLabel, voxchord::ParameterIDs::glide, EditableValueFormat::percent);
-    };
-    addAndMakeVisible (glideValueLabel);
+    for (auto voices = 1; voices <= 8; ++voices)
+        voiceCountBox.addItem (juce::String (voices), voices);
+
+    addAndMakeVisible (voiceCountBox);
+
+    glideLabel.setText ("Glide", juce::dontSendNotification);
+    glideLabel.setJustificationType (juce::Justification::centred);
+    glideLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
+    glideLabel.setFont (juce::FontOptions { 15.0f, juce::Font::bold });
+    addAndMakeVisible (glideLabel);
+
+    for (auto index = 0; index < numGlideChoices; ++index)
+        glideBox.addItem (glideChoiceNames[static_cast<size_t> (index)], index + 1);
+
+    // `glide` stays a continuous 0..1 parameter (ID compatibility), so the box
+    // is synced by hand instead of through a ComboBoxAttachment.
+    glideBox.onChange = [this] { commitGlideBoxSelection(); };
+    addAndMakeVisible (glideBox);
 
     configureEditableValueLabel (characterAmountValueLabel);
     characterAmountValueLabel.onTextChange = [this]
@@ -510,8 +525,8 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (dryWetValueLabel);
 
-    voiceCountAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountSlider);
-    glideAttachment = std::make_unique<SliderAttachment> (state, voxchord::ParameterIDs::glide, glideSlider);
+    voiceCountAttachment = std::make_unique<ComboBoxAttachment> (state, voxchord::ParameterIDs::voiceCount, voiceCountBox);
+    updateGlideBoxFromParameter();
     characterAmountAttachment = std::make_unique<SliderAttachment> (state,
                                                                     voxchord::ParameterIDs::character,
                                                                     characterAmountSlider);
@@ -539,7 +554,11 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
                                                                     characterModeBox);
 
     inputSourceLabel.setText ("Input", juce::dontSendNotification);
-    inputSourceLabel.setJustificationType (juce::Justification::centredRight);
+    // Left-justified and sized to the text, so its x is exactly the text's left
+    // edge (the High Quality toggle is aligned to it).
+    inputSourceLabel.setJustificationType (juce::Justification::centredLeft);
+    inputSourceLabel.setFont (juce::FontOptions { 14.0f });
+    inputSourceLabel.setBorderSize (juce::BorderSize<int> (0));
     inputSourceLabel.setColour (juce::Label::textColourId, juce::Colour::fromRGB (210, 220, 222));
     addAndMakeVisible (inputSourceLabel);
 
@@ -627,8 +646,6 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
             slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
     };
 
-    setDoubleClickReset (voiceCountSlider, voxchord::ParameterIDs::voiceCount);
-    setDoubleClickReset (glideSlider, voxchord::ParameterIDs::glide);
     setDoubleClickReset (characterAmountSlider, voxchord::ParameterIDs::character);
     setDoubleClickReset (spreadSlider, voxchord::ParameterIDs::spread);
     setDoubleClickReset (dryWetSlider, voxchord::ParameterIDs::dryWet);
@@ -645,9 +662,82 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (panicButton);
 
+    voiceCountBox.setTooltip ("Number of harmony voices (1-8).");
+    glideBox.setTooltip ("Pitch glide between MIDI notes. None = instant, Strong = slowest.");
+    characterModeBox.setTooltip ("Character type: Warm (dark), Bright (airy), Vowel (moving formants), Digital (lo-fi).");
+    characterAmountSlider.setTooltip ("How strongly the selected Character type is applied.");
+    spreadSlider.setTooltip ("Stereo spread of the harmony voices.");
+    dryWetSlider.setTooltip ("Balance between the dry input and the wet choir.");
+    inputGainSlider.setTooltip ("Gain applied to the input before pitch analysis.");
+    outputSlider.setTooltip ("Final output gain.");
+    leadTuneButton.setTooltip ("Auto Tune: retunes the dry lead to the nearest chromatic note.");
+    monoOutputButton.setTooltip ("Sum the stereo output to mono.");
+    psolaButton.setTooltip ("High Quality harmony engine (PSOLA). Uncheck for the lighter Classic shifter.");
+    inputSourceBox.setTooltip ("Standalone only: which audio input feeds the plugin.");
+    panicButton.setTooltip ("Stop all voices, clear stuck notes and reset clip indicators.");
+    inputMeter.setTooltip ("Input level. Click to clear the clip indicator.");
+    outputLeftMeter.setTooltip ("Output level (left). Click to clear the clip indicator.");
+    outputRightMeter.setTooltip ("Output level (right). Click to clear the clip indicator.");
+
     updateEditableValueLabels();
     setSize (860, 540);
     startTimerHz (30);
+}
+
+int VoxChordAudioProcessorEditor::textWidthFor (const juce::String& text, float fontHeight, bool bold)
+{
+    juce::GlyphArrangement arrangement;
+    arrangement.addLineOfText (juce::Font (juce::FontOptions { fontHeight,
+                                                               bold ? juce::Font::bold : juce::Font::plain }),
+                               text,
+                               0.0f,
+                               0.0f);
+    return juce::roundToInt (std::ceil (arrangement.getBoundingBox (0, -1, true).getWidth()));
+}
+
+void VoxChordAudioProcessorEditor::commitGlideBoxSelection()
+{
+    const auto index = glideBox.getSelectedId() - 1;
+
+    if (index < 0 || index >= numGlideChoices)
+        return;
+
+    if (auto* parameter = dynamic_cast<juce::RangedAudioParameter*> (
+            processorRef.getValueTreeState().getParameter (voxchord::ParameterIDs::glide)))
+    {
+        const auto normalised = parameter->convertTo0to1 (glideChoiceValues[static_cast<size_t> (index)]);
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost (normalised);
+        parameter->endChangeGesture();
+    }
+}
+
+void VoxChordAudioProcessorEditor::updateGlideBoxFromParameter()
+{
+    auto* raw = processorRef.getValueTreeState().getRawParameterValue (voxchord::ParameterIDs::glide);
+
+    if (raw == nullptr)
+        return;
+
+    // Host automation can land between the three presets; show the nearest one
+    // without writing back to the parameter.
+    const auto value = raw->load (std::memory_order_relaxed);
+    auto nearest = 0;
+    auto smallestDistance = std::abs (value - glideChoiceValues[0]);
+
+    for (auto index = 1; index < numGlideChoices; ++index)
+    {
+        const auto distance = std::abs (value - glideChoiceValues[static_cast<size_t> (index)]);
+
+        if (distance < smallestDistance)
+        {
+            smallestDistance = distance;
+            nearest = index;
+        }
+    }
+
+    if (glideBox.getSelectedId() != nearest + 1)
+        glideBox.setSelectedId (nearest + 1, juce::dontSendNotification);
 }
 
 VoxChordAudioProcessorEditor::~VoxChordAudioProcessorEditor()
@@ -704,10 +794,10 @@ void VoxChordAudioProcessorEditor::resized()
     auto bounds = getLocalBounds().reduced (26);
 
     auto header = bounds.removeFromTop (74);
-    // Utility column widened by 20 px (taken from the logo column, not the gain
-    // column) so the "High Quality" toggle label fits (directions/0709_1.md).
-    auto logoArea = header.removeFromLeft (200).reduced (8, 4);
-    auto utilityArea = header.removeFromRight (316).reduced (8, 5);
+    // The gain sliders and the three toggles form one block that sits left of a
+    // fixed right-hand column (Input Source box on top, PANIC below, same size).
+    auto logoArea = header.removeFromLeft (176).reduced (8, 4);
+    auto utilityArea = header.removeFromRight (358).reduced (8, 5);
     auto gainArea = header.reduced (8, 4);
 
     titleLabel.setBounds (logoArea.removeFromTop (36));
@@ -724,18 +814,42 @@ void VoxChordAudioProcessorEditor::resized()
     outputValueLabel.setBounds (outputRow.removeFromRight (76).reduced (2, 3));
     outputSlider.setBounds (outputRow.reduced (4, 6));
 
+    constexpr auto rightControlWidth = 88;
+    constexpr auto rightControlHeight = 26;
+    constexpr auto toggleFontHeight = 15.0f;
+
+    // Toggle geometry follows LookAndFeel_V4::drawToggleButton: the tick box is
+    // fontSize * 1.1 wide and the text starts 10 px after it, so a button sized
+    // to tick + 10 + textWidth ends exactly where its text ends.
+    const auto tickWidth = juce::roundToInt (juce::jmin (toggleFontHeight, rightControlHeight * 0.75f) * 1.1f);
+    const auto toggleWidthFor = [tickWidth, toggleFontHeight] (const juce::String& text)
+    {
+        return tickWidth + 10 + textWidthFor (text, toggleFontHeight, false) + 2;
+    };
+
+    const auto inputLabelWidth = textWidthFor ("Input", 14.0f, false) + 8;
+
     auto utilityTop = utilityArea.removeFromTop (30);
-    auto inputRow = utilityTop.removeFromRight (132);
-    inputSourceLabel.setBounds (inputRow.removeFromLeft (42));
-    inputSourceBox.setBounds (inputRow.reduced (0, 1));
-    leadTuneButton.setBounds (utilityTop.reduced (4, 1));
+    auto inputBoxArea = utilityTop.removeFromRight (rightControlWidth);
+    inputSourceBox.setBounds (inputBoxArea.withSizeKeepingCentre (rightControlWidth, rightControlHeight));
+    auto inputLabelArea = utilityTop.removeFromRight (inputLabelWidth);
+    inputSourceLabel.setBounds (inputLabelArea);
+    leadTuneButton.setBounds (utilityTop.getX(),
+                              utilityTop.getY() + (utilityTop.getHeight() - rightControlHeight) / 2,
+                              toggleWidthFor ("Auto Tune"),
+                              rightControlHeight);
+
+    // "High Quality" text ends exactly at the left edge of the "Input" text.
+    const auto inputTextLeft = inputLabelArea.getX();
 
     utilityArea.removeFromTop (4);
-    auto panicArea = utilityArea.removeFromRight (86);
-    panicButton.setBounds (panicArea.reduced (0, 1));
-    auto psolaArea = utilityArea.removeFromRight (116);
-    psolaButton.setBounds (psolaArea.reduced (4, 2));
-    monoOutputButton.setBounds (utilityArea.reduced (4, 2));
+    auto panicArea = utilityArea.removeFromRight (rightControlWidth);
+    panicButton.setBounds (panicArea.withSizeKeepingCentre (rightControlWidth, rightControlHeight));
+
+    const auto psolaWidth = toggleWidthFor ("High Quality");
+    const auto toggleY = utilityArea.getY() + (utilityArea.getHeight() - rightControlHeight) / 2;
+    psolaButton.setBounds (inputTextLeft + 2 - psolaWidth, toggleY, psolaWidth, rightControlHeight);
+    monoOutputButton.setBounds (utilityArea.getX(), toggleY, toggleWidthFor ("Mono Out"), rightControlHeight);
 
     bounds.removeFromTop (18);
 
@@ -748,8 +862,18 @@ void VoxChordAudioProcessorEditor::resized()
     const auto characterWidth = juce::jlimit (250, 320, controlsTop.getWidth() / 3);
     const auto knobWidth = (controlsTop.getWidth() - characterWidth) / 4;
 
-    layoutEditableSlider (voiceCountSlider, voiceCountLabel, voiceCountValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
-    layoutEditableSlider (glideSlider, glideLabel, glideValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
+    // Voices and Glide are stacked dropdowns in a single column; the knob slot
+    // they used to occupy becomes even margin on both sides of the row.
+    const auto contentWidth = characterWidth + 3 * knobWidth;
+    controlsTop.removeFromLeft ((controlsTop.getWidth() - contentWidth) / 2);
+
+    auto selectorColumn = controlsTop.removeFromLeft (knobWidth).reduced (5);
+    const auto selectorBoxWidth = juce::jmin (selectorColumn.getWidth(), 120);
+    auto voicesArea = selectorColumn.removeFromTop (selectorColumn.getHeight() / 2);
+    voiceCountLabel.setBounds (voicesArea.removeFromTop (24));
+    voiceCountBox.setBounds (voicesArea.withSizeKeepingCentre (selectorBoxWidth, 30));
+    glideLabel.setBounds (selectorColumn.removeFromTop (24));
+    glideBox.setBounds (selectorColumn.withSizeKeepingCentre (selectorBoxWidth, 30));
 
     auto characterOuter = controlsTop.removeFromLeft (characterWidth).reduced (5, 0);
     characterCardBounds = characterOuter;
@@ -764,7 +888,7 @@ void VoxChordAudioProcessorEditor::resized()
     characterAmountSlider.setBounds (characterGroup);
 
     layoutEditableSlider (spreadSlider, spreadLabel, spreadValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
-    layoutEditableSlider (dryWetSlider, dryWetLabel, dryWetValueLabel, controlsTop.reduced (5));
+    layoutEditableSlider (dryWetSlider, dryWetLabel, dryWetValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
 
     auto level = bottom.removeFromRight (250).reduced (12);
     bottom.removeFromRight (4);
@@ -805,6 +929,7 @@ void VoxChordAudioProcessorEditor::timerCallback()
     updateMeters();
     updatePitchDebug();
     updateEditableValueLabels();
+    updateGlideBoxFromParameter();
 }
 
 void VoxChordAudioProcessorEditor::configureSlider (juce::Slider& slider,
@@ -896,8 +1021,6 @@ void VoxChordAudioProcessorEditor::updateEditableValueLabels()
 {
     if (inputGainValueLabel.isBeingEdited()
         || outputValueLabel.isBeingEdited()
-        || voiceCountValueLabel.isBeingEdited()
-        || glideValueLabel.isBeingEdited()
         || spreadValueLabel.isBeingEdited()
         || dryWetValueLabel.isBeingEdited()
         || characterAmountValueLabel.isBeingEdited())
@@ -909,8 +1032,6 @@ void VoxChordAudioProcessorEditor::updateEditableValueLabels()
 
     updateEditableValueLabel (inputGainValueLabel, voxchord::ParameterIDs::inputGainDb, EditableValueFormat::decibels);
     updateEditableValueLabel (outputValueLabel, voxchord::ParameterIDs::outputLevel, EditableValueFormat::decibels);
-    updateEditableValueLabel (voiceCountValueLabel, voxchord::ParameterIDs::voiceCount, EditableValueFormat::integer);
-    updateEditableValueLabel (glideValueLabel, voxchord::ParameterIDs::glide, EditableValueFormat::percent);
     updateEditableValueLabel (characterAmountValueLabel, voxchord::ParameterIDs::character, EditableValueFormat::percent);
     updateEditableValueLabel (spreadValueLabel, voxchord::ParameterIDs::spread, EditableValueFormat::percent);
     updateEditableValueLabel (dryWetValueLabel, voxchord::ParameterIDs::dryWet, EditableValueFormat::percent);

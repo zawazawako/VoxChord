@@ -1,5 +1,35 @@
 # VoxChord Test Log
 
+## 0.4.2 UI pass 2: tooltips, header alignment, Voices/Glide dropdowns
+
+Date: 2026-07-10
+
+Scope: Branch `exp/d3-psola`. GUI-only iteration (no DSP changes, no parameter IDs added/changed) via the `vst-ui` capture loop. VERSION `0.4.1` -> `0.4.2`.
+
+Changes (`PluginEditor.h/.cpp`):
+
+- **Tooltips**: added a `TooltipWindow` (600 ms delay) and hover text for every knob, dropdown, toggle, PANIC and the three meters. `VerticalMeter` now derives from `SettableTooltipClient`.
+- **Header alignment**: the gain sliders + Auto Tune / Mono Out / High Quality now form one block that sits left of a fixed right-hand column. The logo column shrank 200 -> 176 px and the utility column grew 316 -> 358 px, so the block moved left without narrowing the gain sliders much. The "High Quality" toggle is sized to `tick + 10 + textWidth` (matching `LookAndFeel_V4::drawToggleButton`) and positioned so its **text right edge lands exactly on the left edge of the "Input" text**; the `Input` label's default 5 px `Label` border was zeroed so its x really is the text's left edge.
+- **Input Source box and PANIC**: both are now 88 x 26 and right-aligned in the same column, so they share size and x.
+- **Voices / Glide are dropdowns**, stacked vertically in one column; the knob slot they freed becomes symmetric margin on both sides of the Harmony row (Dry/Wet keeps a fixed cell so it stays centred). Voices uses a normal `ComboBoxAttachment` (8 items map exactly onto the `1..8` int parameter). **Glide has no attachment**: `glide` stays a continuous `0.0-1.0` float for ID/state compatibility, so the box writes `0.0 / 0.15 / 0.50` on change and, on the editor timer, displays the nearest entry to the current parameter value without writing back (host automation can still set intermediate values).
+- Removed the now-unused `voiceCountValueLabel` / `glideValueLabel` numeric entry boxes and their slider attachments.
+
+Verification (agent, `vst-ui` capture loop):
+
+- Release capture pass 1 (`ui-check-05`): layout correct, but "High Quality" text stopped ~6 px short of "Input" (the `Label` border) and Dry/Wet absorbed the leftover row width.
+- Release capture pass 2 (`ui-check-06`, final): text edges coincide; Input box and PANIC match in size and x; Voices/Glide stacked; Harmony row margins symmetric; no clipping or overlap.
+- Debug capture (`ui-check-08`): same header, D1 row and MIDI counters still Debug-only, nothing regressed.
+- Plugin Debug + Release built (VST3 + Standalone), exit 0, only pre-existing warnings.
+
+Investigated and cleared (not a regression): the Standalone showed `Auto Tune` unchecked after this change although the 0.4.1 capture showed it checked. Rebuilding **0.4.1 from a stash** reproduced the unchecked state with the same settings file (`ui-check-07`), proving the Standalone's saved session had changed between runs, not the code. Nothing in this diff writes `leadTuneEnabled`.
+
+Not verifiable from a static capture (user verification pending):
+
+1. Tooltip text appears on hover, is readable and not clipped, in both Standalone and a DAW.
+2. Voices dropdown changes the voice count; Glide dropdown applies 0% / 15% / 50%; automating `glide` to an intermediate value shows the nearest entry without snapping the parameter.
+3. Header alignment at DAW/OS display scalings other than the captured one.
+4. Existing sessions restore correctly now that Voices/Glide are dropdowns (parameter IDs are unchanged, so they should).
+
 ## 0.4.1 UI pass: Release cleanup, better level meters, usability tweaks
 
 Date: 2026-07-10

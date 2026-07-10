@@ -29,6 +29,10 @@ private:
     void updateMidiState();
     void updateMeters();
     void updatePitchDebug();
+    void updateGlideBoxFromParameter();
+    void commitGlideBoxSelection();
+    // Width of `text` when drawn at `fontHeight`, used to align header labels.
+    static int textWidthFor (const juce::String& text, float fontHeight, bool bold);
     void configureEditableValueLabel (juce::Label& label);
     void updateEditableValueLabels();
     enum class EditableValueFormat
@@ -46,7 +50,8 @@ private:
     static juce::String formatPercentValue (float value);
     static juce::String formatIntegerValue (float value);
 
-    class VerticalMeter final : public juce::Component
+    class VerticalMeter final : public juce::Component,
+                                public juce::SettableTooltipClient
     {
     public:
         void setTitle (const juce::String& newTitle);
@@ -93,8 +98,8 @@ private:
 
     VoxChordAudioProcessor& processorRef;
 
-    juce::Slider voiceCountSlider;
-    juce::Slider glideSlider;
+    juce::ComboBox voiceCountBox;
+    juce::ComboBox glideBox;
     juce::Slider characterAmountSlider;
     juce::Slider spreadSlider;
     juce::Slider dryWetSlider;
@@ -111,8 +116,6 @@ private:
     juce::Label outputLabel;
     juce::Label inputGainValueLabel;
     juce::Label outputValueLabel;
-    juce::Label voiceCountValueLabel;
-    juce::Label glideValueLabel;
     juce::Label characterAmountValueLabel;
     juce::Label spreadValueLabel;
     juce::Label dryWetValueLabel;
@@ -136,10 +139,10 @@ private:
     juce::ToggleButton monoOutputButton { "Mono Out" };
     juce::ToggleButton psolaButton { "High Quality" };
     juce::TextButton panicButton { "PANIC" };
+    juce::TooltipWindow tooltipWindow { this, 600 };
     juce::Rectangle<int> characterCardBounds;
 
-    std::unique_ptr<SliderAttachment> voiceCountAttachment;
-    std::unique_ptr<SliderAttachment> glideAttachment;
+    std::unique_ptr<ComboBoxAttachment> voiceCountAttachment;
     std::unique_ptr<SliderAttachment> characterAmountAttachment;
     std::unique_ptr<SliderAttachment> spreadAttachment;
     std::unique_ptr<SliderAttachment> dryWetAttachment;
