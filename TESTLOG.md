@@ -1,5 +1,40 @@
 # VoxChord Test Log
 
+## 0.5.0 GUI quality pass: LookAndFeel, shadow-based depth, melatonin modules
+
+Date: 2026-07-10
+
+Scope: `main`. GUI + build-system only; no DSP changes and no parameter IDs added, renamed or removed. Adds the two melatonin modules as dependencies and reworks the editor around a single LookAndFeel. VERSION `0.4.3` -> `0.5.0` (beta).
+
+Dependencies:
+
+- `melatonin_blur` and `melatonin_inspector` are now cloned as siblings of the project (alongside `JUCE`) and wired in `CMakeLists.txt`. Both are MIT; notices added in the new `THIRD_PARTY_NOTICES.md`. `awesome-juce` was consulted but contributes no code.
+- Two problems in the initial dependency wiring were found and fixed before any GUI work: (1) a stray `)` after `VoxChord_DEBUG_PLUGIN_NAME=1` made `target_compile_definitions` unterminated, so **CMake configure failed outright**; (2) `melatonin_blur` was added with a bare `juce_add_module`, which skips the module's own `MELATONIN_BLUR_USE_DIRECT2D` definition and silently disables the Windows Direct2D path — switched to `add_subdirectory`, as the upstream repo documents.
+- `melatonin_inspector` links into Debug builds only (`$<$<CONFIG:Debug>:melatonin_inspector>` plus a `VoxChord_ENABLE_INSPECTOR` define) and is toggled with `F12`. Verified by build output: `melatonin_inspector.cpp` compiles in Debug and not in Release.
+
+Changes:
+
+- **New `Source/VoxChordLookAndFeel.h/.cpp`**: palette (`voxchord::ui`) and drawing for rotary knobs, linear sliders, combo boxes, toggles and buttons. Toggle metrics deliberately mirror `LookAndFeel_V4` so the header text-edge alignment from 0.4.2 still holds.
+- **Depth discipline**: section cards lost their teal borders and are now raised with cached drop shadows plus a hairline; the Character group, meter wells, keyboard bed and value fields are sunk with inner shadows.
+- **Accent discipline**: teal now appears only on value arcs, slider fills, toggle ticks, held keys, section-title marks and meter fills. Meter frames are a hairline until clipping, which turns them red.
+- **Typography**: three tiers, with letterspaced uppercase section titles preceded by an accent tick.
+- **Hierarchy**: Dry/Wet is drawn larger than the supporting Spread knob.
+- Dropdown outlines strengthened (white 10% -> 30%, 1.4 px) so `Input` / `Voices` / `Glide` / `Character Type` read as fields.
+- Held black keys now use the same accent as white keys.
+- Performance: all shadows are members; the background gradient and card paths are built in `resized()`. `paint()` allocates nothing.
+
+Verification (agent, `vst-ui` capture loop, 3 captures):
+
+- Debug and Release built (VST3 + Standalone), exit 0, no new warnings.
+- Release capture confirms: cards read as raised, wells as sunken, no clipping/overlap, dropdown outlines clearly visible, hairline meter frames, typography tiers legible, header alignment preserved.
+- Final proposal images kept in `directions/ui-preview/` (git-ignored).
+
+Not verifiable from a static capture (user verification pending):
+
+1. Held-note colour on the mini keyboard (needs MIDI input): black and white keys should now light in the same accent.
+2. Knob drag feel and hover states; `F12` inspector toggle in a Debug build.
+3. Idle CPU with the new shadows (expected unchanged: everything is cached), and DAW-hosted rendering/scaling.
+
 ## 0.4.3 Remove tooltips
 
 Date: 2026-07-10

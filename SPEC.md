@@ -381,6 +381,20 @@ Window:
 - Size: `860 x 540`.
 - Single-screen, dark, live-oriented layout.
 - Timer refresh rate: `30 Hz`.
+- All control drawing is centralised in `Source/VoxChordLookAndFeel.h/.cpp`. The palette and the two corner radii (`cardCornerRadius` 16, `controlCornerRadius` 7) live in `voxchord::ui` and are the single source of truth.
+
+Visual system (0.5.0):
+
+- Depth carries meaning: **drop shadows** mean raised (section cards, knob bodies, PANIC), **inner shadows** mean sunken (meter wells, keyboard bed, the Character group, value fields). Cards have no coloured borders, only a hairline.
+- The accent colour is reserved for value and on-state: knob value arcs, slider fills, toggle ticks, held keyboard notes, section-title marks, and the meter fill. Static outlines use white at low alpha. Clip state uses the danger colour.
+- Dropdown fields (`Input`, `Voices`, `Glide`, `Character Type`) use a stronger outline than static panels, so they read as clickable.
+- Typography has three tiers: letterspaced uppercase section titles, mid-tone control labels, high-contrast values.
+- Held MIDI notes highlight black and white keys with the same accent colour.
+- Performance: shadows are cached members, and the background gradient plus all card paths are built in `resized()`. `paint()` only blits and fills prepared geometry; nothing is allocated per frame.
+
+Development tooling:
+
+- `melatonin_inspector` is linked into Debug builds only (`VoxChord_ENABLE_INSPECTOR`), and toggled with `F12`. It is absent from Release binaries.
 
 Header:
 

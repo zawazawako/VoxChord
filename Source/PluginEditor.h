@@ -3,6 +3,11 @@
 #include <memory>
 
 #include "PluginProcessor.h"
+#include "VoxChordLookAndFeel.h"
+
+#if VoxChord_ENABLE_INSPECTOR
+ #include "melatonin_inspector/melatonin_inspector.h"
+#endif
 
 class VoxChordAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                            private juce::Timer
@@ -13,6 +18,10 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+
+#if VoxChord_ENABLE_INSPECTOR
+    bool keyPressed (const juce::KeyPress& key) override;
+#endif
 
 private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -77,6 +86,7 @@ private:
         float peakHold = 0.0f;     // peak-hold marker, 0..1
         int peakHoldFrames = 0;
         bool clipped = false;
+        melatonin::InnerShadow wellShadow { juce::Colours::black.withAlpha (0.55f), 6, { 0, 2 } };
     };
 
     class MiniKeyboard final : public juce::Component
@@ -93,9 +103,25 @@ private:
         bool isActive (int midiNote) const noexcept;
 
         voxchord::MidiVoiceState::NoteSnapshot notes {};
+        melatonin::InnerShadow wellShadow { juce::Colours::black.withAlpha (0.5f), 8, { 0, 3 } };
     };
 
     VoxChordAudioProcessor& processorRef;
+
+    // LookAndFeel + cached card geometry/shadows (built once in resized(),
+    // painted cheaply per frame — ui-quality-guide.md sections 1/2).
+    voxchord::VoxChordLookAndFeel lookAndFeel;
+    std::array<juce::Path, 4> cardPaths;                  // header, harmony, midi, level
+    std::array<juce::Rectangle<int>, 4> cardRects;
+    std::array<melatonin::DropShadow, 4> cardShadows {
+        melatonin::DropShadow { juce::Colours::black.withAlpha (0.40f), 14, { 0, 5 } },
+        melatonin::DropShadow { juce::Colours::black.withAlpha (0.40f), 14, { 0, 5 } },
+        melatonin::DropShadow { juce::Colours::black.withAlpha (0.40f), 14, { 0, 5 } },
+        melatonin::DropShadow { juce::Colours::black.withAlpha (0.40f), 14, { 0, 5 } },
+    };
+    juce::Path characterCardPath;
+    melatonin::InnerShadow characterCardShadow { juce::Colours::black.withAlpha (0.45f), 10, { 0, 3 } };
+    juce::ColourGradient backgroundGradient;
 
     juce::ComboBox voiceCountBox;
     juce::ComboBox glideBox;
@@ -154,6 +180,10 @@ private:
 
     uint32_t lastSeenMidiActivityCounter = 0;
     bool isUpdatingEditableValueLabels = false;
+
+#if VoxChord_ENABLE_INSPECTOR
+    melatonin::Inspector inspector { *this, false }; // toggled with F12, Debug only
+#endif
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VoxChordAudioProcessorEditor)
 };

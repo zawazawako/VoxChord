@@ -1,8 +1,15 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(VoxChord VERSION 0.4.3)
+project(VoxChord VERSION 0.5.0)
 
 add_subdirectory(../JUCE JUCE)
+
+# GUI dependencies, cloned as siblings of this project (see README.md).
+# add_subdirectory (rather than a bare juce_add_module) is what each repo
+# documents: it registers the JUCE module *and* sets its own compile
+# definitions, e.g. MELATONIN_BLUR_USE_DIRECT2D on Windows.
+add_subdirectory(../melatonin_blur melatonin_blur)
+add_subdirectory(../melatonin_inspector melatonin_inspector)
 
 juce_add_plugin(VoxChord
     COMPANY_NAME "VoxChord"
@@ -31,6 +38,8 @@ target_sources(VoxChord
         Source/SimpleChoirEngine.cpp
         Source/SimpleChoirEngine.h
         Source/VoxChordDebugPluginName.h
+        Source/VoxChordLookAndFeel.cpp
+        Source/VoxChordLookAndFeel.h
         Source/VoxChordParameters.cpp
         Source/VoxChordParameters.h)
 
@@ -40,7 +49,8 @@ target_compile_definitions(VoxChord
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
-        $<$<CONFIG:Debug>:VoxChord_DEBUG_PLUGIN_NAME=1>)
+        $<$<CONFIG:Debug>:VoxChord_DEBUG_PLUGIN_NAME=1>
+        $<$<CONFIG:Debug>:VoxChord_ENABLE_INSPECTOR=1>)
 
 if(TARGET VoxChord_VST3)
     target_compile_options(VoxChord_VST3
@@ -57,6 +67,9 @@ endif()
 target_link_libraries(VoxChord
     PRIVATE
         juce::juce_audio_utils
+        melatonin_blur
+        # Inspector is a development tool: Debug builds only.
+        $<$<CONFIG:Debug>:melatonin_inspector>
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

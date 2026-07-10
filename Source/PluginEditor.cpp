@@ -16,25 +16,12 @@ namespace
     constexpr float glideChoiceValues[numGlideChoices] = { 0.0f, 0.15f, 0.50f };
     const juce::String glideChoiceNames[numGlideChoices] = { "None", "Weak", "Strong" };
 
-    juce::Colour backgroundColour()
-    {
-        return juce::Colour::fromRGB (12, 15, 18);
-    }
-
-    juce::Colour panelColour()
-    {
-        return juce::Colour::fromRGB (28, 34, 39);
-    }
-
-    juce::Colour accentColour()
-    {
-        return juce::Colour::fromRGB (146, 214, 197);
-    }
-
-    juce::Colour dangerColour()
-    {
-        return juce::Colour::fromRGB (236, 94, 78);
-    }
+    // Palette lives in VoxChordLookAndFeel.h (voxchord::ui); these forwarders
+    // keep the many existing call sites in this file unchanged.
+    juce::Colour backgroundColour() { return voxchord::ui::background(); }
+    juce::Colour panelColour()      { return voxchord::ui::panel(); }
+    juce::Colour accentColour()     { return voxchord::ui::accent(); }
+    juce::Colour dangerColour()     { return voxchord::ui::danger(); }
 
     juce::String formatPeak (float gain)
     {
@@ -275,8 +262,12 @@ void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions { 13.5f, juce::Font::bold });
     g.drawFittedText (title, labelArea.toNearestInt(), juce::Justification::centred, 1);
 
-    g.setColour (juce::Colour::fromRGB (20, 25, 29));
-    g.fillRoundedRectangle (meterArea, 5.0f);
+    // Recessed meter well (inner shadow = sunken display area).
+    juce::Path wellPath;
+    wellPath.addRoundedRectangle (meterArea, 5.0f);
+    g.setColour (voxchord::ui::well());
+    g.fillPath (wellPath);
+    wellShadow.render (g, wellPath);
 
     const auto yForNormalized = [&meterArea] (float value)
     {
@@ -329,7 +320,9 @@ void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
         g.fillRoundedRectangle (meterArea.withHeight (5.0f), 2.0f);
     }
 
-    g.setColour (clipped ? dangerColour() : accentColour().withAlpha (0.65f));
+    // Hairline frame normally; the accent/danger colour is reserved for the
+    // clip state so it reads as an alarm, not decoration.
+    g.setColour (clipped ? dangerColour() : juce::Colours::white.withAlpha (0.12f));
     g.drawRoundedRectangle (meterArea, 5.0f, 1.2f);
 
     g.setColour (clipped ? dangerColour() : juce::Colour::fromRGB (135, 155, 158));
@@ -388,8 +381,12 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
         return whiteIndex;
     };
 
-    g.setColour (juce::Colour::fromRGB (14, 18, 22));
-    g.fillRoundedRectangle (bounds, 6.0f);
+    // Recessed key bed.
+    juce::Path wellPath;
+    wellPath.addRoundedRectangle (bounds.expanded (4.0f, 3.0f), 8.0f);
+    g.setColour (voxchord::ui::well());
+    g.fillPath (wellPath);
+    wellShadow.render (g, wellPath);
 
     for (auto note = firstNote; note <= lastNote; ++note)
     {
@@ -413,7 +410,9 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
         const auto x = bounds.getX() + static_cast<float> (whiteIndexForNote (note)) * whiteKeyWidth;
         auto key = juce::Rectangle<float> { x - blackWidth * 0.5f, bounds.getY(), blackWidth, blackHeight };
         const auto active = isActive (note);
-        g.setColour (active ? juce::Colour::fromRGB (223, 234, 150) : juce::Colour::fromRGB (31, 36, 39));
+        // Held notes use the same accent on black and white keys, so a chord
+        // reads as one colour rather than two.
+        g.setColour (active ? accentColour() : juce::Colour::fromRGB (31, 36, 39));
         g.fillRoundedRectangle (key, 2.5f);
         g.setColour (juce::Colour::fromRGB (8, 11, 13));
         g.drawRoundedRectangle (key, 2.5f, 0.8f);
@@ -434,6 +433,12 @@ void VoxChordAudioProcessorEditor::MiniKeyboard::paint (juce::Graphics& g)
 VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p)
 {
+    setLookAndFeel (&lookAndFeel);
+
+#if VoxChord_ENABLE_INSPECTOR
+    setWantsKeyboardFocus (true); // F12 toggles the melatonin inspector (Debug only)
+#endif
+
     auto& state = processorRef.getValueTreeState();
 
     titleLabel.setText ("VoxChord", juce::dontSendNotification);
@@ -726,54 +731,85 @@ void VoxChordAudioProcessorEditor::updateGlideBoxFromParameter()
 VoxChordAudioProcessorEditor::~VoxChordAudioProcessorEditor()
 {
     stopTimer();
+    setLookAndFeel (nullptr);
 }
+
+#if VoxChord_ENABLE_INSPECTOR
+bool VoxChordAudioProcessorEditor::keyPressed (const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress::F12Key)
+    {
+        inspector.setVisible (! inspector.isVisible());
+        return true;
+    }
+
+    return false;
+}
+#endif
 
 void VoxChordAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (backgroundColour());
+    // Everything here is pre-built in resized(): paint only blits cached
+    // shadows, fills prepared paths and draws text (ui-quality-guide.md).
+    g.setGradientFill (backgroundGradient);
+    g.fillAll();
 
-    auto bounds = getLocalBounds().reduced (18);
-    auto header = bounds.removeFromTop (82);
-    bounds.removeFromTop (14);
-    auto bottom = bounds.removeFromBottom (174);
-    bounds.removeFromBottom (8);
-    auto harmony = bounds;
-    auto level = bottom.removeFromRight (266);
-    bottom.removeFromRight (4);
-    auto midi = bottom;
-
-    g.setColour (panelColour());
-    g.fillRoundedRectangle (header.toFloat(), 16.0f);
-    g.fillRoundedRectangle (harmony.toFloat(), 18.0f);
-    g.fillRoundedRectangle (midi.toFloat(), 18.0f);
-    g.fillRoundedRectangle (level.toFloat(), 18.0f);
-
-    g.setColour (accentColour().withAlpha (0.55f));
-    g.drawRoundedRectangle (harmony.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (midi.toFloat(), 18.0f, 1.5f);
-    g.drawRoundedRectangle (level.toFloat(), 18.0f, 1.5f);
+    for (size_t index = 0; index < cardPaths.size(); ++index)
+    {
+        cardShadows[index].render (g, cardPaths[index]);
+        g.setColour (panelColour());
+        g.fillPath (cardPaths[index]);
+        g.setColour (voxchord::ui::hairline());
+        g.strokePath (cardPaths[index], juce::PathStrokeType (1.0f));
+    }
 
     if (! characterCardBounds.isEmpty())
     {
-        auto characterCard = characterCardBounds.toFloat();
-        g.setColour (juce::Colour::fromRGB (21, 27, 31));
-        g.fillRoundedRectangle (characterCard, 10.0f);
-        g.setColour (accentColour().withAlpha (0.42f));
-        g.drawRoundedRectangle (characterCard, 10.0f, 1.2f);
+        // Recessed inner card: the Character group sits *into* the Harmony
+        // panel (inner shadow = sunken, per the drop/inner discipline).
+        g.setColour (voxchord::ui::panelRecessed());
+        g.fillPath (characterCardPath);
+        characterCardShadow.render (g, characterCardPath);
 
         auto titleArea = characterCardBounds.reduced (14, 8).removeFromTop (20);
-        g.setColour (juce::Colour::fromRGB (220, 232, 231));
-        g.setFont (juce::FontOptions { 15.0f, juce::Font::bold });
-        g.drawFittedText ("Character", titleArea, juce::Justification::centred, 1);
+        auto titleFont = juce::Font { juce::FontOptions { 12.5f, juce::Font::bold } };
+        titleFont.setExtraKerningFactor (0.12f);
+        g.setColour (voxchord::ui::textLow());
+        g.setFont (titleFont);
+        g.drawFittedText ("CHARACTER", titleArea, juce::Justification::centred, 1);
     }
 
-    layoutSectionTitle (g, harmony, "Harmony");
-    layoutSectionTitle (g, midi, "MIDI");
-    layoutSectionTitle (g, level, "Level");
+    layoutSectionTitle (g, cardRects[1], "Harmony");
+    layoutSectionTitle (g, cardRects[2], "MIDI");
+    layoutSectionTitle (g, cardRects[3], "Level");
 }
 
 void VoxChordAudioProcessorEditor::resized()
 {
+    // Cache the background gradient and the card geometry for paint().
+    backgroundGradient = juce::ColourGradient::vertical (voxchord::ui::backgroundTop(), 0.0f,
+                                                         voxchord::ui::background(),
+                                                         static_cast<float> (getHeight()));
+
+    {
+        auto cardArea = getLocalBounds().reduced (18);
+        cardRects[0] = cardArea.removeFromTop (82);
+        cardArea.removeFromTop (14);
+        auto cardBottom = cardArea.removeFromBottom (174);
+        cardArea.removeFromBottom (8);
+        cardRects[1] = cardArea;                          // Harmony
+        cardRects[3] = cardBottom.removeFromRight (266);  // Level
+        cardBottom.removeFromRight (4);
+        cardRects[2] = cardBottom;                        // MIDI
+
+        for (size_t index = 0; index < cardPaths.size(); ++index)
+        {
+            cardPaths[index].clear();
+            cardPaths[index].addRoundedRectangle (cardRects[index].toFloat(),
+                                                  voxchord::ui::cardCornerRadius);
+        }
+    }
+
     auto bounds = getLocalBounds().reduced (26);
 
     auto header = bounds.removeFromTop (74);
@@ -860,6 +896,8 @@ void VoxChordAudioProcessorEditor::resized()
 
     auto characterOuter = controlsTop.removeFromLeft (characterWidth).reduced (5, 0);
     characterCardBounds = characterOuter;
+    characterCardPath.clear();
+    characterCardPath.addRoundedRectangle (characterCardBounds.toFloat(), 10.0f);
     auto characterGroup = characterOuter.reduced (14, 8);
     characterGroup.removeFromTop (18);
     auto typeRow = characterGroup.removeFromTop (22);
@@ -872,6 +910,10 @@ void VoxChordAudioProcessorEditor::resized()
 
     layoutEditableSlider (spreadSlider, spreadLabel, spreadValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
     layoutEditableSlider (dryWetSlider, dryWetLabel, dryWetValueLabel, controlsTop.removeFromLeft (knobWidth).reduced (5));
+
+    // Visual hierarchy: Dry/Wet is the primary performance control, so the
+    // supporting Spread knob is drawn one step smaller.
+    spreadSlider.setBounds (spreadSlider.getBounds().reduced (8));
 
     auto level = bottom.removeFromRight (250).reduced (12);
     bottom.removeFromRight (4);
@@ -983,20 +1025,31 @@ void VoxChordAudioProcessorEditor::layoutSectionTitle (juce::Graphics& g,
                                                        juce::Rectangle<int> bounds,
                                                        const juce::String& title)
 {
-    g.setColour (juce::Colour::fromRGB (190, 205, 205));
-    g.setFont (juce::FontOptions { 14.5f, juce::Font::bold });
-    g.drawFittedText (title, bounds.reduced (14).removeFromTop (20), juce::Justification::centredLeft, 1);
+    // Tier-3 typography: small, letterspaced uppercase with an accent tick.
+    auto area = bounds.reduced (16).removeFromTop (18);
+    const auto bar = area.removeFromLeft (4);
+    g.setColour (accentColour());
+    g.fillRoundedRectangle (bar.toFloat().withSizeKeepingCentre (3.0f, 12.0f), 1.5f);
+    area.removeFromLeft (8);
+
+    auto font = juce::Font { juce::FontOptions { 12.5f, juce::Font::bold } };
+    font.setExtraKerningFactor (0.14f);
+    g.setColour (voxchord::ui::textLow());
+    g.setFont (font);
+    g.drawFittedText (title.toUpperCase(), area, juce::Justification::centredLeft, 1);
 }
 
 void VoxChordAudioProcessorEditor::configureEditableValueLabel (juce::Label& label)
 {
+    // Recessed value field: dark well + hairline. The accent stays reserved
+    // for value arcs and on-states, not for static outlines.
     label.setEditable (true, true, false);
     label.setJustificationType (juce::Justification::centred);
-    label.setColour (juce::Label::textColourId, juce::Colours::white);
-    label.setColour (juce::Label::backgroundColourId, juce::Colour::fromRGB (18, 23, 27));
-    label.setColour (juce::Label::outlineColourId, accentColour().withAlpha (0.45f));
-    label.setColour (juce::Label::textWhenEditingColourId, juce::Colours::white);
-    label.setColour (juce::Label::backgroundWhenEditingColourId, juce::Colour::fromRGB (18, 23, 27));
+    label.setColour (juce::Label::textColourId, voxchord::ui::textHigh());
+    label.setColour (juce::Label::backgroundColourId, voxchord::ui::well());
+    label.setColour (juce::Label::outlineColourId, juce::Colours::white.withAlpha (0.10f));
+    label.setColour (juce::Label::textWhenEditingColourId, voxchord::ui::textHigh());
+    label.setColour (juce::Label::backgroundWhenEditingColourId, voxchord::ui::well());
     label.setFont (juce::FontOptions { 13.5f, juce::Font::bold });
 }
 
