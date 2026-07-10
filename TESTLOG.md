@@ -1,5 +1,36 @@
 # VoxChord Test Log
 
+## 0.4.1 UI pass: Release cleanup, better level meters, usability tweaks
+
+Date: 2026-07-10
+
+Scope: Branch `exp/d3-psola`. GUI-only iteration (no DSP, no parameter changes) using the `vst-ui` capture loop. VERSION `0.4.0` -> `0.4.1`.
+
+Changes (`PluginEditor.h/.cpp`):
+
+- **Release cleanup**: the MIDI delivery counter row below the mini keyboard (`midiStatusLabel`) is now Debug-only (component not added, text not built in Release). The empty D1 band above the keyboard is also gone in Release. The mini keyboard now fills the remaining MIDI card height, so the panel reads as a keyboard rather than a debug console.
+- **Level meters**: added ballistics (instant attack, ~250 ms release) and a 1.5 s peak-hold marker that then decays, replacing the raw per-block peak that flickered. The fill now uses a fixed level-mapped gradient over the whole `-60..0 dB` range (green to about -15 dB, amber near -8 dB, red at 0 dB) instead of a gradient that rescaled with the level, so a given bar height always has the same colour. Clipping draws a red cap + red outline and swaps the dB readout for `CLIP`. The `-6/-12` scale ticks are brightened relative to `-24/-48`.
+- **Usability** (no CPU cost): double-clicking any knob or header slider returns it to its parameter default; clicking any meter clears the latched clip flags (previously only PANIC did).
+
+CPU: all meter state updates happen in `setLevel()` on the existing 30 Hz editor timer (a few float ops per meter); `paint()` adds one clipped rounded-rect fill, one 2 px line and, when clipped, one small rect. No audio-thread work was touched.
+
+Verification (agent, `vst-ui` capture loop, 3 captures):
+
+- Debug capture: v0.4.1 subtitle, D1 row and MIDI counters still present (Debug-only behaviour intact), meters show gradient + peak-hold markers.
+- Release capture (first pass): MIDI counters and D1 band gone, keyboard enlarged, no clipping/overlap, subtitle `VoxChord v0.4.1` fits. Meter gradient turned amber-ish too early (~-23 dB).
+- Release capture (second pass, after moving the gradient stops to 0.75/0.88): bar reads saturated green at -40 dB, peak-hold markers visible. All checks pass: intended changes present, no overflow/overlap, alignment and contrast fine, no layout regressions elsewhere.
+- Final capture: `scratchpad/ui-check-04-release.png` (see also `ui-check-01.png` = before, `ui-check-02-debug.png`).
+- Plugin Debug + Release built (VST3 + Standalone), exit 0, only pre-existing warnings.
+
+Also noted (not a defect): the Standalone restores its saved session, so its `Retune` showed `200 ms` (stored value) rather than the new `1 ms` default; APVTS defaults apply to new instances only.
+
+Not verifiable from a static capture (user verification pending):
+
+1. Meter ballistics and peak-hold decay in motion with real audio; whether the release time feels right.
+2. Clip behaviour: drive the input to clipping, confirm the red cap + `CLIP` text, then click a meter to clear it.
+3. Double-click reset on each knob returns the expected default.
+4. DAW-hosted rendering (scaling, resizing) of the new meter and the Release MIDI panel.
+
 ## 0.4.0 Beta freeze: High Quality (PSOLA) as the default engine (directions/0709_1)
 
 Date: 2026-07-09

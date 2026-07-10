@@ -388,6 +388,7 @@ Header:
 - Auto Tune toggle.
 - Input Source dropdown.
 - Mono Out toggle.
+- High Quality toggle (engine selector).
 - PANIC button.
 
 Harmony:
@@ -398,24 +399,25 @@ Harmony:
 - Spread.
 - Dry/Wet.
 - Voices, Glide, Character Amount, Spread, and Dry/Wet support direct numeric entry.
+- All knobs and the header sliders reset to their parameter default on double-click.
 - There is no Tune/Retune knob by design; the `tune` (Retune) parameter is host-automatable only and defaults to full hard-tune.
 
 MIDI:
 
 - Active MIDI note names.
-- Display-only mini keyboard covering C2-C6.
-- Debug builds show MIDI delivery counters for VST3 routing diagnostics.
+- Display-only mini keyboard covering C2-C6. In Release builds the keyboard fills the remaining height of the MIDI card.
+- Debug builds only: MIDI delivery counters below the keyboard (VST3 routing diagnostics) and the D1 pitch readout above it. Release builds show neither.
 
 Level:
 
-- Vertical input meter.
-- Connected stereo Output L/R meters.
-- Output meters show post-output-gain values.
-- With Mono Out enabled, both output meters show the mono result after smoothing.
+- Vertical input meter and connected stereo Output L/R meters. Output meters show post-output-gain values; with Mono Out enabled both show the mono result after smoothing.
+- Meter ballistics (message thread, driven by the 30 Hz editor timer): instant attack, ~250 ms release, plus a peak-hold marker held for 1.5 s and then decaying.
+- Bar colour comes from a fixed level-mapped gradient over the meter's full `-60..0 dB` range (green up to about -15 dB, amber around -8 dB, red at 0 dB), so a given height always has the same colour.
+- Clipping latches: the meter draws a red cap, a red outline, and shows `CLIP` instead of the dB value. Clicking any meter clears the latched clip flags (PANIC also clears them).
 
 Debug display:
 
-- Debug subtitle uses `VoxChord v<version> | Build: <diagnostic-build-id>` when a diagnostic build identifier is set (currently `d1-lowpitch-diag-002`).
+- Debug subtitle uses `VoxChord v<version> | Build: <diagnostic-build-id>` when a diagnostic build identifier is set (currently `lead-retune-001`).
 - Release subtitle uses `VoxChord v<version>`.
 - Pitch self-test summary and detailed pitch runtime fields are hidden by default.
 - Character and pitch diagnostic code remains available for future debugging.
@@ -434,7 +436,7 @@ Debug display:
 
 - Pitch detection quality remains experimental for real vocal material.
 - `Retune` (`tune` parameter) is functional (Lead Tune snap speed) and defaults to `1.00`; by design it has no on-screen knob and is reachable via host automation only.
-- Debug MIDI counters are still visible in Debug builds and may be removed or relocated later.
+- Debug MIDI counters and the D1 pitch readout are Debug-only; Release builds show neither.
 - Pitch shifter is lightweight and low-latency oriented, not high-quality offline pitch shifting.
 - Standalone device settings persistence has not been implemented as a VoxChord-specific feature.
 - No internal reverb, delay, preset browser, scale/chord detection, or AI voice conversion is implemented.

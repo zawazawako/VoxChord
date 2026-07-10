@@ -52,10 +52,26 @@ private:
         void setTitle (const juce::String& newTitle);
         void setLevel (float newPeak, bool isClipped);
         void paint (juce::Graphics& g) override;
+        void mouseDown (const juce::MouseEvent& event) override;
+
+        // Called when the meter is clicked; used to clear latched clip flags.
+        std::function<void()> onClick;
 
     private:
+        // Meter ballistics run on the editor's 30 Hz timer: instant attack,
+        // ~250 ms release, plus a 1.5 s peak-hold marker that then decays.
+        static constexpr float floorDb = -60.0f;
+        static constexpr float releaseCoefficient = 0.28f;
+        static constexpr int peakHoldFrameCount = 45;
+        static constexpr float peakHoldDecayPerFrame = 0.012f;
+
+        static float normalizedFor (float linearPeak) noexcept;
+
         juce::String title;
-        float peak = 0.0f;
+        float peak = 0.0f;         // raw linear peak, for the dB readout
+        float displayLevel = 0.0f; // ballistic bar height, 0..1
+        float peakHold = 0.0f;     // peak-hold marker, 0..1
+        int peakHoldFrames = 0;
         bool clipped = false;
     };
 

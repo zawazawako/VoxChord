@@ -215,11 +215,46 @@ void VoxChordAudioProcessorEditor::VerticalMeter::setTitle (const juce::String& 
     repaint();
 }
 
+float VoxChordAudioProcessorEditor::VerticalMeter::normalizedFor (float linearPeak) noexcept
+{
+    const auto db = juce::Decibels::gainToDecibels (linearPeak, floorDb);
+    return juce::jmap (juce::jlimit (floorDb, 0.0f, db), floorDb, 0.0f, 0.0f, 1.0f);
+}
+
 void VoxChordAudioProcessorEditor::VerticalMeter::setLevel (float newPeak, bool isClipped)
 {
     peak = juce::jlimit (0.0f, 1.5f, newPeak);
     clipped = isClipped;
+
+    const auto target = normalizedFor (peak);
+
+    // Instant attack so transients are never under-read; smooth release so the
+    // bar reads as a level rather than a flicker.
+    displayLevel = target > displayLevel
+                       ? target
+                       : displayLevel + (target - displayLevel) * releaseCoefficient;
+
+    if (target >= peakHold)
+    {
+        peakHold = target;
+        peakHoldFrames = peakHoldFrameCount;
+    }
+    else if (peakHoldFrames > 0)
+    {
+        --peakHoldFrames;
+    }
+    else
+    {
+        peakHold = juce::jmax (displayLevel, peakHold - peakHoldDecayPerFrame);
+    }
+
     repaint();
+}
+
+void VoxChordAudioProcessorEditor::VerticalMeter::mouseDown (const juce::MouseEvent&)
+{
+    if (onClick != nullptr)
+        onClick();
 }
 
 void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
@@ -228,9 +263,6 @@ void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
     const auto labelArea = bounds.removeFromTop (20.0f);
     const auto valueArea = bounds.removeFromBottom (18.0f);
     const auto meterArea = bounds.reduced (5.0f, 3.0f);
-    const auto db = juce::Decibels::gainToDecibels (peak, -60.0f);
-    const auto normalized = juce::jmap (juce::jlimit (-60.0f, 0.0f, db), -60.0f, 0.0f, 0.0f, 1.0f);
-    const auto fillHeight = meterArea.getHeight() * normalized;
 
     g.setColour (juce::Colour::fromRGB (200, 211, 214));
     g.setFont (juce::FontOptions { 13.5f, juce::Font::bold });
@@ -239,29 +271,63 @@ void VoxChordAudioProcessorEditor::VerticalMeter::paint (juce::Graphics& g)
     g.setColour (juce::Colour::fromRGB (20, 25, 29));
     g.fillRoundedRectangle (meterArea, 5.0f);
 
+    const auto yForNormalized = [&meterArea] (float value)
+    {
+        return meterArea.getBottom() - meterArea.getHeight() * juce::jlimit (0.0f, 1.0f, value);
+    };
+
     for (auto markDb : { 0.0f, -6.0f, -12.0f, -24.0f, -48.0f })
     {
-        const auto y = juce::jmap (markDb, -60.0f, 0.0f, meterArea.getBottom(), meterArea.getY());
-        g.setColour (juce::Colour::fromRGB (68, 77, 82));
+        const auto y = juce::jmap (markDb, floorDb, 0.0f, meterArea.getBottom(), meterArea.getY());
+        g.setColour (juce::Colour::fromRGB (68, 77, 82).withAlpha (markDb >= -12.0f ? 0.95f : 0.6f));
         g.drawHorizontalLine (juce::roundToInt (y), meterArea.getX(), meterArea.getRight());
     }
 
-    auto fill = meterArea.withY (meterArea.getBottom() - fillHeight).withHeight (fillHeight);
-    g.setGradientFill (juce::ColourGradient (accentColour(),
-                                             fill.getX(),
-                                             fill.getBottom(),
-                                             clipped ? dangerColour() : juce::Colour::fromRGB (223, 234, 150),
-                                             fill.getX(),
-                                             fill.getY(),
-                                             false));
-    g.fillRoundedRectangle (fill, 5.0f);
+    // Level-mapped gradient (green -> amber -> red) spanning the whole meter, so
+    // a given height always has the same colour regardless of the current level.
+    const auto fillHeight = meterArea.getHeight() * displayLevel;
+
+    if (fillHeight > 1.0f)
+    {
+        juce::ColourGradient gradient (accentColour(),
+                                       meterArea.getX(),
+                                       meterArea.getBottom(),
+                                       dangerColour(),
+                                       meterArea.getX(),
+                                       meterArea.getY(),
+                                       false);
+        // Stops chosen so the bar stays green up to about -15 dB, turns amber
+        // around -8 dB and reaches red only at 0 dB.
+        gradient.addColour (0.75, juce::Colour::fromRGB (223, 234, 150));
+        gradient.addColour (0.88, juce::Colour::fromRGB (238, 196, 96));
+
+        const auto fill = meterArea.withY (meterArea.getBottom() - fillHeight).withHeight (fillHeight);
+        g.setGradientFill (gradient);
+        g.saveState();
+        g.reduceClipRegion (fill.toNearestInt());
+        g.fillRoundedRectangle (meterArea, 5.0f);
+        g.restoreState();
+    }
+
+    if (peakHold > 0.001f)
+    {
+        const auto y = yForNormalized (peakHold);
+        g.setColour (juce::Colour::fromRGB (235, 244, 246).withAlpha (0.85f));
+        g.fillRect (meterArea.getX() + 1.0f, y - 1.0f, meterArea.getWidth() - 2.0f, 2.0f);
+    }
+
+    if (clipped)
+    {
+        g.setColour (dangerColour());
+        g.fillRoundedRectangle (meterArea.withHeight (5.0f), 2.0f);
+    }
 
     g.setColour (clipped ? dangerColour() : accentColour().withAlpha (0.65f));
     g.drawRoundedRectangle (meterArea, 5.0f, 1.2f);
 
-    g.setColour (juce::Colour::fromRGB (135, 155, 158));
+    g.setColour (clipped ? dangerColour() : juce::Colour::fromRGB (135, 155, 158));
     g.setFont (juce::FontOptions { 11.5f, juce::Font::bold });
-    g.drawFittedText (formatPeak (peak), valueArea.toNearestInt(), juce::Justification::centred, 1);
+    g.drawFittedText (clipped ? "CLIP" : formatPeak (peak), valueArea.toNearestInt(), juce::Justification::centred, 1);
 }
 
 void VoxChordAudioProcessorEditor::MiniKeyboard::setActiveNotes (const voxchord::MidiVoiceState::NoteSnapshot& newNotes)
@@ -521,7 +587,9 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
 
     configureStatusLabel (midiStatusLabel, "Last: --", juce::Justification::centredLeft);
     midiStatusLabel.setFont (juce::FontOptions (12.0f));
+#if JUCE_DEBUG
     addAndMakeVisible (midiStatusLabel);
+#endif
 
     configureStatusLabel (pitchDebugLabel, "D1: --", juce::Justification::centredLeft);
     pitchDebugLabel.setFont (juce::FontOptions { 13.5f, juce::Font::bold });
@@ -547,6 +615,25 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     addAndMakeVisible (outputLeftMeter);
     addAndMakeVisible (outputRightMeter);
     addAndMakeVisible (miniKeyboard);
+
+    // Clicking any meter clears the latched clip indicators (previously only
+    // PANIC did), and double-clicking a knob returns it to its default.
+    for (auto* meter : { &inputMeter, &outputLeftMeter, &outputRightMeter })
+        meter->onClick = [this] { processorRef.clearClipFlags(); };
+
+    const auto setDoubleClickReset = [&state] (juce::Slider& slider, const juce::String& parameterId)
+    {
+        if (auto* parameter = dynamic_cast<juce::RangedAudioParameter*> (state.getParameter (parameterId)))
+            slider.setDoubleClickReturnValue (true, parameter->convertFrom0to1 (parameter->getDefaultValue()));
+    };
+
+    setDoubleClickReset (voiceCountSlider, voxchord::ParameterIDs::voiceCount);
+    setDoubleClickReset (glideSlider, voxchord::ParameterIDs::glide);
+    setDoubleClickReset (characterAmountSlider, voxchord::ParameterIDs::character);
+    setDoubleClickReset (spreadSlider, voxchord::ParameterIDs::spread);
+    setDoubleClickReset (dryWetSlider, voxchord::ParameterIDs::dryWet);
+    setDoubleClickReset (inputGainSlider, voxchord::ParameterIDs::inputGainDb);
+    setDoubleClickReset (outputSlider, voxchord::ParameterIDs::outputLevel);
 
     panicButton.setColour (juce::TextButton::buttonColourId, juce::Colour::fromRGB (126, 39, 45));
     panicButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour::fromRGB (166, 52, 59));
@@ -698,16 +785,18 @@ void VoxChordAudioProcessorEditor::resized()
 
     midi.removeFromTop (22);
 #if JUCE_DEBUG
-    // Show the D1 readout in the previously-empty band above the keyboard so it
-    // is actually legible (the old 16px bottom slot buried it). Debug only.
+    // Debug only: the D1 readout sits in the band above the keyboard, and the
+    // MIDI input counters below it. Release keeps neither and gives the whole
+    // remaining card height to the keyboard.
     pitchDebugLabel.setBounds (midi.removeFromTop (26).reduced (4, 3));
-#else
-    midi.removeFromTop (26);
-#endif
     midiNotesLabel.setBounds (midi.removeFromTop (22));
     miniKeyboard.setBounds (midi.removeFromTop (54));
     auto debugRow = midi.removeFromTop (32);
     midiStatusLabel.setBounds (debugRow.removeFromTop (16).reduced (4, 1));
+#else
+    midiNotesLabel.setBounds (midi.removeFromTop (22));
+    miniKeyboard.setBounds (midi.reduced (0, 4));
+#endif
 }
 
 void VoxChordAudioProcessorEditor::timerCallback()
@@ -990,6 +1079,7 @@ void VoxChordAudioProcessorEditor::updateMidiState()
     voiceSlotsLabel.setText (slots, juce::dontSendNotification);
     miniKeyboard.setActiveNotes (notes);
 
+#if JUCE_DEBUG
     const auto midiInputDebug = processorRef.getMidiInputDebugSnapshot();
     midiStatusLabel.setText ("MIDI In: blocks "
                                  + juce::String (midiInputDebug.processBlockCounter)
@@ -1000,6 +1090,7 @@ void VoxChordAudioProcessorEditor::updateMidiState()
                                  + " | nonempty "
                                  + juce::String (midiInputDebug.nonEmptyBlockCounter),
                              juce::dontSendNotification);
+#endif
 
     const auto activity = processorRef.getMidiActivitySnapshot();
 
