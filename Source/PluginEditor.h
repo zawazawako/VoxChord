@@ -50,8 +50,7 @@ private:
     static juce::String formatPercentValue (float value);
     static juce::String formatIntegerValue (float value);
 
-    class VerticalMeter final : public juce::Component,
-                                public juce::SettableTooltipClient
+    class VerticalMeter final : public juce::Component
     {
     public:
         void setTitle (const juce::String& newTitle);
@@ -139,7 +138,6 @@ private:
     juce::ToggleButton monoOutputButton { "Mono Out" };
     juce::ToggleButton psolaButton { "High Quality" };
     juce::TextButton panicButton { "PANIC" };
-    juce::TooltipWindow tooltipWindow { this, 600 };
     juce::Rectangle<int> characterCardBounds;
 
     std::unique_ptr<ComboBoxAttachment> voiceCountAttachment;

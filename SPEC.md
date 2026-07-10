@@ -401,7 +401,7 @@ Harmony:
 - Dry/Wet.
 - Character Amount, Spread, and Dry/Wet support direct numeric entry.
 - All knobs and the header sliders reset to their parameter default on double-click.
-- All controls have hover tooltips.
+- There are no hover tooltips (tried in 0.4.2, removed in 0.4.3: they did not appear for the Harmony controls).
 - There is no Tune/Retune knob by design; the `tune` (Retune) parameter is host-automatable only and defaults to full hard-tune.
 
 MIDI:

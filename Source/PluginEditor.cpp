@@ -662,23 +662,6 @@ VoxChordAudioProcessorEditor::VoxChordAudioProcessorEditor (VoxChordAudioProcess
     };
     addAndMakeVisible (panicButton);
 
-    voiceCountBox.setTooltip ("Number of harmony voices (1-8).");
-    glideBox.setTooltip ("Pitch glide between MIDI notes. None = instant, Strong = slowest.");
-    characterModeBox.setTooltip ("Character type: Warm (dark), Bright (airy), Vowel (moving formants), Digital (lo-fi).");
-    characterAmountSlider.setTooltip ("How strongly the selected Character type is applied.");
-    spreadSlider.setTooltip ("Stereo spread of the harmony voices.");
-    dryWetSlider.setTooltip ("Balance between the dry input and the wet choir.");
-    inputGainSlider.setTooltip ("Gain applied to the input before pitch analysis.");
-    outputSlider.setTooltip ("Final output gain.");
-    leadTuneButton.setTooltip ("Auto Tune: retunes the dry lead to the nearest chromatic note.");
-    monoOutputButton.setTooltip ("Sum the stereo output to mono.");
-    psolaButton.setTooltip ("High Quality harmony engine (PSOLA). Uncheck for the lighter Classic shifter.");
-    inputSourceBox.setTooltip ("Standalone only: which audio input feeds the plugin.");
-    panicButton.setTooltip ("Stop all voices, clear stuck notes and reset clip indicators.");
-    inputMeter.setTooltip ("Input level. Click to clear the clip indicator.");
-    outputLeftMeter.setTooltip ("Output level (left). Click to clear the clip indicator.");
-    outputRightMeter.setTooltip ("Output level (right). Click to clear the clip indicator.");
-
     updateEditableValueLabels();
     setSize (860, 540);
     startTimerHz (30);

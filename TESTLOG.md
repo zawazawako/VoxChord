@@ -1,5 +1,15 @@
 # VoxChord Test Log
 
+## 0.4.3 Remove tooltips
+
+Date: 2026-07-10
+
+Scope: Branch `exp/d3-psola`. GUI-only. User testing of 0.4.2 found that tooltips appeared for the header toggles (Auto Tune / Mono Out / High Quality) but not for the Harmony controls (knobs and dropdowns). Rather than chase the cause, the feature was dropped. VERSION `0.4.2` -> `0.4.3`.
+
+Changes: removed the `TooltipWindow` member, all `setTooltip()` calls, and the `SettableTooltipClient` base from `VerticalMeter`. Everything else from 0.4.2 (header alignment, Input/PANIC sizing, Voices/Glide dropdowns) is unchanged.
+
+Verification (agent): plugin Debug + Release built (VST3 + Standalone), exit 0, only pre-existing warnings. Release capture (`ui-check-09-release.png`) confirms the layout is identical to 0.4.2 apart from the version string.
+
 ## 0.4.2 UI pass 2: tooltips, header alignment, Voices/Glide dropdowns
 
 Date: 2026-07-10
