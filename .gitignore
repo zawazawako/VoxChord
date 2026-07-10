@@ -8,3 +8,6 @@ directions/
 # Agent-facing docs: kept locally, never published
 AGENTS.md
 CLAUDE.md
+
+# Local release staging (binaries + zips)
+release/
